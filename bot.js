@@ -5,7 +5,10 @@ const app = express();
 
 const sendRemainPlan = require('./actions/sendRemainPlan');
 const sendRemainOff = require('./actions/sendRemainOff');
+const sendMeetingInfo = require('./actions/sendMeetingInfo');
+const sendTaskReminder = require('./actions/sendTaskReminder');
 const helpAction = require('./actions/help');
+const initSchedulers = require('./schedulers');
 
 app.use(express.json());
 
@@ -16,6 +19,7 @@ const WEBHOOK_TOKEN = process.env.CHATWORK_WEBHOOK_TOKEN;
 const BOT_ACCOUNT_ID = process.env.CHATWORK_BOT_ACCOUNT_ID;
 const BOT_ACCOUNT_NAME = process.env.CHATWORK_BOT_ACCOUNT_NAME || 'Bot';
 const PORT = process.env.PORT || 3000;
+initSchedulers(ROOM_ID, API_TOKEN);
 
 app.post('/webhook', async (req, res) => {
   try {
@@ -65,13 +69,19 @@ app.post('/webhook', async (req, res) => {
     }
 
     if (command) {
-      if (command === "report") {
+      if (command.includes("report")) {
         console.log("Xác thực thành công! Đang chuẩn bị gửi report theo lệnh...");
         await sendRemainPlan(ROOM_ID, API_TOKEN);
-      } else if (command === "leave") {
+      } else if (command.includes("leave")) {
         console.log("Xác thực thành công! Đang chuẩn bị gửi nhắc nhở theo lệnh...");
         await sendRemainOff(ROOM_ID, API_TOKEN);
-      } else if (command === "help") {
+      } else if (command.includes("meeting")) {
+        console.log("Xác thực thành công! Đang chuẩn bị gửi thông tin phòng họp...");
+        await sendMeetingInfo(ROOM_ID, API_TOKEN);
+      } else if (command.includes("task")) {
+        console.log("Xác thực thành công! Đang chuẩn bị gửi nhắc nhở công việc...");
+        await sendTaskReminder(ROOM_ID, API_TOKEN);
+      } else if (command.includes("help")) {
         console.log("Xác thực thành công! Đang chuẩn bị gửi hướng dẫn...");
         await helpAction(ROOM_ID, API_TOKEN, BOT_ACCOUNT_NAME);
       }

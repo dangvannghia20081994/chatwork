@@ -49,7 +49,45 @@ PORT=8080
 ```
 
 ## 4. Chạy Bot
+
+### Cách 1: Chạy đồng thời cả ngrok và bot (Khuyên dùng)
+Để chạy cả ngrok (với domain đã cấu hình) và bot cùng lúc trong một terminal, hãy sử dụng:
 ```bash
 npm install
-node bot.js
+npm run dev
 ```
+
+### Cách 2: Chạy riêng lẻ
+Nếu bạn muốn chạy từng thành phần riêng biệt:
+1. Chạy ngrok: `ngrok http --domain=these-cadet-unaired.ngrok-free.dev 8080`
+2. Chạy bot: `node bot.js` (hoặc `npm start`)
+
+### Lưu ý về tính duy trì (Persistence)
+Để bot và ngrok luôn chạy kể cả khi bạn đóng terminal, bạn nên sử dụng **pm2**:
+
+1. Cài đặt pm2: `npm install -g pm2`
+2. Chạy cả bot và ngrok bằng file cấu hình:
+    ```bash
+    pm2 start ecosystem.config.js
+    ```
+3. Các lệnh quản lý khác:
+    - Xem danh sách:
+   ```bash
+   pm2 list
+   ```
+    - Xem log:
+    ```bash
+    pm2 logs
+   ```
+  - Restart (sau khi sửa code):
+    ```bash
+    pm2 restart all
+    ```
+  - Dừng tất cả:
+    ```bash
+    pm2 stop all
+    ```
+  - Xóa các tiến trình khỏi pm2:
+    ```bash
+    pm2 delete all
+    ```
