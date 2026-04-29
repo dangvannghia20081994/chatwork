@@ -7,6 +7,7 @@ async function help(roomId, apiToken, botName = 'Bot') {
   (F) *leave*: 🏠 Nhắc nhở điền thông tin nghỉ/đi muộn/về sớm.
   (F) *meeting*: 📅 Hiển thị thông tin phòng họp.
   (F) *task*: 📝 Nhắc nhở kiểm tra công việc trong ngày.
+  (F) *build*: 🔧 Chạy build trên server — gửi đúng *một dòng* trigger: /web, /app, /api, /api-mobile.
   (F) *help*: ❓ Hiển thị danh sách các lệnh hỗ trợ.
   [hr]💡 *Mẹo*: Mention tôi và kèm theo lệnh (VD: ${botName} help)[/info]`;
 

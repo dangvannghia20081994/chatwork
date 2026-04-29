@@ -8,6 +8,7 @@ const sendRemainOff = require('./actions/sendRemainOff');
 const sendMeetingInfo = require('./actions/sendMeetingInfo');
 const sendTaskReminder = require('./actions/sendTaskReminder');
 const helpAction = require('./actions/help');
+const { sendBuildFromChatwork, isBuildChatCommand } = require('./actions/build');
 const initSchedulers = require('./schedulers');
 
 app.use(express.json());
@@ -69,7 +70,10 @@ app.post('/webhook', async (req, res) => {
     }
 
     if (command) {
-      if (command.includes("report")) {
+      if (isBuildChatCommand(command)) {
+        console.log('Xác thực thành công! Đang chạy build theo trigger Chatwork...');
+        await sendBuildFromChatwork(ROOM_ID, API_TOKEN, command);
+      } else if (command.includes("report")) {
         console.log("Xác thực thành công! Đang chuẩn bị gửi report theo lệnh...");
         await sendRemainPlan(ROOM_ID, API_TOKEN);
       } else if (command.includes("leave")) {

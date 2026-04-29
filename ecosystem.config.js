@@ -10,7 +10,7 @@ module.exports = {
     {
       name: "ngrok webhook",
       script: "ngrok",
-      args: "http --domain=these-cadet-unaired.ngrok-free.dev 8080",
+      args: "http --domain=these-cadet-unaired.ngrok-free.dev 8090",
       exec_mode: "fork",
       autorestart: true,
       watch: false
