@@ -1,0 +1,22 @@
+{
+  "name": "ai-agent-ui-next",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js UI for the AI agent (REZIL + Story). Backend logic in route handlers; ports ui/server.js incrementally.",
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1 -p 4179",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1 -p 4179",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0"
+  }
+}

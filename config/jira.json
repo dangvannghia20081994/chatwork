@@ -1,0 +1,20 @@
+{
+  "site": "rezil-electrical.atlassian.net",
+  "cloudId": "171f4fa5-5402-4666-93b8-1be1f987006a",
+  "project": "REZIL",
+  "defaultIssueType": "Bug",
+  "account": "712020:45fde756-10a1-407a-b5a3-c31e5ce014e2",
+  "issueTypes": ["Epic", "Story", "Task", "Sub-Task", "Bug", "QA", "RoC", "Sub-RoC", "Technical Stuff"],
+  "branchTypeByIssueType": {
+    "Bug": "bug",
+    "QA": "fix",
+    "RoC": "roc",
+    "Sub-RoC": "roc",
+    "Task": "feature",
+    "Story": "feature",
+    "Epic": "feature",
+    "Sub-Task": "feature",
+    "Technical Stuff": "feat"
+  },
+  "defaultBranchType": "fix"
+}

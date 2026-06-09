@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* class-based dark mode: <html class="dark"> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Semantic colors flip with the .dark class on <html>. */
+:root {
+  --bg: #ffffff;
+  --panel: #f5f6f8;
+  --line: #e2e5ea;
+  --ink: #1b1f27;
+  --muted: #5b6270;
+  --dim: #8a909c;
+  --blue: #2f6df6;
+  --purple: #7c3aed;
+  --green: #2e9e3f;
+  --err: #d92d4b;
+  --field: #ffffff;
+  --fieldline: #cfd4dc;
+  --mebubble: #e7edff;
+  --mebubblestory: #efe7ff;
+  --mebubbleink: #16245e;
+  --warnbg: #fff4e0;
+  --warnink: #9a6700;
+}
+
+.dark {
+  --bg: #0f1117;
+  --panel: #161a23;
+  --line: #232838;
+  --ink: #e6e6e6;
+  --muted: #8b93a7;
+  --dim: #6b7384;
+  --blue: #7aa2f7;
+  --purple: #bb9af7;
+  --green: #9ece6a;
+  --err: #f7768e;
+  --field: #0b0d13;
+  --fieldline: #2a3043;
+  --mebubble: #1f2740;
+  --mebubblestory: #2a2440;
+  --mebubbleink: #cdd6f4;
+  --warnbg: #3a2417;
+  --warnink: #f7b955;
+}
+
+/* `inline` → utilities (bg-bg, text-ink, ...) reference the var, so they re-resolve on theme switch. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-blue: var(--blue);
+  --color-purple: var(--purple);
+  --color-green: var(--green);
+  --color-err: var(--err);
+  --color-field: var(--field);
+  --color-fieldline: var(--fieldline);
+  --color-mebubble: var(--mebubble);
+  --color-mebubblestory: var(--mebubblestory);
+  --color-mebubbleink: var(--mebubbleink);
+  --color-warnbg: var(--warnbg);
+  --color-warnink: var(--warnink);
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+
+/* Tailwind v4 dropped the default button cursor — restore it (disabled buttons keep their own). */
+button:not(:disabled) {
+  cursor: pointer;
+}

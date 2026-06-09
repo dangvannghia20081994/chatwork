@@ -1,0 +1,33 @@
+{
+  "org": "hybrid-tech-rezil",
+  "defaultRepo": "rezil-esms",
+  "branchRule": {
+    "pattern": "<type>/<YYYY-MM>-REZIL-XXXX-<SCREEN-CODE>",
+    "types": ["feature", "feat", "fix", "bug", "roc"],
+    "defaultType": "fix",
+    "screenCodeUppercase": true,
+    "example": "fix/2026-06-REZIL-2314-ISSUE-002"
+  },
+  "neverMerge": true,
+  "neverForcePush": true,
+  "repos": {
+    "rezil-esms": {
+      "path": "/home/nghiadv/IdeaProjects/rezil-esms",
+      "remote": "https://github.com/hybrid-tech-rezil/rezil-esms.git",
+      "baseBranch": "feature/mvp2",
+      "role": "full-stack: Scala backend (be-api, be-lambda) + Svelte frontend (app)"
+    },
+    "rezil-esms-lib": {
+      "path": "/home/nghiadv/IdeaProjects/rezil-esms-lib",
+      "remote": "https://github.com/hybrid-tech-rezil/rezil-esms-lib.git",
+      "baseBranch": "feature/mvp2",
+      "role": "shared library (Scala)"
+    },
+    "rezil-esms-mobile": {
+      "path": "/home/nghiadv/IdeaProjects/rezil-esms-mobile",
+      "remote": "https://github.com/hybrid-tech-rezil/rezil-esms-mobile.git",
+      "baseBranch": "feature/mvp2",
+      "role": "mobile full-stack: Scala backend (be-api) + Svelte frontend (app)"
+    }
+  }
+}

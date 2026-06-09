@@ -1,0 +1,13 @@
+{
+  "name": "ESMS",
+  "jiraProject": "REZIL",
+  "description": "Energy/Site Management System — full-stack monorepos (Scala + Svelte)",
+  "stack": ["Scala", "Svelte", "TypeScript", "MySQL"],
+  "repos": ["rezil-esms", "rezil-esms-lib", "rezil-esms-mobile"],
+  "defaultRepo": "rezil-esms",
+  "mainBranch": "feature/mvp2",
+  "environments": {
+    "mvp1": "mysql_207",
+    "preuat": "mysql_165"
+  }
+}

@@ -1,0 +1,97 @@
+import Link from "next/link";
+import ThemeToggle from "./ThemeToggle";
+
+// Literal class strings per accent (Tailwind JIT only sees static classes).
+const ACCENT = {
+  blue: { chip: "bg-blue/15 text-blue", dot: "bg-blue", hover: "hover:border-blue/60" },
+  purple: { chip: "bg-purple/15 text-purple", dot: "bg-purple", hover: "hover:border-purple/60" },
+};
+
+const GROUPS = [
+  {
+    name: "REZIL",
+    accent: "blue",
+    tag: "rezil-esms · Jira-driven",
+    cards: [
+      { href: "/auto", icon: "⚙️", title: "Auto", body: "Nhập ticket REZIL-xxxx → implement → PR" },
+      { href: "/chat?project=rezil", icon: "💬", title: "Chat", body: "Hỏi/sửa code · gõ /usage xem giới hạn" },
+    ],
+  },
+  {
+    name: "Story",
+    accent: "purple",
+    tag: "Laravel · Next · Expo · workers",
+    cards: [
+      { href: "/story", icon: "⚙️", title: "Auto", body: "Task free-form → PR sang develop" },
+      { href: "/chat?project=story", icon: "💬", title: "Chat", body: "Hỏi/sửa repo story · agent tự nạp" },
+    ],
+  },
+];
+
+function Card({ href, icon, title, body, accent }) {
+  const a = ACCENT[accent];
+  return (
+    <Link
+      href={href}
+      className={`group relative flex items-start gap-4 rounded-2xl border border-line bg-panel p-5 no-underline transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/20 ${a.hover}`}
+    >
+      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${a.chip}`}>{icon}</div>
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 font-semibold text-ink">
+          {title}
+          <span className="text-muted opacity-0 transition-all duration-200 group-hover:translate-x-1 group-hover:opacity-100">→</span>
+        </div>
+        <p className="mt-1 text-[13px] leading-relaxed text-muted">{body}</p>
+      </div>
+    </Link>
+  );
+}
+
+export default function Home() {
+  return (
+    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden">
+      {/* glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-40 left-1/2 h-72 w-[42rem] max-w-[90vw] -translate-x-1/2 rounded-full bg-gradient-to-r from-blue to-purple opacity-20 blur-[110px]"
+      />
+
+      <header className="relative z-10 flex items-center justify-between px-6 py-5">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-blue to-purple" />
+          <span className="font-semibold text-ink">AI Agent</span>
+        </div>
+        <ThemeToggle />
+      </header>
+
+      <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-6 pb-16">
+        <h1 className="bg-gradient-to-r from-blue to-purple bg-clip-text text-4xl font-extrabold tracking-tight text-transparent sm:text-5xl">
+          Giao việc cho Claude.
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted sm:text-base">
+          Đưa một ticket hoặc task — Claude tự implement đến tận khi mở PR, theo đúng convention.
+          Không merge, không deploy. Chạy local.
+        </p>
+
+        <div className="mt-10 space-y-8">
+          {GROUPS.map((g) => (
+            <section key={g.name}>
+              <div className="mb-3 flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${ACCENT[g.accent].dot}`} />
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-ink">{g.name}</h2>
+                <span className="text-xs text-dim">· {g.tag}</span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {g.cards.map((c) => <Card key={c.href} accent={g.accent} {...c} />)}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+
+      <footer className="relative z-10 border-t border-line px-6 py-4 text-center text-xs text-dim">
+        Next.js · localhost:4179 · auto mode tạo PR thật — review trước khi merge.
+      </footer>
+    </main>
+  );
+}
