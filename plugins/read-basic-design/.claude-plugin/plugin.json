@@ -1,0 +1,8 @@
+{
+  "name": "read-basic-design",
+  "version": "1.0.0",
+  "description": "Đọc & tóm tắt spec 1 màn hình từ file Basic Design (HTML export Google Sheet) của dự án Rezil.",
+  "author": {
+    "name": "HTV - NghiaDV"
+  }
+}

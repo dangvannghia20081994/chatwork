@@ -1,0 +1,35 @@
+{
+  "name": "rezil-support",
+  "description": "Marketplace nội bộ chứa các plugin hỗ trợ dự án Rezil (báo cáo tiến độ, ...).",
+  "owner": {
+    "name": "HTV - NghiaDV",
+    "email": "anhndt@hybrid-technologies.vn"
+  },
+  "plugins": [
+    {
+      "name": "report-plan",
+      "source": "./plugins/report-plan",
+      "description": "Báo cáo tiến độ hàng ngày Rezil: đọc folder HTML export (Google Sheet), tìm member âm giờ, sinh nội dung dán Chatwork."
+    },
+    {
+      "name": "read-basic-design",
+      "source": "./plugins/read-basic-design",
+      "description": "Đọc & tóm tắt spec 1 màn hình từ file Basic Design (HTML export Google Sheet) của dự án Rezil; ghi report/design/<Screen>.md để gen-testcase dùng lại."
+    },
+    {
+      "name": "read-testcase-template",
+      "source": "./plugins/read-testcase-template",
+      "description": "Trích template test case UT/IT từ file mẫu (REZIL - Testcase/UT.html, IT.html) ra report/template/{ut,it}.md cho gen-testcase dùng lại."
+    },
+    {
+      "name": "gen-testcase",
+      "source": "./plugins/gen-testcase",
+      "description": "Sinh UT/IT test case cho 1 màn hình từ file Basic Design, theo đúng template test case của team Rezil."
+    },
+    {
+      "name": "gen-code",
+      "source": "./plugins/gen-code",
+      "description": "Sinh code FE (Svelte+OpenAPI), BE (Scala+Play), LIB (Scala shared library) cho 1 màn/feature Rezil từ Basic Design hoặc mô tả, theo convention repo."
+    }
+  ]
+}

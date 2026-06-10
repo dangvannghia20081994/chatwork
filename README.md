@@ -1,55 +1,54 @@
-# Hướng dẫn Setup Chatwork Bot
+# Rezil-support
+Giúp hỗ trợ trong việc báo cáo hàng ngày
+## Đọc nội dung từ Folder html (được download từ google sheet về)
+- Các file chính cần quan tâm:
+  + Overview: tổng hợp, báo cáo từ các sheet liên quan
+  + Expect: Chứa estimate của từng ticket theo member, date
+  + Actual: Thời gian mà member giảm dần theo từng ngày
+- Báo cáo với column tương ứng với ngày hiện tại
+## Sau khi đọc được hết nội dung từ folder
+- Đưa ra được báo cáo về tình hình các ticket: Ticket nào chậm, ticket nào nhanh hơn cho với expect
+- Đưa ra báo cáo về tình hình của từng member: Chậm bao nhiêu giờ, chậm ticket nào, ...
+## Sau khi có được báo cáo
+- Đưa ra nội dung hỗ trợ trong chartwork để tôi có thể copy
 
-Dự án này là một bot Chatwork đơn giản, lắng nghe các lệnh qua Webhook và gửi báo cáo vào một phòng Chatwork cụ thể.
+## Các plugin trong marketplace
 
-## 1. Setup ngrok
+Repo này là marketplace plugin nội bộ `rezil-support`, gồm:
 
-Để Chatwork có thể gửi Webhook đến máy local của bạn, bạn cần sử dụng ngrok để tạo một public URL.
+| Plugin | Skill | Việc | Phụ thuộc |
+|---|---|---|---|
+| `report-plan` | `/report-plan` | Báo cáo tiến độ daily → nội dung Chatwork | (độc lập) |
+| `read-basic-design` | `/read-basic-design` | Tóm tắt spec 1 màn; ghi `report/design/<Screen>.md` | (độc lập) |
+| `read-testcase-template` | `/read-testcase-template` | Trích template UT/IT → `report/template/{ut,it}.md` | (độc lập) |
+| `gen-testcase` | `/gen-testcase`, `/gen-testcase-batch` | Sinh UT/IT test case cho 1 màn / nhiều màn | **cần** `read-basic-design` + `read-testcase-template` |
+| `gen-code` | `/gen-code` | Sinh code FE/BE/LIB theo convention repo | **cần** `read-basic-design` (khi gen từ Basic Design) |
 
-1.  Tải và cài đặt ngrok từ [ngrok.com](https://ngrok.com/).
-2.  Chạy lệnh sau để public port 8080 (hoặc port bạn cấu hình trong `.env`):
-    ```shell
-    ngrok http 8080
-    ```
-    *Lưu ý: Nếu bạn có domain cố định, hãy sử dụng:*
-    ```shell
-    ngrok http --domain=these-cadet-unaired.ngrok-free.dev 8080
-    ```
-3.  Copy URL `https` mà ngrok cung cấp (ví dụ: `https://these-cadet-unaired.ngrok-free.dev`). URL này sẽ dùng để cấu hình Webhook trên Chatwork. (*Lưu ý: Thêm /webhook sau URL vì đây là link được code trong file bot.js :*)
-## 2. Setup Chatwork
+> ⚠️ `gen-testcase` và `gen-code` đọc file `.md` trung gian do `read-basic-design` / `read-testcase-template` sinh ra; khi thiếu chúng sẽ gọi `/read-basic-design`, `/read-testcase-template`. **Nên cài cả cụm** (read-basic-design + read-testcase-template + gen-testcase + gen-code) cùng nhau. `report-plan` cài riêng cũng được.
 
-### Lấy API Key
-1.  Đăng nhập vào Chatwork.
-2.  Truy cập **API Settings** (thường ở góc trên bên phải, dưới menu tên của bạn).
-3.  Nhập mật khẩu để lấy **API Token**.
-4.  Lưu Token này vào biến `CHATWORK_API_TOKEN` trong file `.env`.
+## Cài plugin khi repository để private
 
-### Thiết lập Webhook
-1.  Truy cập **Service Integration** > **Webhook** trong Chatwork.
-2.  Nhấn **Create New**.
-3.  **Webhook Name**: Đặt tên bất kỳ (ví dụ: `My Bot`).
-4.  **Webhook URL**: Dán URL từ ngrok vào và thêm `/webhook` ở cuối (ví dụ: `https://these-cadet-unaired.ngrok-free.dev/webhook`).
-5.  **Room ID**: Chọn phòng mà bạn muốn bot hoạt động.
-6.  **Event**: Chọn các sự kiện bạn muốn bot lắng nghe (ví dụ: `Message Created`).
-7.  Sau khi tạo, bạn sẽ nhận được một **Webhook Token**. Lưu Token này vào biến `CHATWORK_WEBHOOK_TOKEN` trong file `.env`.
+Khi repo **private**, plugin **vẫn dùng được** miễn là mỗi người có quyền đọc repo và đã cấu hình git auth (như khi clone private repo bình thường).
 
-### Lấy Room ID
-*   Room ID là dãy số cuối cùng trên thanh địa chỉ khi bạn truy cập vào phòng chat trên Chatwork (ví dụ: `#!rid12345678` thì Room ID là `12345678`).
-*   Lưu vào biến `CHATWORK_ROOM_ID` trong file `.env`.
+Điều kiện:
+1. Thành viên được cấp quyền đọc repo (add vào private repo / tổ chức).
+2. Máy đã thiết lập git auth — chọn 1 trong:
+   - **SSH**: đã thêm SSH key vào tài khoản git.
+   - **Credential helper**: đã đăng nhập (vd `gh auth login`).
+   - **Token**: đặt biến môi trường `GITHUB_TOKEN` (Personal Access Token có quyền đọc repo). Bắt buộc nếu muốn plugin **tự động cập nhật**.
 
-## 3. Cấu hình File .env
+Cài đặt (trong Claude Code):
+```
+# nếu đã auth qua gh
+/plugin marketplace add <owner>/rezil-support
+# hoặc dùng SSH URL
+/plugin marketplace add git@github.com:<owner>/rezil-support.git
 
-Tạo file `.env` ở thư mục gốc (nếu chưa có) và điền các thông tin sau:
-
-```env
-CHATWORK_API_TOKEN=your_api_token_here
-CHATWORK_WEBHOOK_TOKEN=your_webhook_token_here
-CHATWORK_ROOM_ID=your_room_id_here
-PORT=8080
+# cài plugin cần dùng (report-plan độc lập; cụm test case cài cả 3)
+/plugin install report-plan@rezil-support
+/plugin install read-basic-design@rezil-support
+/plugin install read-testcase-template@rezil-support
+/plugin install gen-testcase@rezil-support
 ```
 
-## 4. Chạy Bot
-```bash
-npm install
-node bot.js
-```
+Sau đó dùng `/report-plan`, `/read-basic-design`, `/gen-testcase`... ở bất kỳ project nào (đặt folder HTML nguồn vào thư mục làm việc trước khi chạy).

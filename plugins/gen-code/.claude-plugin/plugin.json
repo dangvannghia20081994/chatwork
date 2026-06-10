@@ -1,0 +1,8 @@
+{
+  "name": "gen-code",
+  "version": "1.0.0",
+  "description": "Sinh code FE / BE / LIB cho dự án Rezil ESMS (web + mobile) từ Basic Design hoặc mô tả, theo đúng convention thật của các repo: app (Svelte+aspida), be-api (Scala 3+Play+Circe), rezil-esms-lib (Ixias/Slick).",
+  "author": {
+    "name": "HTV - NghiaDV"
+  }
+}

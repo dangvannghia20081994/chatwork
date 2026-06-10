@@ -1,0 +1,8 @@
+{
+  "name": "read-testcase-template",
+  "version": "1.0.0",
+  "description": "Đọc file mẫu test case UT.html/IT.html (export Google Sheet) của team Rezil, trích cột & convention ra report/template/{ut,it}.md để gen-testcase dùng lại.",
+  "author": {
+    "name": "HTV - NghiaDV"
+  }
+}

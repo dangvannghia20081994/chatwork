@@ -1,0 +1,8 @@
+{
+  "name": "report-plan",
+  "version": "1.0.0",
+  "description": "Báo cáo tiến độ hàng ngày Rezil: đọc folder HTML export (Google Sheet), tìm member âm giờ, sinh nội dung dán Chatwork.",
+  "author": {
+    "name": "HTV - NghiaDV"
+  }
+}
