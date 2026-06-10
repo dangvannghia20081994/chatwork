@@ -1,35 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import AutoRunner, { LABEL, FIELD_BASE, fieldFocus } from "../_components/AutoRunner";
+import AgentConsole, { FIELD_BASE } from "../_components/AgentConsole";
 
 export default function StoryAuto() {
   const [task, setTask] = useState("");
 
-  return (
-    <AutoRunner
-      accent="purple"
-      icon="📖"
-      sidebarTitle="Story Auto"
-      sidebarSub="task → PR sang develop"
-      agentTitle="Story Agent"
-      agentSub="auto · task → PR develop"
-      chatHref="/chat?project=story"
-      endpoint="/api/story-run"
-      getParams={() => ({ task })}
-      cancelRepo="story"
-      storageKey="story"
-      hint="Claude dùng agent của story (story-master + agent layer) để implement → branch fix|feature/YYYY-MM-<desc> → PR sang develop. Repo story chạy 1 job tại một thời điểm."
-    >
-      <label className={LABEL}>Task (mô tả tự do)</label>
+  const config = {
+    mode: "job",
+    apiPath: "/api/story-run",
+    accent: "purple",
+    icon: "📖",
+    title: "Story Auto",
+    badge: "task → PR develop",
+    storageKey: "auto:story",
+    nav: [{ href: "/chat?project=story", label: "💬 Chat" }, { href: "/", label: "⌂ Home" }],
+    emptyText:
+      "Mô tả task tự do rồi Run. Claude dùng agent của story (story-master + agent layer) → branch fix|feature/YYYY-MM-<desc> → PR sang develop. Repo story chạy 1 job tại một thời điểm.",
+    getSubmission: () => {
+      const t = task.trim();
+      if (!t) return null;
+      return { display: t, params: { task: t }, cancelKey: "story" };
+    },
+    composer: () => (
       <textarea
         value={task}
         onChange={(e) => setTask(e.target.value)}
         placeholder={"VD: Thêm API lấy danh sách chương mới nhất theo story_id\nFix selector mục lục crawler nguồn X\nThêm nút tua nhanh 15s ở player web"}
         required
         autoFocus
-        className={`${FIELD_BASE} h-40 resize-y py-2 ${fieldFocus("purple")}`}
+        className={`${FIELD_BASE} h-28 resize-y py-2 focus:border-purple`}
       />
-    </AutoRunner>
-  );
+    ),
+  };
+
+  return <AgentConsole config={config} />;
 }

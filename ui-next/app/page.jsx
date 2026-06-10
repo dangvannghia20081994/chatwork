@@ -5,15 +5,18 @@ import ThemeToggle from "./ThemeToggle";
 const ACCENT = {
   blue: { chip: "bg-blue/15 text-blue", dot: "bg-blue", hover: "hover:border-blue/60" },
   purple: { chip: "bg-purple/15 text-purple", dot: "bg-purple", hover: "hover:border-purple/60" },
+  green: { chip: "bg-green/15 text-green", dot: "bg-green", hover: "hover:border-green/60" },
 };
 
 const GROUPS = [
   {
     name: "REZIL",
     accent: "blue",
-    tag: "rezil-esms · Jira-driven",
+    tag: "rezil-esms · Fix-Bug / Feature / Release",
     cards: [
-      { href: "/auto", icon: "⚙️", title: "Auto", body: "Nhập ticket REZIL-xxxx → implement → PR" },
+      { href: "/auto", icon: "⚙️", title: "Auto (Fix-Bug)", body: "Ticket REZIL-xxxx → fix tối thiểu → PR" },
+      { href: "/feature", icon: "🏗️", title: "Feature", body: "BD + Figma → 16 phase → Scala/Svelte → PR" },
+      { href: "/release", icon: "🚀", title: "Release", body: "Deploy DEV1 / PR / tag — agent github-ops" },
       { href: "/chat?project=rezil", icon: "💬", title: "Chat", body: "Hỏi/sửa code · gõ /usage xem giới hạn" },
     ],
   },

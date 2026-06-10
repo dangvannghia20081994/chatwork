@@ -20,9 +20,16 @@ Goals:
 6. Run tests and build before proposing completion.
 7. Stop and ask for help if requirements are ambiguous.
 
-## Workflow
+## Workflows
 
-Read Jira -> Create branch -> Implement -> Test -> Build -> Commit -> PR -> Update Jira.
+There are two workflows. Pick by task type:
+
+- **Fix-Bug** (`WORKFLOW.md`, `prompts/fix_bug.md`) — a bug fix / small change driven by a Jira ticket.
+  Read Jira -> Create branch -> Implement -> Test -> Build -> Commit -> PR -> Update Jira.
+- **Feature** (`WORKFLOW_FEATURE.md`, `prompts/feature_workflow.md`) — building a new feature from design
+  docs. 16 phases: BD + Figma -> spec -> UT/IT -> OpenAPI/Aspida -> Scala LIB/BE -> Svelte FE -> test ->
+  review -> PR. Design-first, testcase-first, contract-first; per-phase artifacts under
+  `.ai-agent/generated/` (git-ignored); may produce a PR in both `rezil-esms` and `rezil-esms-lib`.
 
 ## Coding Style
 
@@ -38,12 +45,14 @@ ai-agent/
 ├── CLAUDE.md
 ├── README.md
 ├── AGENT_RULES.md
-├── WORKFLOW.md
+├── WORKFLOW.md          # Fix-Bug workflow (12-step ticket → minimal fix → PR)
+├── WORKFLOW_FEATURE.md  # Feature workflow (16-phase BD + Figma → Scala/Svelte → PR)
 ├── TOOLS.md
 ├── MEMORY.md
 │
 ├── prompts/
 │   ├── fix_bug.md
+│   ├── feature_workflow.md
 │   ├── create_pr.md
 │   ├── update_jira.md
 │   └── review_pr.md
@@ -74,8 +83,8 @@ ai-agent/
 │   └── commit_message.md
 │
 └── ui-next/               # Next.js (App Router + React + Tailwind) web UI — port 5000, ngrok, Basic Auth
-    ├── app/               # pages (auto REZIL/Story, chat, /usage) + api route handlers (SSE)
-    ├── lib/               # config / claude SSE / auto+story prompts / usage / limits / job-lock
+    ├── app/               # pages (auto REZIL/Feature/Story, release, chat, /usage) + api route handlers (SSE)
+    ├── lib/               # config / claude SSE / auto+feature+story+release prompts / usage / limits / job-lock
     ├── proxy.js           # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
     ├── ecosystem.config.js# pm2: ai-agent-ui-next + ngrok→5000 (PORT/HOSTNAME từ .env)
     ├── .env               # UI config: UI_BASIC_AUTH + PORT/HOSTNAME/NGROK_DOMAIN (pm2); npm scripts dùng -p 5000

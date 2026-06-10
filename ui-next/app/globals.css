@@ -64,6 +64,9 @@
   --color-warnbg: var(--warnbg);
   --color-warnink: var(--warnink);
 
+  /* UI text uses a system SANS stack — monospace fonts misplace Vietnamese stacked diacritics
+     (e.g. the hook on "ử"). Keep --font-mono for code/preformatted blocks only. */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -72,7 +75,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 /* Tailwind v4 dropped the default button cursor — restore it (disabled buttons keep their own). */

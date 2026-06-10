@@ -51,7 +51,7 @@ claude mcp list        # should show:  atlassian: https://mcp.atlassian.com/v1/m
 ```
 
 > Only the `atlassian` server is required for this agent. (Other MCP servers you may have — mysql,
-> gsheets, figma — are unrelated to the ticket→PR workflow.)
+> gsheets, Figma — are unrelated to the ticket→PR workflow.)
 
 ### 0.5 Clone the target repos
 
@@ -103,19 +103,20 @@ Add `--dry-run` to any script to preview the commands without executing.
 
 ## 2. Project layout
 
-| Path             | What                                                                                    |
-|------------------|-----------------------------------------------------------------------------------------|
-| `CLAUDE.md`      | Role, core rules, workflow, full structure                                              |
-| `WORKFLOW.md`    | The 12-step ticket workflow                                                             |
-| `AGENT_RULES.md` | Allowed / forbidden actions, failure policy                                             |
-| `TOOLS.md`       | Tools the agent may use                                                                 |
-| `MEMORY.md`      | Index of long-term knowledge in `memory/`                                               |
-| `config/`        | `jira.json`, `github.json`, `project.json`, `story.json`                                |
-| `prompts/`       | Task prompts: `fix_bug`, `create_pr`, `update_jira`, `review_pr`                        |
-| `memory/`        | `architecture`, `coding_style`, `database`, `deployment`, `common_bugs`, `jira_history` |
-| `scripts/`       | `fix-ticket`, `create-pr`, `update-jira` (+ `_lib` helpers)                             |
-| `templates/`     | `pr_template`, `jira_comment`, `commit_message`                                         |
-| `ui-next/`       | Next.js web UI (auto mode + chat) — see [§8](#8-web-ui-auto-mode)                       |
+| Path                  | What                                                                                    |
+|-----------------------|-----------------------------------------------------------------------------------------|
+| `CLAUDE.md`           | Role, core rules, workflow, full structure                                              |
+| `WORKFLOW.md`         | The 12-step ticket workflow                                                             |
+| `WORKFLOW_FEATURE.md` | The 16-phase **Feature** workflow (BD + Figma → Scala/Svelte → PR)                      |
+| `AGENT_RULES.md`      | Allowed / forbidden actions, failure policy                                             |
+| `TOOLS.md`            | Tools the agent may use                                                                 |
+| `MEMORY.md`           | Index of long-term knowledge in `memory/`                                               |
+| `config/`             | `jira.json`, `github.json`, `project.json`, `story.json`                                |
+| `prompts/`            | Task prompts: `fix_bug`, `feature_workflow`, `create_pr`, `update_jira`, `review_pr`    |
+| `memory/`             | `architecture`, `coding_style`, `database`, `deployment`, `common_bugs`, `jira_history` |
+| `scripts/`            | `fix-ticket`, `create-pr`, `update-jira` (+ `_lib` helpers)                             |
+| `templates/`          | `pr_template`, `jira_comment`, `commit_message`                                         |
+| `ui-next/`            | Next.js web UI (auto mode + chat) — see [§8](#8-web-ui-auto-mode)                       |
 
 ---
 
@@ -182,13 +183,20 @@ Scripts read `config/*.json`, shell out to `git`/`gh`, and enforce the guardrail
 
 ## 7. Workflow summary
 
+**Fix-Bug** (`WORKFLOW.md`) — a bug fix / small change:
 ```
 Read Jira → Sync develop → Create branch → Analyze → Implement
   → Quality gates (scalafmt/scalafix, npm check, semgrep) → Tests → Build
   → Commit → Push → Create PR → Update Jira → STOP (human reviews & merges)
 ```
 
-See `WORKFLOW.md` for the full step list and `CLAUDE.md` for the role definition.
+**Feature** (`WORKFLOW_FEATURE.md`) — a new feature from design docs (16 phases):
+```
+BD + Figma → Spec → UT → IT → OpenAPI → Aspida → Scala LIB → Scala BE → Svelte FE
+  → Test → Build/Lint → Review → Create PR(s) → Update Jira → STOP (human reviews & merges)
+```
+
+See `WORKFLOW.md` / `WORKFLOW_FEATURE.md` for the full step lists and `CLAUDE.md` for the role definition.
 
 ---
 
@@ -204,10 +212,18 @@ npm run build && npm run start   # http://127.0.0.1:5000
 # or via pm2:  pm2 start ecosystem.config.js   (ui-next + ngrok→5000)
 ```
 
-- **Auto REZIL** (`/auto`): enter the **Jira ticket** and pick the **repo**; submit. The server runs
+There are **two REZIL workflows** — pick by task type:
+
+- **Auto / Fix-Bug** (`/auto`): enter the **Jira ticket** and pick the **repo**; submit. The server runs
   `claude -p --permission-mode auto` in that repo and **streams progress** live (in Vietnamese): it
-  reads the ticket (deriving issue type + screen code), creates the branch, edits code, runs the
-  quality gates, commits, pushes, opens the PR, and comments Jira.
+  reads the ticket (deriving issue type + screen code), creates the branch, makes a **minimal fix**, runs
+  the quality gates, commits, pushes, opens the PR, and comments Jira. See `WORKFLOW.md`.
+- **Feature** (`/feature`): enter the **Jira ticket**, pick the **primary repo**, and paste **BD + Figma
+  context** (text, links, or repo-relative BD paths). Runs the full **16-phase** design→code workflow
+  (BD → spec → UT/IT → OpenAPI/Aspida → Scala LIB/BE → Svelte FE → test → review → PR). Per-phase
+  artifacts are written to `.ai-agent/generated/` (**git-ignored**, audit trail only); a LIB+BE feature
+  may open a PR in **both** `rezil-esms` and `rezil-esms-lib`. It's a **long job** (tens of minutes) and
+  shares the per-repo job lock with Auto. See `WORKFLOW_FEATURE.md`.
 - **Auto Story** (`/story`): free-form task → branch `fix|feature/YYYY-MM-<desc>` → PR to `develop`
   (no Jira; uses the story repo's own agents).
 - **Info gate**: if the ticket/task lacks enough info, Claude stops and prints `⛔ NEED-INFO:`
@@ -226,4 +242,19 @@ answers stream in Vietnamese. Type `/usage` to see token usage + estimated cost.
   Same hard limits apply — never merge, never deploy, never force-push. Leave it off for plain Q&A.
 - ⚠️ With the toggle on, the chat edits the **default repo's working tree** on its current branch
   (no auto branch/commit) — use it for quick iterative changes, not the full ticket workflow (use Auto for that).
+
+### Release (`/release`)
+A multi-turn console that drives the **`github-ops`** agent (gh CLI) to run the release flow for the
+rezil repos — promote a DEV1 PR, create releases/tags, watch CI. Just describe the op in Vietnamese
+(e.g. *"Release DEV1 rezil-esms"*, *"list PR đang mở"*, *"check CI run mới nhất"*); progress streams live.
+- Spawns `claude -p --agent github-ops --permission-mode bypassPermissions` (mirrors `lib/release.js`).
+- **Confirm-before-write**: per `github-ops.md`, every write action (merge / create release-tag / trigger
+  workflow) stops and asks; you approve in the **next turn** (session resume) before it runs.
+- **DEV1 only — STG is refused.** Backup of the base branch happens before any promote/merge; the
+  server injects the current timestamp for the backup-branch name.
+- **Release MAY merge** the DEV1 promote PR (that's the flow) — so unlike Auto/Chat it is *not* blocked
+  from merging. Everything destructive stays blocked via `disallowedTools`: force/delete push, history
+  rewrite (`reset --hard`/`rebase`/`clean`), repo settings & deletion, `gh release delete`, CI secrets,
+  `gh auth`/`git config`, `rm`/`sudo`, and code edits (`Edit`/`Write`). See `lib/release.js`.
+- ⚠️ Acts on **real GitHub repos**. Review each confirm prompt before approving.
 
