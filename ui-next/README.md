@@ -1,6 +1,6 @@
 # ui-next — Next.js UI
 
-UI chính thức của AI agent (Next.js App Router + React + Tailwind). Đã thay thế hoàn toàn `ui/server.js` cũ (đã xoá). Chạy port **4179**, ngrok tunnel vào đây, Basic Auth qua `.env`.
+UI chính thức của AI agent (Next.js App Router + React + Tailwind). Đã thay thế hoàn toàn `ui/server.js` cũ (đã xoá). Chạy port **5000**, ngrok tunnel vào đây, Basic Auth qua `.env`.
 
 **Parity đầy đủ với UI cũ:** Auto REZIL (ticket→PR) · Auto Story (task→PR develop) · Chat REZIL/Story · `/usage` · Cancel · Basic Auth · `/healthz`.
 
@@ -14,16 +14,16 @@ UI chính thức của AI agent (Next.js App Router + React + Tailwind). Đã th
 
 ```bash
 npm install          # lần đầu
-npm run dev          # dev (hot reload) — http://127.0.0.1:4179
+npm run dev          # dev (hot reload) — http://127.0.0.1:5000
 npm run build        # build production
 npm run start        # chạy bản build
 
 # qua pm2 (ecosystem.config.js nằm ngay trong ui-next/):
-npm run build && pm2 start ecosystem.config.js   # ui-next + ngrok→4179
+npm run build && pm2 start ecosystem.config.js   # ui-next + ngrok→5000
 pm2 restart ai-agent-ui-next                      # sau khi build lại
 ```
 
-Basic Auth: đặt `UI_BASIC_AUTH="user:pass"` trong `ui-next/.env` (rỗng = không auth, chỉ loopback). Đổi xong phải `npm run build` lại nếu middleware inline env.
+Basic Auth: đặt `UI_BASIC_AUTH="user:pass"` trong `ui-next/.env` (rỗng = không auth, chỉ loopback). Đổi xong phải `npm run build` lại nếu proxy inline env.
 
 ## Cấu trúc
 
@@ -47,15 +47,16 @@ app/
   api/story-run/route.js# SSE auto Story (task → PR develop), job-lock "story"
   api/cancel/route.js   # POST hủy job đang chạy
   api/healthz/route.js  # health check
-middleware.js           # HTTP Basic Auth (UI_BASIC_AUTH)
+proxy.js                # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
 lib/
   config.js             # đọc ../config/*.json; resolveRepo / resolveProject
-  usage.js              # buildUsageReport() — đọc ~/.claude/projects (offline)
-  claude.js             # chat prompt/tools per project, claudeSSE pump (onSpawn/onClose)
-  auto.js               # auto REZIL prompt/tools (port từ server.js)
-  storyAuto.js          # auto Story prompt/tools (port từ server.js)
+  claude.js             # chat prompt/tools per project, claudeSSE pump (onSpawn/onClose/timeout)
+  auto.js               # auto REZIL prompt/tools (ticket → PR)
+  storyAuto.js          # auto Story prompt/tools (task → PR develop)
+  limits.js             # buildLimitsReport() — live rate-limit /usage (Anthropic OAuth)
+  usage.js              # buildUsageReport() — offline ~/.claude/projects parse (chưa dùng tới)
   jobs.js               # running Map (job-lock) + cancel
-ecosystem.config.js     # pm2: ai-agent-ui-next + ngrok→4179
+ecosystem.config.js     # pm2: ai-agent-ui-next + ngrok→5000 (PORT/HOSTNAME từ .env)
 ```
 
 ## Trạng thái: migration xong ✅

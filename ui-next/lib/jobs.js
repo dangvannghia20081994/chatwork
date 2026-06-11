@@ -7,8 +7,8 @@ export const running = g.__aiRunningJobs;
 export function cancel(key) {
   if (key) {
     const j = running.get(key);
-    if (j && j.child.exitCode === null) j.child.kill("SIGTERM");
+    if (j && j.child && j.child.exitCode === null) j.child.kill("SIGTERM");
     return;
   }
-  for (const j of running.values()) if (j.child.exitCode === null) j.child.kill("SIGTERM");
+  for (const j of running.values()) if (j.child && j.child.exitCode === null) j.child.kill("SIGTERM");
 }

@@ -8,7 +8,7 @@ Goals:
 - Understand Jira tickets.
 - Produce safe, minimal code changes.
 - Follow existing project conventions.
-- Prefer correctness over creativity.
+- Prefer correctness to creativity.
 
 ## Core Rules
 
@@ -51,7 +51,8 @@ ai-agent/
 ├── config/
 │   ├── jira.json
 │   ├── github.json
-│   └── project.json
+│   ├── project.json
+│   └── story.json        # secondary "story" project for Auto/Chat (non-Jira)
 │
 ├── memory/
 │   ├── architecture.md
@@ -72,12 +73,12 @@ ai-agent/
 │   ├── jira_comment.md
 │   └── commit_message.md
 │
-└── ui-next/               # Next.js (App Router + React + Tailwind) web UI — port 4179, ngrok, Basic Auth
+└── ui-next/               # Next.js (App Router + React + Tailwind) web UI — port 5000, ngrok, Basic Auth
     ├── app/               # pages (auto REZIL/Story, chat, /usage) + api route handlers (SSE)
-    ├── lib/               # config / claude SSE / auto+story prompts / usage / job-lock
-    ├── middleware.js      # HTTP Basic Auth (UI_BASIC_AUTH)
-    ├── ecosystem.config.js# pm2: ai-agent-ui-next + ngrok→4179
-    ├── .env               # UI config (UI_BASIC_AUTH); port/host trong package.json scripts
+    ├── lib/               # config / claude SSE / auto+story prompts / usage / limits / job-lock
+    ├── proxy.js           # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
+    ├── ecosystem.config.js# pm2: ai-agent-ui-next + ngrok→5000 (PORT/HOSTNAME từ .env)
+    ├── .env               # UI config: UI_BASIC_AUTH + PORT/HOSTNAME/NGROK_DOMAIN (pm2); npm scripts dùng -p 5000
     └── .env.example
 ```
 

@@ -14,19 +14,19 @@
     "rezil-esms": {
       "path": "/home/nghiadv/IdeaProjects/rezil-esms",
       "remote": "https://github.com/hybrid-tech-rezil/rezil-esms.git",
-      "baseBranch": "feature/mvp2",
+      "baseBranch": "develop",
       "role": "full-stack: Scala backend (be-api, be-lambda) + Svelte frontend (app)"
     },
     "rezil-esms-lib": {
       "path": "/home/nghiadv/IdeaProjects/rezil-esms-lib",
       "remote": "https://github.com/hybrid-tech-rezil/rezil-esms-lib.git",
-      "baseBranch": "feature/mvp2",
+      "baseBranch": "develop",
       "role": "shared library (Scala)"
     },
     "rezil-esms-mobile": {
       "path": "/home/nghiadv/IdeaProjects/rezil-esms-mobile",
       "remote": "https://github.com/hybrid-tech-rezil/rezil-esms-mobile.git",
-      "baseBranch": "feature/mvp2",
+      "baseBranch": "develop",
       "role": "mobile full-stack: Scala backend (be-api) + Svelte frontend (app)"
     }
   }

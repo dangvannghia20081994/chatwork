@@ -15,9 +15,9 @@ Open a pull request for a completed change. NEVER merge — human reviews and me
 - [ ] Security passes — `./semgrep-rules/scan.sh`
 
 ## Steps
-1. Ensure branch is pushed and rebased/up to date with `feature/mvp2`.
+1. Ensure branch is pushed and rebased/up to date with `develop`.
 2. Fill PR body from `templates/pr_template.md` (Ticket URL, AI Usage %, full checklist).
-3. Set base = `feature/mvp2`. Title = `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` (phase `[PreUAT-MVP2-A]` for `feature/mvp2`, `[Sprint NN]` for `feature/mvp2-b`).
+3. Set base = `develop`. Title = `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` (phase `[PreUAT-MVP2-A]` for `develop`, `[Sprint NN]` for `feature/mvp2-b`).
 4. Link the Jira ticket.
 5. Request review. **Do not merge. Do not force push.**
 

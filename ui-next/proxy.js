@@ -1,4 +1,4 @@
-// HTTP Basic Auth gate (parity with ui/server.js). Set UI_BASIC_AUTH="user:pass" in ui-next/.env
+// HTTP Basic Auth gate (Next "proxy" convention, formerly middleware.js). Set UI_BASIC_AUTH="user:pass" in ui-next/.env
 // to require login (recommended when exposed via ngrok). Empty = no auth (loopback dev only).
 // Browsers cache Basic credentials and resend them on same-origin EventSource/fetch, so SSE works.
 import { NextResponse } from "next/server";
@@ -8,7 +8,7 @@ export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
 
-export function middleware(req) {
+export function proxy(req) {
   const expected = process.env.UI_BASIC_AUTH || "";
   if (!expected) return NextResponse.next();
 

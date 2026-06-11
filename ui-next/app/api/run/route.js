@@ -37,14 +37,20 @@ export async function GET(req) {
     return Response.json({ error: `Repo path not found: ${repo.path}` }, { status: 400 });
   }
 
+  // Reserve the lock synchronously (before the stream is consumed) to close the TOCTOU gap
+  // where two concurrent requests both pass running.has() before either spawns.
+  const job = { child: null, label: ticket };
+  running.set(repo.name, job);
+
   const argv = buildAutoArgv(assembleUserPrompt(ticket, repo), assembleSystemPrompt(), [repo.path]);
   const stream = claudeSSE({
     cwd: repo.path,
     argv,
-    onSpawn: (child) => running.set(repo.name, { child, label: ticket }),
+    timeoutMs: 30 * 60 * 1000,
+    onSpawn: (child) => { job.child = child; },
     onClose: (code, child, emit) => {
       emit("result", { exitCode: code });
-      if (running.get(repo.name)?.child === child) running.delete(repo.name);
+      if (running.get(repo.name) === job) running.delete(repo.name);
     },
   });
   return new Response(stream, { headers: SSE_HEADERS });

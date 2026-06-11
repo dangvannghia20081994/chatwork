@@ -125,8 +125,11 @@ export function handleEvent(evt, emit, state) {
 // Build a text/event-stream ReadableStream that spawns claude and pumps events.
 // onSession: emit a `session` event on first session_id (chat multi-turn).
 // onSpawn(child): called right after spawn (e.g. register in a job-lock map).
-// onClose(code, child): called on child exit before the stream ends (e.g. emit result + unlock).
-export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose }) {
+// onClose(code, child): called exactly once on any terminal path (spawn failure, error, or
+//   normal exit) before the stream ends — callers can rely on it to release a job-lock.
+// timeoutMs: hard cap on run duration; a hung/runaway claude is SIGTERM'd (then SIGKILL) so it
+//   can't hold a per-repo lock forever. Omit/0 = no cap (e.g. interactive chat).
+export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs }) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
@@ -136,10 +139,19 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose }) {
       controller.enqueue(encoder.encode(":ok\n\n"));
 
       let child;
+      let closedCb = false;
+      // Guarantee onClose runs once on every terminal path so the lock is always released.
+      const doClose = (code) => {
+        if (closedCb) return;
+        closedCb = true;
+        if (onClose) { try { onClose(code, child, emit); } catch {} }
+      };
+
       try {
         child = spawn("claude", argv, { cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
       } catch (e) {
         emit("error_msg", "Failed to launch claude: " + e.message);
+        doClose(null);
         emit("end", {});
         controller.close();
         return;
@@ -151,10 +163,22 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose }) {
       const hb = setInterval(() => {
         try { controller.enqueue(encoder.encode(":hb\n\n")); } catch {}
       }, 15000);
+
+      let killTimer = null, killHard = null;
+      if (timeoutMs && timeoutMs > 0) {
+        killTimer = setTimeout(() => {
+          emit("error_msg", `⏱️ Quá thời gian cho phép (${Math.round(timeoutMs / 60000)} phút) — đang dừng tiến trình.`);
+          try { child.kill("SIGTERM"); } catch {}
+          killHard = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, 5000);
+        }, timeoutMs);
+      }
+
       const finish = () => {
         if (finished) return;
         finished = true;
         clearInterval(hb);
+        if (killTimer) clearTimeout(killTimer);
+        if (killHard) clearTimeout(killHard);
         emit("end", {});
         try { controller.close(); } catch {}
       };
@@ -175,10 +199,11 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose }) {
       child.stderr.on("data", (d) => emit("error_msg", d.toString("utf8")));
       child.on("error", (e) => {
         emit("error_msg", "claude error: " + e.message + (e.code === "ENOENT" ? " (is `claude` on PATH?)" : ""));
+        doClose(null);
         finish();
       });
       child.on("close", (code) => {
-        if (onClose) { try { onClose(code, child, emit); } catch {} }
+        doClose(code);
         finish();
       });
 

@@ -17,6 +17,6 @@
 
 ## Notes
 - PR numbers backfilled where known (REZIL-2297 → PR #1269). Fill the rest from `gh pr list` when needed.
-- PR title convention: `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` — phase `[PreUAT-MVP2-A]` for base `feature/mvp2`, `[Sprint NN]` for `feature/mvp2-b`.
+- PR title convention: `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` — phase `[PreUAT-MVP2-A]` for base `develop`, `[Sprint NN]` for `feature/mvp2-b`.
 - Branch names reconstructed to the `fix/YYYY-MM-REZIL-XXXX-<desc>` convention; actual historical branches may differ.
 - Status = Done for merged work. Update this table when you start/finish a ticket.

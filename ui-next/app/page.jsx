@@ -90,7 +90,7 @@ export default function Home() {
       </div>
 
       <footer className="relative z-10 border-t border-line px-6 py-4 text-center text-xs text-dim">
-        Next.js · localhost:4179 · auto mode tạo PR thật — review trước khi merge.
+        Next.js · localhost:5000 · auto mode tạo PR thật — review trước khi merge.
       </footer>
     </main>
   );

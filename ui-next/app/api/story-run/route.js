@@ -28,14 +28,19 @@ export async function GET(req) {
     return Response.json({ error: `Repo path not found: ${s.path}` }, { status: 400 });
   }
 
+  // Reserve the lock synchronously (before the stream is consumed) to close the TOCTOU gap.
+  const job = { child: null, label: task.slice(0, 60) };
+  running.set(key, job);
+
   const argv = buildStoryAutoArgv(assembleStoryUserPrompt(task), assembleStorySystemPrompt(), [s.path]);
   const stream = claudeSSE({
     cwd: s.path,
     argv,
-    onSpawn: (child) => running.set(key, { child, label: task.slice(0, 60) }),
+    timeoutMs: 30 * 60 * 1000,
+    onSpawn: (child) => { job.child = child; },
     onClose: (code, child, emit) => {
       emit("result", { exitCode: code });
-      if (running.get(key)?.child === child) running.delete(key);
+      if (running.get(key) === job) running.delete(key);
     },
   });
   return new Response(stream, { headers: SSE_HEADERS });

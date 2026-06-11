@@ -5,7 +5,7 @@
   "stack": ["Scala", "Svelte", "TypeScript", "MySQL"],
   "repos": ["rezil-esms", "rezil-esms-lib", "rezil-esms-mobile"],
   "defaultRepo": "rezil-esms",
-  "mainBranch": "feature/mvp2",
+  "mainBranch": "develop",
   "environments": {
     "mvp1": "mysql_207",
     "preuat": "mysql_165"

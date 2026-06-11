@@ -1,7 +1,7 @@
 <!-- PR Title (dùng cho `gh pr create --title`, không thuộc body):
      [<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>
        <phase>: theo base branch
-         - feature/mvp2   -> [PreUAT-MVP2-A]
+         - develop   -> [PreUAT-MVP2-A]
          - feature/mvp2-b -> [Sprint NN]
        <SCREEN-CODE>: mã màn hình. VD: EQUIP-003, ISSUE-001, MYPAGE-001
      VD: [PreUAT-MVP2-A] EQUIP-003 | REZIL-2297 - Update filter label and conditional 低圧回路 option

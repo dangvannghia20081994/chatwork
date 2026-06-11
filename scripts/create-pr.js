@@ -2,7 +2,7 @@
 // create-pr.js — push current branch and open a PR against the repo's base. NEVER merges.
 // Usage: node scripts/create-pr.js <REZIL-XXXX> <SCREEN-CODE> [repo] --summary="..." [--dry-run]
 // Title: [<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>
-//   phase: feature/mvp2 -> PreUAT-MVP2-A ; feature/mvp2-b -> "Sprint NN" (fill NN by hand)
+//   phase: develop -> PreUAT-MVP2-A ; feature/mvp2-b -> "Sprint NN" (fill NN by hand)
 // Requires `gh` CLI authenticated. PR body seeded from templates/pr_template.md.
 
 const fs = require("fs");
@@ -15,7 +15,7 @@ function arg(flag) {
 }
 
 function phaseFor(base) {
-  if (base === "feature/mvp2") return "PreUAT-MVP2-A";
+  if (base === "develop") return "PreUAT-MVP2-A";
   if (base === "feature/mvp2-b") return "Sprint NN";
   return base;
 }

@@ -7,7 +7,7 @@
 
 ## Steps
 1. **Read Jira** — understand requirement; note the **issue type** (Bug / Task / RoC / ...). Stop & ask if ambiguous.
-2. **Sync base** — `git checkout feature/mvp2 && git pull --ff-only`.
+2. **Sync base** — `git checkout develop && git pull --ff-only`.
 3. **Create branch** — `<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>`.
    `type` is auto-mapped from the Jira issue type (Bug→`bug`, RoC→`roc`, Task→`feature`, ... see `config/jira.json`). `scripts/fix-ticket.js REZIL-XXXX SCREEN-CODE --issue-type="Bug"`.
 4. **Analyze code** — trace the relevant path (BE: controller→service→repo; FE: component→store→api).
@@ -18,7 +18,7 @@
    ↳ If any of 6/7/8 fail: **stop, report, do NOT create PR**.
 9. **Commit** — `REZIL-XXXX - <summary>`.
 10. **Push** — `origin <branch>` (never force push).
-11. **Create PR** — base `feature/mvp2`; title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`; body = **đúng nguyên `templates/pr_template.md`**, chỉ điền placeholder (Ticket URL, AI Usage %, tick checklist) — KHÔNG thêm summary/change list/test plan/footer. Dùng `--body-file`. `scripts/create-pr.js`.
+11. **Create PR** — base `develop`; title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`; body = **đúng nguyên `templates/pr_template.md`**, chỉ điền placeholder (Ticket URL, AI Usage %, tick checklist) — KHÔNG thêm summary/change list/test plan/footer. Dùng `--body-file`. `scripts/create-pr.js`.
 12. **Update Jira** — comment via `templates/jira_comment.md` (PR link + phạm vi ảnh hưởng).
 
 ## Human Gate
