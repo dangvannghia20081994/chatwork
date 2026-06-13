@@ -1,6 +1,6 @@
 // SSE chat endpoint (EventSource → GET). Project-aware (rezil | story), read-only or edit.
 // Handles the server-side /usage slash-command without spawning claude.
-import { buildChatArgv, claudeSSE, resolveProject } from "../../../lib/claude.js";
+import { buildChatArgv, claudeSSE, cleanSessionId, resolveProject } from "../../../lib/claude.js";
 import { buildLimitsReport } from "../../../lib/limits.js";
 
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ const SSE_HEADERS = {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const message = (searchParams.get("msg") || "").trim();
-  const session = searchParams.get("session") || "";
+  const session = cleanSessionId(searchParams.get("session"));
   const canEdit = searchParams.get("edit") === "1";
   const project = searchParams.get("project") === "story" ? "story" : "rezil";
 

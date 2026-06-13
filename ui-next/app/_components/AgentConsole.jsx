@@ -9,6 +9,10 @@ import ThemeToggle from "../ThemeToggle";
 //     result/NEED-INFO handling + per-repo cancel — /auto, /feature, /story.
 // Streaming, message list, status, persistence and the header are shared across both.
 
+// basePath when served behind the reverse proxy (e.g. "/ai"). Next prefixes Link/assets/API routes
+// automatically, but NOT raw fetch()/EventSource — so we prefix those manually. Baked at build.
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 const ACCENT = {
   blue: {
     dot: "bg-blue", text: "text-blue", focus: "focus-within:border-blue", btn: "bg-blue",
@@ -96,7 +100,7 @@ export default function AgentConsole({ config }) {
 
   function stopStream() {
     if (cancelKeyRef.current) {
-      fetch("/api/cancel?repo=" + encodeURIComponent(cancelKeyRef.current), { method: "POST" }).catch(() => {});
+      fetch(BASE + "/api/cancel?repo=" + encodeURIComponent(cancelKeyRef.current), { method: "POST" }).catch(() => {});
     }
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
     patchLast((m) => (m.role === "ai" ? { ...m, status: "⏹ đã dừng" } : m));
@@ -124,7 +128,7 @@ export default function AgentConsole({ config }) {
     ]);
     setBusy(true);
 
-    const es = new EventSource(url);
+    const es = new EventSource(BASE + url);
     esRef.current = es;
 
     es.addEventListener("session", (ev) => { sessionRef.current = JSON.parse(ev.data); });
@@ -207,7 +211,7 @@ export default function AgentConsole({ config }) {
             🗑 Xóa
           </button>
           {nav.map((n) => (
-            <a key={n.href} href={n.href} className="text-blue hover:underline">{n.label}</a>
+            <a key={n.href} href={BASE + n.href} className="text-blue hover:underline">{n.label}</a>
           ))}
           <ThemeToggle />
         </span>

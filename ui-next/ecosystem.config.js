@@ -1,26 +1,23 @@
-// PM2 ecosystem config for the Next.js AI agent UI + ngrok tunnel.
-// Lives in ui-next/. Run from here:
-//   cd ui-next && pm2 start ecosystem.config.js     # start UI + ngrok
-//   pm2 restart ai-agent-ui-next                    # apply Next changes (build first!)
-//   pm2 logs ai-agent-ui-next                       # tail logs
+// PM2 ecosystem for the Next.js AI agent UI (this app only).
+//   cd ui-next && pm2 start ecosystem.config.js     # start the app
+//   pm2 restart ai-agent-ui-next                    # apply changes (build first!)
+//   pm2 logs ai-agent-ui-next
 //   pm2 save && pm2 startup                         # persist across reboots
 //
-// Build the Next app before (re)starting it:  cd ui-next && npm run build
-// Config comes from ui-next/.env (no hardcoding here): PORT, HOST, NGROK_DOMAIN, UI_BASIC_AUTH.
-// After editing .env:  pm2 restart ecosystem.config.js --update-env
-// Basic auth via ui-next/.env UI_BASIC_AUTH.
+// Build before (re)starting:  cd ui-next && npm run build   (bakes NEXT_PUBLIC_BASE_PATH=/ai)
+// Exposing to the internet is NOT done here — a shared gateway handles ngrok for all apps:
+//   ~/IdeaProjects/gateway (1 Caddy + 1 ngrok, routes /ai → this app, /* → elearning, ...).
+// This app only needs to run on PORT; the gateway proxies /ai into it.
+// Config in ui-next/.env: PORT, HOSTNAME, NEXT_PUBLIC_BASE_PATH, UI_BASIC_AUTH.
 
 const path = require("path");
 
-// Load ui-next/.env into process.env so PORT/host/domain live in ONE place (not hardcoded here).
-// Real env vars override .env; soft-fail if dotenv/.env is missing.
 try {
   require("dotenv").config({ path: path.join(__dirname, ".env") });
 } catch {}
 
 const PORT = process.env.PORT || "5000";
 const HOST = process.env.HOSTNAME || "127.0.0.1";
-const NGROK_DOMAIN = process.env.NGROK_DOMAIN || "these-cadet-unaired.ngrok-free.dev";
 
 module.exports = {
   apps: [
@@ -36,10 +33,7 @@ module.exports = {
       watch: false,
       max_memory_restart: "500M",
       env: {
-        // Inherit the loaded env (UI_BASIC_AUTH etc.), then pin the operational vars.
         ...process.env,
-        // next start reads PORT/HOSTNAME from env (no -p/-H flags needed).
-        // Reuse the consts above so Next + ngrok share ONE port/host.
         NODE_ENV: process.env.NODE_ENV || "production",
         PORT,
         HOSTNAME: HOST,
@@ -48,20 +42,6 @@ module.exports = {
       },
       out_file: path.join(__dirname, "logs/ui-out.log"),
       error_file: path.join(__dirname, "logs/ui-error.log"),
-      merge_logs: true,
-      time: true,
-    },
-    {
-      name: "ngrok-webhook",
-      script: "/usr/local/bin/ngrok",
-      args: `http --domain=${NGROK_DOMAIN} ${PORT}`,
-      interpreter: "none",
-      cwd: __dirname,
-      exec_mode: "fork",
-      autorestart: true,
-      watch: false,
-      out_file: path.join(__dirname, "logs/ngrok-out.log"),
-      error_file: path.join(__dirname, "logs/ngrok-error.log"),
       merge_logs: true,
       time: true,
     },

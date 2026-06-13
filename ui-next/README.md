@@ -19,12 +19,24 @@ npm run dev          # dev (hot reload) — http://127.0.0.1:5000
 npm run build        # build production
 npm run start        # chạy bản build
 
-# qua pm2 (ecosystem.config.js nằm ngay trong ui-next/):
-npm run build && pm2 start ecosystem.config.js   # ui-next + ngrok→5000
+# qua pm2 (ecosystem.config.js nằm ngay trong ui-next/) — chỉ chạy Next app, KHÔNG ngrok:
+npm run build && pm2 start ecosystem.config.js   # ai-agent-ui-next (port 5000)
 pm2 restart ai-agent-ui-next                      # sau khi build lại
 ```
 
-Basic Auth: đặt `UI_BASIC_AUTH="user:pass"` trong `ui-next/.env` (rỗng = không auth, chỉ loopback). Đổi xong phải `npm run build` lại nếu proxy inline env.
+Basic Auth: đặt `UI_BASIC_AUTH="user:pass"` trong `ui-next/.env` (rỗng = không auth, chỉ loopback).
+
+## Expose ra ngoài (ngrok)
+
+App này **không tự chạy ngrok**. Việc đó do **gateway dùng chung** lo: [`~/IdeaProjects/gateway`](../../gateway/CADDY.md)
+(1 Caddy + 1 ngrok cho nhiều app, 1 domain). chatwork được route ở prefix **`/ai`** (port 5000).
+
+- `NEXT_PUBLIC_BASE_PATH=/ai` trong `.env` — **BAKED lúc `next build`** (đổi là phải build lại). Next tự
+  prefix Link/asset/API route; `EventSource`/`fetch` được prefix thủ công trong `AgentConsole` qua `BASE`.
+- Cài Caddy + chạy gateway + cách thêm app mới: xem **[gateway/CADDY.md](../../gateway/CADDY.md)** và
+  **[CADDY.md](../CADDY.md)** (repo này).
+
+Truy cập: `https://<domain>/ai`.
 
 ## Cấu trúc
 
@@ -69,7 +81,7 @@ lib/
   limits.js             # buildLimitsReport() — live rate-limit /usage (Anthropic OAuth)
   usage.js              # buildUsageReport() — offline ~/.claude/projects parse (chưa dùng tới)
   jobs.js               # running Map (job-lock) + cancel
-ecosystem.config.js     # pm2: ai-agent-ui-next + ngrok→5000 (PORT/HOSTNAME từ .env)
+ecosystem.config.js     # pm2: ai-agent-ui-next (chỉ Next app; ngrok do ~/IdeaProjects/gateway lo)
 ```
 
 ## Trạng thái: migration xong ✅

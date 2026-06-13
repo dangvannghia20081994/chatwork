@@ -13,6 +13,14 @@ export const DISALLOWED_TOOLS = [
   "Bash(git push -f:*)",
 ];
 
+// Claude session ids are UUIDs. Only forward a well-formed one to `--resume`; anything else
+// (empty/junk) → "" so the run starts a fresh session instead of feeding garbage to the CLI.
+const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function cleanSessionId(s) {
+  const v = (s || "").trim();
+  return SESSION_ID_RE.test(v) ? v : "";
+}
+
 function chatSystemPrompt(project, canEdit) {
   if (project === "story") {
     const base = [

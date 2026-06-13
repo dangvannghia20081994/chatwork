@@ -200,19 +200,23 @@ See `WORKFLOW.md` / `WORKFLOW_FEATURE.md` for the full step lists and `CLAUDE.md
 
 ---
 
-## 8. Web UI (auto mode)
+## 8. Web UI
 
 A browser UI (**Next.js + React + Tailwind**, in `ui-next/`) to hand a ticket/task to Claude, which
-**implements it end-to-end up to creating the PR**. Dark/light theme, responsive.
+**implements it end-to-end up to creating the PR**. Dark/light theme, responsive, Vietnamese.
+
+Every surface (`/auto`, `/feature`, `/story`, `/chat`, `/release`) is the **same console shell** — a
+header, a streaming conversation log, and a composer at the bottom. They differ only by what the
+composer collects (ticket+repo / free task / chat input) and whether edits are allowed.
 
 ```bash
 cd ui-next
 npm install                  # first time
 npm run build && npm run start   # http://127.0.0.1:5000
-# or via pm2:  pm2 start ecosystem.config.js   (ui-next + ngrok→5000)
+# or via pm2:  pm2 start ecosystem.config.js   (chỉ Next app; ngrok do ~/IdeaProjects/gateway lo — xem CADDY.md)
 ```
 
-There are **two REZIL workflows** — pick by task type:
+The REZIL coding workflows — pick by task type:
 
 - **Auto / Fix-Bug** (`/auto`): enter the **Jira ticket** and pick the **repo**; submit. The server runs
   `claude -p --permission-mode auto` in that repo and **streams progress** live (in Vietnamese): it
@@ -235,8 +239,9 @@ There are **two REZIL workflows** — pick by task type:
 - ⚠️ Auto mode makes **real changes** to the selected repo and opens a **real PR**. Review before merging.
 
 ### Chat (`/chat`)
-A Q&A view at `http://127.0.0.1:5000/chat` — pick project (REZIL/Story), ask about code or tickets,
-answers stream in Vietnamese. Type `/usage` to see token usage + estimated cost. Multi-turn (session).
+A Q&A console — open per project from Home (REZIL → `/chat?project=rezil`, Story → `?project=story`;
+each keeps its own saved conversation + session). Ask about code or tickets, answers stream in
+Vietnamese. Type `/usage` to see token usage + estimated cost. Multi-turn (session resume).
 - **Read-only by default**: Read/Grep code, search the web, read Jira — no edits.
 - **✏️ Sửa code toggle**: tick it to let the chat edit files and run build/test (`Edit`/`Write`/`Bash`).
   Same hard limits apply — never merge, never deploy, never force-push. Leave it off for plain Q&A.

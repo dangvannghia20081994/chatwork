@@ -2,7 +2,7 @@
 // via gh CLI (RELEASE_FLOW). Multi-turn via --resume so "confirm before merge" works across turns.
 // No timeout: a release may watch a long CI run; the user stops it manually (closing the stream).
 import { buildReleaseArgv } from "../../../lib/release.js";
-import { claudeSSE } from "../../../lib/claude.js";
+import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { resolveProject } from "../../../lib/config.js";
 
 export const runtime = "nodejs";
@@ -24,7 +24,7 @@ function nowStamp() {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const message = (searchParams.get("msg") || "").trim();
-  const session = searchParams.get("session") || "";
+  const session = cleanSessionId(searchParams.get("session"));
   if (!message) return Response.json({ error: "empty message" }, { status: 400 });
 
   // cwd = default repo; add-dir all 3 rezil repos so github-ops can operate on any of them.

@@ -86,7 +86,7 @@ ai-agent/
     ├── app/               # pages (auto REZIL/Feature/Story, release, chat, /usage) + api route handlers (SSE)
     ├── lib/               # config / claude SSE / auto+feature+story+release prompts / usage / limits / job-lock
     ├── proxy.js           # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
-    ├── ecosystem.config.js# pm2: ai-agent-ui-next + ngrok→5000 (PORT/HOSTNAME từ .env)
+    ├── ecosystem.config.js# pm2: ai-agent-ui-next (chỉ Next app; ngrok do ~/IdeaProjects/gateway lo)
     ├── .env               # UI config: UI_BASIC_AUTH + PORT/HOSTNAME/NGROK_DOMAIN (pm2); npm scripts dùng -p 5000
     └── .env.example
 ```
