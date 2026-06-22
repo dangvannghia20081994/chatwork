@@ -1,5 +1,5 @@
 // Auto mode (REZIL): a Jira ticket → implement → PR. Prompt/tools ported verbatim from
-// ui/server.js so behaviour is identical. Reads CLAUDE.md / WORKFLOW.md / prompts from ROOT.
+// ui/server.js so behavior is identical. Reads CLAUDE.md / WORKFLOW.md / prompts from ROOT.
 import fs from "fs";
 import path from "path";
 import { ROOT, loadConfig } from "./config.js";

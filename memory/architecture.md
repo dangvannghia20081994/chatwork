@@ -3,14 +3,14 @@
 Full-stack monorepo for an electrical safety management system (ESMS).
 
 ## Top-level layout
-| Dir | Purpose | Stack |
-|---|---|---|
-| `app/` | Admin web UI (CRUD: sites, equipment, engineers, inspections, reports) | SvelteKit 2 / Svelte 5 / TS, SMUI, Aspida+Axios |
-| `be-api/` | REST API backend | Play Framework 2.9, Scala 3.3.5, Slick |
-| `be-lambda/` | Scheduled batch jobs (AWS Lambda) | Scala 3.3.5, Lambda Java 21 arm64 |
-| `etc/` | DB migrations, OpenAPI spec, Docker env configs, scripts | — |
-| `hooks/` | Git hooks (pre-commit git-secrets, pre-push scalafmt/scalafix) | — |
-| `semgrep-rules/` | Security scan rules (`scan.sh`) | — |
+| Dir              | Purpose                                                                | Stack                                           |
+|------------------|------------------------------------------------------------------------|-------------------------------------------------|
+| `app/`           | Admin web UI (CRUD: sites, equipment, engineers, inspections, reports) | SvelteKit 2 / Svelte 5 / TS, SMUI, Aspida+Axios |
+| `be-api/`        | REST API backend                                                       | Play Framework 2.9, Scala 3.3.5, Slick          |
+| `be-lambda/`     | Scheduled batch jobs (AWS Lambda)                                      | Scala 3.3.5, Lambda Java 21 arm64               |
+| `etc/`           | DB migrations, OpenAPI spec, Docker env configs, scripts               | —                                               |
+| `hooks/`         | Git hooks (pre-commit git-secrets, pre-push scalafmt/scalafix)         | —                                               |
+| `semgrep-rules/` | Security scan rules (`scan.sh`)                                        | —                                               |
 
 Shared library: **`jp.co.rezil:rezil-esms`** (the `rezil-esms-lib` repo), published to S3 Maven repo, consumed by `be-api` + `be-lambda` (Slick models, repositories).
 
@@ -44,6 +44,6 @@ CloudWatch cron → be-lambda → shared lib → MySQL
 - MySQL 8.0 (port 13306, `rezil`/`pass`), MinIO (S3 mock), Swagger UI (8080).
 
 ## Key refs
-- `RELEASE_FLOW.md` — tag-based release dev1→stg→main
+- `RELEASE_FLOW.md` — agent release flow (gh CLI): PR promote `develop`→`release/env-dev1`, DEV1 only
 - `CHANGELOG.md` — version source of truth (`## X.Y.Z - YYYY-MM-DD`)
 - `etc/openapi/.openapi.yaml` — API contract

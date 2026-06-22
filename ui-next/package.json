@@ -4,9 +4,9 @@
   "private": true,
   "description": "Next.js UI for the AI agent (REZIL + Story). Backend logic in route handlers; ports ui/server.js incrementally.",
   "scripts": {
-    "dev": "next dev -p 5000",
+    "dev": "next dev -p 7000",
     "build": "next build",
-    "start": "next start -p 5000",
+    "start": "next start -p 7000",
     "lint": "next lint"
   },
   "dependencies": {
