@@ -33,8 +33,10 @@ export const RELEASE_DISALLOWED = [
   "Bash(gh release delete:*)",
   "Bash(gh release delete-asset:*)",
   // Force / delete pushes + local history rewrite — backups exist, never rewrite/destroy.
-  "Bash(git push --force:*)",
-  "Bash(git push -f:*)",
+  // NOTE: raw `git push --force` / `-f` is intentionally NOT blocked — the DEV1 re-tag step needs
+  // `git push --force origin refs/tags/<tag>`. Prefix matching can't tell tag- from branch-force-push,
+  // so the system prompt is the brake limiting raw --force to refs/tags only. The branch force-push
+  // form (`--force-with-lease origin <branch>`) stays blocked below, so branch force-push is hard-denied.
   "Bash(git push --force-with-lease:*)",
   "Bash(git push --delete:*)",
   "Bash(git push -d:*)",
@@ -50,18 +52,24 @@ export const RELEASE_DISALLOWED = [
   "Bash(gh api --method DELETE:*)",
 ];
 
-// github-ops.md requires the caller to PASS IN the backup timestamp (it must not self-generate one).
-// Headless runs have no Lucy to supply it, so we inject the current stamp via the system prompt.
+// Console-specific config only — the DEV1 release PROCEDURE lives in the github-ops agent
+// (~/.claude/agents/github-ops.md, also tracked at .claude/agents/), loaded via --agent. We only
+// inject the current timestamp (the agent must not self-generate one) + console-mode rules here.
 export function releaseSystemPrompt(nowStamp) {
   return [
     "Bạn đang chạy trong Release Console của AI agent — phiên qua web UI, ĐA LƯỢT (multi-turn).",
     "Tường thuật bằng TIẾNG VIỆT, gọn. Giữ tiếng Anh cho lệnh shell/gh, tên branch/tag, commit.",
-    `Thời điểm hiện tại = ${nowStamp}. Dùng ĐÚNG mốc này cho hậu tố backup branch -YYYYMMDD-HHMM`,
-    "(github-ops yêu cầu caller cấp giờ, không tự sinh).",
-    "Với mọi ACTION GHI (merge PR, tạo/sửa/xoá release-tag, trigger workflow): DỪNG lại, nêu rõ lệnh",
-    "sắp chạy + repo, hỏi user xác nhận, rồi đợi lượt trả lời sau MỚI thực hiện — KHÔNG tự ý làm.",
-    "Tuân thủ tuyệt đối github-ops.md & RELEASE_FLOW: CHỈ DEV1, CẤM STG; KHÔNG thêm mọi dấu vết AI",
+    `Thời điểm hiện tại = ${nowStamp} (YYYYMMDD-HHMM). Dùng phần ngày YYYYMMDD cho hậu tố nhánh release;`,
+    "KHÔNG tự sinh ngày-giờ.",
+    "Bám SÁT quy trình Release/Deploy trong github-ops.md (DEV1: nhánh release DATED + subset cherry-pick",
+    "+ push tag; lib TRƯỚC → admin/mobile; đồng bộ dòng đầu CHANGELOG 3 repo trước khi tag; KHÔNG backup,",
+    "KHÔNG promote-PR nhánh persistent).",
+    "Với mọi ACTION GHI (push nhánh/tag, `git tag -f`, merge PR, trigger workflow): DỪNG lại, nêu rõ lệnh +",
+    "repo, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm. CHỈ DEV1, CẤM STG.",
+    "Force-push CHỈ cho TAG (`refs/tags/...`), TUYỆT ĐỐI KHÔNG force-push nhánh. KHÔNG thêm mọi dấu vết AI",
     "vào PR title/body hay commit message.",
+    "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi dòng",
+    "`- <gợi ý ngắn bấm để làm/hỏi tiếp>` (vd liệt kê ticket, tag lib, check CI). Tiếng Việt, không viết gì sau khối này.",
   ].join("\n");
 }
 

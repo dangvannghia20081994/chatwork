@@ -1,8 +1,10 @@
 // SSE auto-run endpoint (EventSource → GET): a REZIL ticket → implement → PR.
-// Per-repo job lock; one job per repo at a time. Ported from ui/server.js startRun.
+// The agent derives the target repo from the ticket, so we don't know it here — the job lock is
+// keyed by TICKET (one job per ticket). cwd = default repo; all rezil repos are --add-dir'd so the
+// agent can `cd` into whichever repo the ticket targets. Ported from ui/server.js startRun.
 import fs from "fs";
 import { assertTicketKey, assembleSystemPrompt, assembleUserPrompt, buildAutoArgv } from "../../../lib/auto.js";
-import { resolveRepo } from "../../../lib/config.js";
+import { resolveProject } from "../../../lib/config.js";
 import { claudeSSE } from "../../../lib/claude.js";
 import { running } from "../../../lib/jobs.js";
 
@@ -18,39 +20,38 @@ const SSE_HEADERS = {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const ticket = (searchParams.get("ticket") || "").trim();
-  const repoName = searchParams.get("repo") || "";
 
-  let repo;
   try {
     assertTicketKey(ticket);
-    repo = resolveRepo(repoName);
   } catch (e) {
     return Response.json({ error: e.message }, { status: 400 });
   }
-  if (running.has(repo.name)) {
+  if (running.has(ticket)) {
     return Response.json(
-      { error: `busy: repo "${repo.name}" đang có job chạy. Chọn repo khác hoặc đợi.` },
+      { error: `busy: ticket "${ticket}" đang có job chạy. Đợi nó xong hoặc bấm Dừng.` },
       { status: 409 }
     );
   }
-  if (!fs.existsSync(repo.path)) {
-    return Response.json({ error: `Repo path not found: ${repo.path}` }, { status: 400 });
+
+  const proj = resolveProject("rezil"); // cwd = default repo; addDirs = all rezil repos
+  if (!fs.existsSync(proj.cwd)) {
+    return Response.json({ error: `Repo path not found: ${proj.cwd}` }, { status: 400 });
   }
 
   // Reserve the lock synchronously (before the stream is consumed) to close the TOCTOU gap
   // where two concurrent requests both pass running.has() before either spawns.
   const job = { child: null, label: ticket };
-  running.set(repo.name, job);
+  running.set(ticket, job);
 
-  const argv = buildAutoArgv(assembleUserPrompt(ticket, repo), assembleSystemPrompt(), [repo.path]);
+  const argv = buildAutoArgv(assembleUserPrompt(ticket), assembleSystemPrompt(), proj.addDirs);
   const stream = claudeSSE({
-    cwd: repo.path,
+    cwd: proj.cwd,
     argv,
     timeoutMs: 30 * 60 * 1000,
     onSpawn: (child) => { job.child = child; },
     onClose: (code, child, emit) => {
       emit("result", { exitCode: code });
-      if (running.get(repo.name) === job) running.delete(repo.name);
+      if (running.get(ticket) === job) running.delete(ticket);
     },
   });
   return new Response(stream, { headers: SSE_HEADERS });

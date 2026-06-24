@@ -31,6 +31,8 @@ function configFacts() {
     `Default repo: ${gh.defaultRepo}. Base branch: develop.`,
     `Issue type → branch type: ${map} (else ${jira.defaultBranchType}).`,
     "Screen code (e.g. ISSUE-001, EQUIP-003): take it from the ticket summary/fields.",
+    `The session starts in ${gh.defaultRepo}'s directory, but the ticket may target ANOTHER repo`,
+    "above — once you determine the target repo, `cd` into ITS path before any git/file operation.",
   ].join("\n");
 }
 
@@ -86,11 +88,13 @@ export function assembleSystemPrompt() {
   return parts.join("\n\n---\n\n");
 }
 
-export function assembleUserPrompt(ticket, repo) {
+export function assembleUserPrompt(ticket) {
   return [
-    `Implement Jira ticket ${ticket} in repo "${repo.name}" (${repo.path}).`,
-    `Work ONLY in this repo. Read the ticket via the Atlassian integration to determine the issue type`,
-    `and screen code, then follow WORKFLOW.md end-to-end up to creating the PR (never merge/deploy).`,
+    `Implement Jira ticket ${ticket}.`,
+    `You are NOT told which repo to use. Read the ticket via the Atlassian integration FIRST`,
+    `(issue type, screen code, summary/components), then DETERMINE the target repo from the`,
+    `"Project config" repo list. \`cd\` into that repo's path and work ONLY there, then follow`,
+    `WORKFLOW.md end-to-end up to creating the PR (never merge/deploy/force-push).`,
   ].join("\n");
 }
 

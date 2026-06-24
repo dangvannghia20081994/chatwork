@@ -4,10 +4,12 @@ import AgentConsole from "../_components/AgentConsole";
 
 // Same console as /chat, minus the ✏️ Sửa code toggle. Drives the github-ops agent (see /api/release).
 const EXAMPLES = [
-  "Release DEV1 rezil-esms (backup base → tạo PR develop → release/env-dev1)",
-  "Liệt kê PR đang mở trên rezil-esms",
-  "Check CI run mới nhất của rezil-esms-mobile",
-  "Tạo release tag dev1/v0.1.17 cho rezil-esms-lib",
+  "Chỉ lấy các ticket JIRA có status=Resolved thuộc filter=10656 (PreUAT-MVP2-A)",
+  "Chỉ lấy các ticket JIRA có status=Resolved thuộc filter=10695 (UAT-MVP2-A)",
+  "Release DEV1 các ticket REZIL-2673 REZIL-2663 (lib + admin + mobile)",
+  "Liệt kê commit in-scope chưa release của REZIL-2660 (chỉ xem, chưa làm gì)",
+  "Tag dev1/v0.2.1 cho rezil-esms-lib từ nhánh release dev1 mới nhất",
+  "Check CI run mới nhất của rezil-esms-lib",
 ];
 
 const config = {
@@ -19,8 +21,8 @@ const config = {
   badge: "github-ops",
   examples: EXAMPLES,
   emptyText:
-    "Mô tả thao tác release — agent github-ops dùng gh CLI. Mọi action ghi (merge/release/trigger) sẽ hỏi xác nhận trước. Chỉ DEV1.",
-  placeholder: "Vd: Release DEV1 rezil-esms · hoặc: check CI run mới nhất rezil-esms-mobile",
+    "Release DEV1 (subset cherry-pick → push tag): nêu danh sách ticket. Agent github-ops dùng git/gh, làm lib trước → admin/mobile. Mọi action ghi (push nhánh/tag, merge, trigger) hỏi xác nhận trước. Chỉ DEV1.",
+  placeholder: "Vd: Release DEV1 REZIL-2673 REZIL-2663 · hoặc: check CI run mới nhất rezil-esms-lib",
   editToggle: false,
 };
 

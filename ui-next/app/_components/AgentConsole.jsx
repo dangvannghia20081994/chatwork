@@ -39,6 +39,7 @@ export default function AgentConsole({ config }) {
   const [input, setInput] = useState("");
   const [edit, setEdit] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [suggests, setSuggests] = useState([]); // follow-up chips for the latest answer (chat-mode)
   const sessionRef = useRef("");
   const esRef = useRef(null);
   const logRef = useRef(null);
@@ -60,6 +61,7 @@ export default function AgentConsole({ config }) {
     } catch {}
     sessionRef.current = saved?.session || "";
     setMessages(Array.isArray(saved?.messages) ? saved.messages : []);
+    setSuggests([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.storageKey]);
 
@@ -94,6 +96,7 @@ export default function AgentConsole({ config }) {
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
     sessionRef.current = "";
     setMessages([]);
+    setSuggests([]);
     setBusy(false);
     try { localStorage.removeItem(config.storageKey); } catch {}
   }
@@ -121,6 +124,7 @@ export default function AgentConsole({ config }) {
     needInfoRef.current = false;
     accRef.current = "";
     cancelKeyRef.current = cancelKey || "";
+    setSuggests([]);
     setMessages((prev) => [
       ...prev,
       { role: "me", text: display },
@@ -139,7 +143,9 @@ export default function AgentConsole({ config }) {
     });
     es.addEventListener("tool", (ev) => {
       const name = JSON.parse(ev.data);
-      patchLast((m) => (m.text ? m : { ...m, status: "· " + name }));
+      // Always reflect the latest tool/agent activity — the next delta clears it. Without this,
+      // a long sub-agent run after the model has already written text shows no progress at all.
+      patchLast((m) => ({ ...m, status: "· " + name }));
     });
     es.addEventListener("result", (ev) => {
       const r = JSON.parse(ev.data);
@@ -150,6 +156,9 @@ export default function AgentConsole({ config }) {
     es.addEventListener("error_msg", (ev) => {
       const msg = JSON.parse(ev.data);
       patchLast((m) => ({ ...m, errors: [...(m.errors || []), msg] }));
+    });
+    es.addEventListener("suggest", (ev) => {
+      try { const arr = JSON.parse(ev.data); if (Array.isArray(arr)) setSuggests(arr); } catch {}
     });
     es.addEventListener("end", () => { setBusy(false); es.close(); esRef.current = null; });
     es.onerror = () => { setBusy(false); if (esRef.current) { esRef.current.close(); esRef.current = null; } };
@@ -262,6 +271,21 @@ export default function AgentConsole({ config }) {
         )}
       </div>
 
+      {!isJob && suggests.length > 0 && !busy ? (
+        <div className="flex flex-wrap gap-2 border-t border-line bg-bg px-4 pt-3">
+          {suggests.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => submitChat(s)}
+              className={`rounded-full border border-line bg-panel px-3 py-1.5 text-left text-[12px] text-muted transition-colors hover:text-ink ${a.hover}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <form onSubmit={send} className="border-t border-line bg-bg px-4 py-3">
         {isJob ? (
           <div className="flex flex-col gap-2">
@@ -297,7 +321,8 @@ export default function AgentConsole({ config }) {
                   type="checkbox"
                   checked={edit}
                   onChange={(e) => setEdit(e.target.checked)}
-                  className={`h-3.5 w-3.5 ${a.check}`}
+                  disabled={busy}
+                  className={`h-3.5 w-3.5 ${a.check} disabled:cursor-not-allowed disabled:opacity-50`}
                 />
                 <span className="max-sm:hidden">✏️ Sửa code</span>
                 <span className="sm:hidden">✏️</span>
@@ -307,10 +332,11 @@ export default function AgentConsole({ config }) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={config.placeholder}
+              placeholder={busy ? "Đang chạy… nhấn ⏹ để dừng" : config.placeholder}
+              disabled={busy}
               autoFocus
               autoComplete="off"
-              className="h-8 min-w-0 flex-1 bg-transparent px-2 text-ink outline-none placeholder:text-dim"
+              className="h-8 min-w-0 flex-1 bg-transparent px-2 text-ink outline-none placeholder:text-dim disabled:cursor-not-allowed disabled:opacity-60"
             />
             {busy ? (
               <button
