@@ -17,6 +17,7 @@ const GROUPS = [
       { href: "/auto", icon: "⚙️", title: "Auto (Fix-Bug)", body: "Ticket REZIL-xxxx → fix tối thiểu → PR" },
       { href: "/feature", icon: "🏗️", title: "Feature", body: "BD + Figma → 16 phase → Scala/Svelte → PR" },
       { href: "/release", icon: "🚀", title: "Release", body: "Deploy DEV1 / PR / tag — agent github-ops" },
+      { href: "/report", icon: "📊", title: "Report", body: "Báo cáo Jira read-only — standup / sprint / velocity" },
       { href: "/chat?project=rezil", icon: "💬", title: "Chat", body: "Hỏi/sửa code · gõ /usage xem giới hạn" },
     ],
   },

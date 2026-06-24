@@ -214,10 +214,17 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs })
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
+      // Once the client disconnects (or we close), enqueue() throws "Controller is already closed".
+      // That fires from async stdout handlers → uncaughtException → can crash the worker. Guard every
+      // write behind a closed flag + try/catch so a late emit is a no-op, never a crash.
+      let streamClosed = false;
       const emit = (event, data) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (streamClosed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch { streamClosed = true; }
       };
-      controller.enqueue(encoder.encode(":ok\n\n"));
+      try { controller.enqueue(encoder.encode(":ok\n\n")); } catch { streamClosed = true; }
 
       let child;
       let closedCb = false;
@@ -263,6 +270,7 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs })
         flushSuggest(state, emit); // flush held-back text + emit any follow-up suggestions
         emit("end", {});
         try { controller.close(); } catch {}
+        streamClosed = true;
       };
 
       child.stdout.on("data", (chunk) => {

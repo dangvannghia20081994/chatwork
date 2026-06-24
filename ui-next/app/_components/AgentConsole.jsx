@@ -1,7 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import ThemeToggle from "../ThemeToggle";
+
+// Markdown rendering for agent answers that emit GFM (tables, lists, links) — opt-in per console
+// via config.renderMarkdown (used by /report). Tables get a horizontal-scroll wrapper; links open
+// in a new tab so Jira ticket links are clickable. See `.md` styles in globals.css.
+const MD_COMPONENTS = {
+  table: ({ node, ...props }) => <div className="md-tablewrap"><table {...props} /></div>,
+  a: ({ node, ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
+};
+function Markdown({ text }) {
+  return (
+    <div className="md break-words">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{text}</ReactMarkdown>
+    </div>
+  );
+}
 
 // Shared multi-turn console for every agent UI. Two modes via config.mode:
 //   - "chat" (default): free text input (+ optional ✏️ Sửa code toggle), session resume — /chat, /release.
@@ -258,10 +275,10 @@ export default function AgentConsole({ config }) {
             ) : (
               <div
                 key={i}
-                className="w-full self-stretch whitespace-pre-wrap break-words rounded-lg border border-line bg-panel px-3 py-2.5 text-[13px] leading-normal"
+                className={`w-full self-stretch break-words rounded-lg border border-line bg-panel px-3 py-2.5 text-[13px] leading-normal ${config.renderMarkdown ? "" : "whitespace-pre-wrap"}`}
               >
                 {m.status ? <div className="text-xs text-dim">{m.status}</div> : null}
-                {m.text}
+                {config.renderMarkdown ? (m.text ? <Markdown text={m.text} /> : null) : m.text}
                 {(m.errors || []).map((er, j) => (
                   <div key={j} className="text-xs text-err">⚠ {er}</div>
                 ))}
