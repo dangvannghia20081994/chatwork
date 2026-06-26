@@ -1,0 +1,11 @@
+Issue ID,Summary,Issue Type,Parent ID,Sprint
+91,TECH-002 Engineer Detail,Epic,,302
+92,TECH-002 Engineer Detail - BE,Task,91,302
+93,TECH-002 Engineer Detail - FE,Task,91,302
+94,TECH-002 Engineer Detail - UT Testcase,Task,91,302
+95,TECH-002 Engineer Detail - UT Execute,Task,91,302
+96,TECH-002 Engineer Detail - UT Fix,Task,91,302
+97,TECH-002 Engineer Detail - IT Testcase,Task,91,302
+98,TECH-002 Engineer Detail - IT Execute,Task,91,302
+99,TECH-002 Engineer Detail - IT Fix,Task,91,302
+100,TECH-002 Engineer Detail - IT Retest,Task,91,302
