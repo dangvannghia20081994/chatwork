@@ -57,8 +57,11 @@ export default function AgentConsole({ config }) {
   const [edit, setEdit] = useState(false);
   const [busy, setBusy] = useState(false);
   const [suggests, setSuggests] = useState([]); // follow-up chips for the latest answer (chat-mode)
+  const [attachments, setAttachments] = useState([]); // uploaded images {name, path} for next turn
+  const [uploading, setUploading] = useState(false);
   const sessionRef = useRef("");
   const esRef = useRef(null);
+  const fileInputRef = useRef(null);
   const logRef = useRef(null);
   const messagesRef = useRef([]);
   const needInfoRef = useRef(false);
@@ -181,14 +184,58 @@ export default function AgentConsole({ config }) {
     es.onerror = () => { setBusy(false); if (esRef.current) { esRef.current.close(); esRef.current = null; } };
   }
 
+  // Upload picked/pasted images → server saves them in the project cwd, returns a path the agent
+  // can Read. We hold the paths until the next send, then append them to the message.
+  async function uploadFiles(files) {
+    const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
+    if (!config.uploadPath || list.length === 0 || uploading) return;
+    setUploading(true);
+    try {
+      const qs = new URLSearchParams(config.params || {});
+      for (const file of list) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(BASE + config.uploadPath + "?" + qs.toString(), { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          patchLast((m) => (m.role === "ai" ? { ...m, errors: [...(m.errors || []), data.error || `Tải "${file.name}" thất bại`] } : m));
+          continue;
+        }
+        setAttachments((prev) => [...prev, { name: data.name, path: data.path }]);
+      }
+    } catch (e) {
+      // surfaced inline below the composer is overkill; ignore silently and let the user retry
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function removeAttachment(path) {
+    setAttachments((prev) => prev.filter((x) => x.path !== path));
+  }
+
+  function onPaste(e) {
+    const imgs = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith("image/"));
+    if (imgs.length && config.uploadPath) { e.preventDefault(); uploadFiles(imgs); }
+  }
+
   function submitChat(text) {
-    const q = (text ?? input).trim();
-    if (!q || busy) return;
+    const typed = (text ?? input).trim();
+    if ((!typed && attachments.length === 0) || busy || uploading) return;
+    // Append uploaded image paths so the agent reads them via the Read tool.
+    let q = typed;
+    if (attachments.length > 0) {
+      const lines = attachments.map((x) => `- ${x.path} (${x.name})`).join("\n");
+      q = `${typed}\n\nẢnh đính kèm (đọc bằng tool Read):\n${lines}`.trim();
+    }
+    const display = attachments.length > 0 ? `${typed} 📎${attachments.length}`.trim() : typed;
     const qs = new URLSearchParams({ msg: q, ...(config.params || {}) });
     if (sessionRef.current) qs.set("session", sessionRef.current);
     if (config.editToggle && edit) qs.set("edit", "1");
     setInput("");
-    start(q, config.apiPath + "?" + qs.toString(), "");
+    setAttachments([]);
+    start(display, config.apiPath + "?" + qs.toString(), "");
   }
 
   function submitJob() {
@@ -326,7 +373,47 @@ export default function AgentConsole({ config }) {
             </div>
           </div>
         ) : (
+          <div className="flex flex-col gap-2">
+          {config.uploadPath && attachments.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {attachments.map((x) => (
+                <span key={x.path} className={`flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-[12px] ${a.chip}`}>
+                  📎 <span className="max-w-[12rem] truncate">{x.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(x.path)}
+                    aria-label="Bỏ ảnh"
+                    className="ml-0.5 text-muted hover:text-ink"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div className={`flex items-center gap-2 rounded-xl border border-fieldline bg-field px-2 py-1.5 transition-colors ${a.focus}`}>
+            {config.uploadPath ? (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => uploadFiles(e.target.files)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={busy || uploading}
+                  title="Đính kèm ảnh"
+                  aria-label="Đính kèm ảnh"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploading ? "⏳" : "📎"}
+                </button>
+              </>
+            ) : null}
             {config.editToggle ? (
               <label
                 title="Cho phép Claude sửa file / chạy lệnh (không merge/deploy/force-push)"
@@ -349,6 +436,7 @@ export default function AgentConsole({ config }) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onPaste={config.uploadPath ? onPaste : undefined}
               placeholder={busy ? "Đang chạy… nhấn ⏹ để dừng" : config.placeholder}
               disabled={busy}
               autoFocus
@@ -370,7 +458,7 @@ export default function AgentConsole({ config }) {
             ) : (
               <button
                 type="submit"
-                disabled={!input.trim()}
+                disabled={!input.trim() && attachments.length === 0}
                 aria-label="Gửi"
                 title="Gửi"
                 className={`ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-field transition-opacity disabled:opacity-40 ${a.btn}`}
@@ -381,6 +469,7 @@ export default function AgentConsole({ config }) {
                 </svg>
               </button>
             )}
+          </div>
           </div>
         )}
       </form>

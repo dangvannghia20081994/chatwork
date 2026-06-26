@@ -24,6 +24,7 @@ export default function Chat({ initialProject }) {
 
   const config = {
     apiPath: "/api/chat",
+    uploadPath: "/api/chat/upload",
     storageKey: "chat:" + project,
     accent: isStory ? "purple" : "blue",
     icon: "💬",
