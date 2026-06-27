@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ThemeToggle from "../ThemeToggle";
+import { playDoneSound, playErrorSound } from "../../lib/notifySound";
 
 // Markdown rendering for agent answers that emit GFM (tables, lists, links) — opt-in per console
 // via config.renderMarkdown (used by /report). Tables get a horizontal-scroll wrapper; links open
@@ -29,6 +30,15 @@ function Markdown({ text }) {
 // basePath when served behind the reverse proxy (e.g. "/ai"). Next prefixes Link/assets/API routes
 // automatically, but NOT raw fetch()/EventSource — so we prefix those manually. Baked at build.
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+// Help text for the client-side slash commands (shown by /help). Plain text — chat consoles render
+// answers as pre-wrapped text unless config.renderMarkdown.
+const SLASH_HELP =
+  "Lệnh nhanh:\n" +
+  "  /usage, /cost  — xem giới hạn token (phiên 5h + tuần)\n" +
+  "  /context       — token context phiên hiện tại đang chiếm\n" +
+  "  /clear, /new   — xoá hội thoại, bắt đầu phiên mới\n" +
+  "  /help          — hiện danh sách lệnh này";
 
 const ACCENT = {
   blue: {
@@ -67,6 +77,10 @@ export default function AgentConsole({ config }) {
   const needInfoRef = useRef(false);
   const accRef = useRef("");
   const cancelKeyRef = useRef("");
+  // Completion-sound bookkeeping per turn: error seen? user-aborted? already chimed?
+  const sawErrorRef = useRef(false);
+  const abortedRef = useRef(false);
+  const soundedRef = useRef(false);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
@@ -121,13 +135,38 @@ export default function AgentConsole({ config }) {
     try { localStorage.removeItem(config.storageKey); } catch {}
   }
 
+  // Client-side slash commands — handled in the browser, no server round-trip / no claude spawn.
+  // (/usage and /cost are server-side — see lib/slashCommands.js — so they fall through to the API.)
+  function handleClientSlash(typed) {
+    const cmd = typed.toLowerCase();
+    if (cmd === "/clear" || cmd === "/new") { clearChat(); return true; }
+    if (cmd === "/help") {
+      setMessages((prev) => [
+        ...prev,
+        { role: "me", text: typed },
+        { role: "ai", text: SLASH_HELP, status: "", errors: [] },
+      ]);
+      return true;
+    }
+    return false;
+  }
+
   function stopStream() {
     if (cancelKeyRef.current) {
       fetch(BASE + "/api/cancel?repo=" + encodeURIComponent(cancelKeyRef.current), { method: "POST" }).catch(() => {});
     }
+    abortedRef.current = true; // user stopped → no completion chime
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
     patchLast((m) => (m.role === "ai" ? { ...m, status: "⏹ đã dừng" } : m));
     setBusy(false);
+  }
+
+  // Chime once when a turn ends — "done" normally, "error" on failure; silent if the user aborted.
+  function finalizeSound() {
+    if (soundedRef.current || abortedRef.current) return;
+    soundedRef.current = true;
+    if (sawErrorRef.current) playErrorSound();
+    else playDoneSound();
   }
 
   function watchNeedInfo(t) {
@@ -144,6 +183,9 @@ export default function AgentConsole({ config }) {
     needInfoRef.current = false;
     accRef.current = "";
     cancelKeyRef.current = cancelKey || "";
+    sawErrorRef.current = false;
+    abortedRef.current = false;
+    soundedRef.current = false;
     setSuggests([]);
     setMessages((prev) => [
       ...prev,
@@ -171,7 +213,7 @@ export default function AgentConsole({ config }) {
       const r = JSON.parse(ev.data);
       if (needInfoRef.current) return;
       const err = r.isError || (r.exitCode !== undefined && r.exitCode !== 0);
-      if (err) patchLast((m) => ({ ...m, status: "✗ lỗi" }));
+      if (err) { sawErrorRef.current = true; patchLast((m) => ({ ...m, status: "✗ lỗi" })); }
     });
     es.addEventListener("error_msg", (ev) => {
       const msg = JSON.parse(ev.data);
@@ -180,8 +222,11 @@ export default function AgentConsole({ config }) {
     es.addEventListener("suggest", (ev) => {
       try { const arr = JSON.parse(ev.data); if (Array.isArray(arr)) setSuggests(arr); } catch {}
     });
-    es.addEventListener("end", () => { setBusy(false); es.close(); esRef.current = null; });
-    es.onerror = () => { setBusy(false); if (esRef.current) { esRef.current.close(); esRef.current = null; } };
+    es.addEventListener("end", () => { setBusy(false); es.close(); esRef.current = null; finalizeSound(); });
+    es.onerror = () => {
+      setBusy(false);
+      if (esRef.current) { esRef.current.close(); esRef.current = null; sawErrorRef.current = true; finalizeSound(); }
+    };
   }
 
   // Upload picked/pasted images → server saves them in the project cwd, returns a path the agent
@@ -223,6 +268,7 @@ export default function AgentConsole({ config }) {
   function submitChat(text) {
     const typed = (text ?? input).trim();
     if ((!typed && attachments.length === 0) || busy || uploading) return;
+    if (attachments.length === 0 && handleClientSlash(typed)) { setInput(""); return; }
     // Append uploaded image paths so the agent reads them via the Read tool.
     let q = typed;
     if (attachments.length > 0) {

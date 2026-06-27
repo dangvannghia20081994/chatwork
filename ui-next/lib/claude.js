@@ -1,7 +1,7 @@
 // Claude CLI plumbing for route handlers: per-project chat prompts/tools, argv builders,
 // stream-json → SSE pump. Ported from ui/server.js (chat flow). Node runtime only.
 import { spawn } from "child_process";
-import { resolveProject } from "./config.js";
+import { resolveProject, normalizeProject } from "./config.js";
 
 // Hard guardrails shared by every edit-capable flow.
 export const DISALLOWED_TOOLS = [
@@ -48,6 +48,25 @@ function chatSystemPrompt(project, canEdit) {
     base.push(SUGGEST_INSTR);
     return base.join("\n");
   }
+  if (project === "film") {
+    const base = [
+      'Bạn là trợ lý kỹ thuật cho repo "ai-film-studio" (Phim AI Studio: Next.js 16 + React 19 + TypeScript + Prisma/SQLite + Tailwind, worker render video qua ComfyUI).',
+      "Repo có CLAUDE.md + AGENTS.md + PLAN.md riêng (đã nạp) — tuân theo. Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm.",
+    ];
+    if (canEdit) {
+      base.push(
+        "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash).",
+        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push, KHÔNG --no-verify. Tên branch/commit/PR/code giữ tiếng Anh theo convention."
+      );
+    } else {
+      base.push(
+        "Bạn CÓ THỂ đọc code (Read/Grep/Glob) và tìm web để trả lời.",
+        "KHÔNG sửa/tạo/xoá file, không chạy lệnh shell, không git. Đây là chế độ hỏi-đáp."
+      );
+    }
+    base.push(SUGGEST_INSTR);
+    return base.join("\n");
+  }
   // rezil
   const base = ["Bạn là trợ lý kỹ thuật cho dự án rezil-esms. Trả lời bằng TIẾNG VIỆT, ngắn gọn, đúng trọng tâm."];
   if (canEdit) {
@@ -71,6 +90,14 @@ function chatTools(project, canEdit) {
     const allow = canEdit
       ? ["Read", "Grep", "Glob", "Edit", "Write", "Bash", "Agent", "TodoWrite", "WebSearch", "WebFetch", "mcp__postgres-story"]
       : ["Read", "Grep", "Glob", "WebSearch", "WebFetch", "mcp__postgres-story"];
+    const disallow = canEdit ? DISALLOWED_TOOLS : ["Edit", "Write", "NotebookEdit", "Bash", "Agent", "AskUserQuestion"];
+    return { allow, disallow };
+  }
+  if (project === "film") {
+    // No MCP, no Agent/Task: the film repo has no .mcp.json / .claude/agents.
+    const allow = canEdit
+      ? ["Read", "Grep", "Glob", "Edit", "Write", "Bash", "TodoWrite", "WebSearch", "WebFetch"]
+      : ["Read", "Grep", "Glob", "WebSearch", "WebFetch"];
     const disallow = canEdit ? DISALLOWED_TOOLS : ["Edit", "Write", "NotebookEdit", "Bash", "Agent", "AskUserQuestion"];
     return { allow, disallow };
   }
@@ -305,4 +332,4 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs })
   });
 }
 
-export { resolveProject };
+export { resolveProject, normalizeProject };

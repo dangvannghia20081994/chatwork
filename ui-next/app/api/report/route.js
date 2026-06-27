@@ -8,6 +8,7 @@
 import fs from "fs";
 import { buildReportArgv } from "../../../lib/report.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
+import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { ROOT } from "../../../lib/config.js";
 
 export const runtime = "nodejs";
@@ -31,6 +32,10 @@ export async function GET(req) {
   const message = (searchParams.get("msg") || "").trim();
   const session = cleanSessionId(searchParams.get("session"));
   if (!message) return Response.json({ error: "empty message" }, { status: 400 });
+
+  const slash = await maybeSlashResponse(message, { session });
+  if (slash) return slash;
+
   if (!fs.existsSync(ROOT)) {
     return Response.json({ error: `Project root not found: ${ROOT}` }, { status: 400 });
   }

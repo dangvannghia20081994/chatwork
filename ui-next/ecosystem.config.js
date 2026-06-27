@@ -39,6 +39,9 @@ module.exports = {
         HOSTNAME: HOST,
         // The UI spawns `claude` by name; pm2's PATH often lacks ~/.local/bin where it lives.
         PATH: `${process.env.HOME}/.local/bin:${process.env.PATH || ""}`,
+        // Máy có nhiều Claude account (claude/claude2/claude3 ↔ ~/.claude*, chọn qua
+        // CLAUDE_CONFIG_DIR). Pin cứng account2 để không phụ thuộc terminal start pm2.
+        CLAUDE_CONFIG_DIR: `${process.env.HOME}/.claude-account2`,
       },
       out_file: path.join(__dirname, "logs/ui-out.log"),
       error_file: path.join(__dirname, "logs/ui-error.log"),

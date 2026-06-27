@@ -11,6 +11,7 @@ import {
 } from "../../../lib/featureAuto.js";
 import { resolveRepo, loadConfig } from "../../../lib/config.js";
 import { claudeSSE } from "../../../lib/claude.js";
+import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { running } from "../../../lib/jobs.js";
 
 export const runtime = "nodejs";
@@ -27,6 +28,9 @@ export async function GET(req) {
   const ticket = (searchParams.get("ticket") || "").trim();
   const repoName = searchParams.get("repo") || "";
   const context = searchParams.get("context") || "";
+
+  const slash = await maybeSlashResponse(ticket);
+  if (slash) return slash;
 
   let repo;
   try {

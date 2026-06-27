@@ -6,6 +6,7 @@ import fs from "fs";
 import { assertTicketKey, assembleSystemPrompt, assembleUserPrompt, buildAutoArgv } from "../../../lib/auto.js";
 import { resolveProject } from "../../../lib/config.js";
 import { claudeSSE } from "../../../lib/claude.js";
+import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { running } from "../../../lib/jobs.js";
 
 export const runtime = "nodejs";
@@ -20,6 +21,9 @@ const SSE_HEADERS = {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const ticket = (searchParams.get("ticket") || "").trim();
+
+  const slash = await maybeSlashResponse(ticket);
+  if (slash) return slash;
 
   try {
     assertTicketKey(ticket);

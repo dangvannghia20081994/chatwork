@@ -4,7 +4,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { resolveProject } from "../../../../lib/config.js";
+import { resolveProject, normalizeProject } from "../../../../lib/config.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ function safeName(original) {
 
 export async function POST(req) {
   const { searchParams } = new URL(req.url);
-  const project = searchParams.get("project") === "story" ? "story" : "rezil";
+  const project = normalizeProject(searchParams.get("project"));
 
   let form;
   try {

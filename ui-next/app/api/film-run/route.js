@@ -1,7 +1,7 @@
-// SSE auto-run for Story (EventSource → GET): free-form task → PR to develop.
-// Single job lock under key "story". Ported from ui/server.js startStoryRun.
+// SSE auto-run for AI Film Studio (EventSource → GET): free-form task → PR to develop.
+// Single job lock under key "film". Mirrors app/api/story-run/route.js.
 import fs from "fs";
-import { assembleStorySystemPrompt, assembleStoryUserPrompt, buildStoryAutoArgv, storyCfg } from "../../../lib/storyAuto.js";
+import { assembleFilmSystemPrompt, assembleFilmUserPrompt, buildFilmAutoArgv, filmCfg } from "../../../lib/filmAuto.js";
 import { claudeSSE } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { running } from "../../../lib/jobs.js";
@@ -18,8 +18,8 @@ const SSE_HEADERS = {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const task = (searchParams.get("task") || "").trim();
-  const s = storyCfg();
-  const key = "story";
+  const f = filmCfg();
+  const key = "film";
 
   if (!task) return Response.json({ error: "empty task" }, { status: 400 });
 
@@ -27,19 +27,19 @@ export async function GET(req) {
   if (slash) return slash;
 
   if (running.has(key)) {
-    return Response.json({ error: "busy: đang có job story chạy. Đợi hoặc Cancel." }, { status: 409 });
+    return Response.json({ error: "busy: đang có job film chạy. Đợi hoặc Cancel." }, { status: 409 });
   }
-  if (!fs.existsSync(s.path)) {
-    return Response.json({ error: `Repo path not found: ${s.path}` }, { status: 400 });
+  if (!fs.existsSync(f.path)) {
+    return Response.json({ error: `Repo path not found: ${f.path}` }, { status: 400 });
   }
 
   // Reserve the lock synchronously (before the stream is consumed) to close the TOCTOU gap.
   const job = { child: null, label: task.slice(0, 60) };
   running.set(key, job);
 
-  const argv = buildStoryAutoArgv(assembleStoryUserPrompt(task), assembleStorySystemPrompt(), [s.path]);
+  const argv = buildFilmAutoArgv(assembleFilmUserPrompt(task), assembleFilmSystemPrompt(), [f.path]);
   const stream = claudeSSE({
-    cwd: s.path,
+    cwd: f.path,
     argv,
     timeoutMs: 30 * 60 * 1000,
     onSpawn: (child) => { job.child = child; },

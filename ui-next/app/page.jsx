@@ -30,6 +30,15 @@ const GROUPS = [
       { href: "/chat?project=story", icon: "💬", title: "Chat", body: "Hỏi/sửa repo story · agent tự nạp" },
     ],
   },
+  {
+    name: "AI Film Studio",
+    accent: "green",
+    tag: "Next.js 16 · React 19 · Prisma · ComfyUI",
+    cards: [
+      { href: "/film", icon: "🎬", title: "Auto", body: "Task free-form → PR sang develop" },
+      { href: "/chat?project=film", icon: "💬", title: "Chat", body: "Hỏi/sửa repo ai-film-studio" },
+    ],
+  },
 ];
 
 function Card({ href, icon, title, body, accent }) {

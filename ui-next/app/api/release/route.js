@@ -3,6 +3,7 @@
 // No timeout: a release may watch a long CI run; the user stops it manually (closing the stream).
 import { buildReleaseArgv } from "../../../lib/release.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
+import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { resolveProject } from "../../../lib/config.js";
 
 export const runtime = "nodejs";
@@ -26,6 +27,9 @@ export async function GET(req) {
   const message = (searchParams.get("msg") || "").trim();
   const session = cleanSessionId(searchParams.get("session"));
   if (!message) return Response.json({ error: "empty message" }, { status: 400 });
+
+  const slash = await maybeSlashResponse(message, { session });
+  if (slash) return slash;
 
   // cwd = default repo; add-dir all 3 rezil repos so github-ops can operate on any of them.
   const proj = resolveProject("rezil");
