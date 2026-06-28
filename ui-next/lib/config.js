@@ -2,8 +2,18 @@
 // ROOT is the repo root (parent of ui-next/), where `config/` lives.
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 export const ROOT = path.resolve(process.cwd(), "..");
+
+// Claude config dir for the account this app actually spawns `claude` with. pm2 pins
+// CLAUDE_CONFIG_DIR=~/.claude-account2 (see ecosystem.config.js), so /usage, /cost and /context must
+// read THAT account's credentials/transcripts — not the default ~/.claude. Honors a comma-separated
+// CLAUDE_CONFIG_DIR by taking the first entry; falls back to ~/.claude when unset.
+export function claudeHome() {
+  const env = (process.env.CLAUDE_CONFIG_DIR || "").split(",")[0].trim();
+  return env || path.join(os.homedir(), ".claude");
+}
 
 export function loadConfig(name) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, "config", `${name}.json`), "utf8"));

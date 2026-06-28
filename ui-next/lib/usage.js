@@ -2,7 +2,7 @@
 // (~/.claude/projects/**/*.jsonl). No network, no extra deps. Ported from ui/server.js.
 import fs from "fs";
 import path from "path";
-import os from "os";
+import { claudeHome } from "./config.js";
 
 // Public list prices (USD per 1,000,000 tokens). Update if Anthropic changes pricing.
 const PRICES = {
@@ -19,7 +19,7 @@ function priceFor(model) {
 }
 
 function listTranscripts() {
-  const root = path.join(os.homedir(), ".claude", "projects");
+  const root = path.join(claudeHome(), "projects");
   if (!fs.existsSync(root)) return [];
   const out = [];
   for (const dir of fs.readdirSync(root)) {

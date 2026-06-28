@@ -4,12 +4,12 @@
 // (fetchUtilization). Node runtime only; never exposed to the client.
 import fs from "fs";
 import path from "path";
-import os from "os";
+import { claudeHome } from "./config.js";
 
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
 function readCreds() {
-  const p = path.join(os.homedir(), ".claude", ".credentials.json");
+  const p = path.join(claudeHome(), ".credentials.json");
   const d = JSON.parse(fs.readFileSync(p, "utf8"));
   const o = d.claudeAiOauth || {};
   return { token: o.accessToken || "", tier: o.rateLimitTier || "", expiresAt: o.expiresAt || 0 };
