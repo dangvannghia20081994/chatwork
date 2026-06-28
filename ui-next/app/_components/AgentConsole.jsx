@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ThemeToggle from "../ThemeToggle";
+import BackToTop from "./BackToTop";
 import { playDoneSound, playErrorSound } from "../../lib/notifySound";
 
 // Markdown rendering for agent answers that emit GFM (tables, lists, links) — opt-in per console
@@ -302,6 +303,7 @@ export default function AgentConsole({ config }) {
 
   return (
     <div className="flex h-[100dvh] flex-col">
+      <BackToTop targetRef={logRef} btnClass={a.btn} />
       <header className="flex items-center gap-2.5 border-b border-line bg-panel px-5 py-3">
         <span className={`h-2 w-2 shrink-0 rounded-full ${a.dot}`} />
         <b className={`font-bold ${a.text}`}>{config.icon} {config.title}</b>
