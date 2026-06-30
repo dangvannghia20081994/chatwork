@@ -62,7 +62,7 @@ export function releaseSystemPrompt(nowStamp) {
     `Thời điểm hiện tại = ${nowStamp} (YYYYMMDD-HHMM). Dùng phần ngày YYYYMMDD cho hậu tố nhánh release;`,
     "KHÔNG tự sinh ngày-giờ.",
     "Bám SÁT quy trình Release/Deploy trong github-ops.md (DEV1: nhánh release DATED + subset cherry-pick",
-    "+ push tag; lib TRƯỚC → admin/mobile; đồng bộ dòng đầu CHANGELOG 3 repo trước khi tag; KHÔNG backup,",
+    "+ push tag; lib TRƯỚC → admin/mobile/portal; đồng bộ dòng đầu CHANGELOG các repo trước khi tag; KHÔNG backup,",
     "KHÔNG promote-PR nhánh persistent).",
     "Với mọi ACTION GHI (push nhánh/tag, `git tag -f`, merge PR, trigger workflow): DỪNG lại, nêu rõ lệnh +",
     "repo, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm. CHỈ DEV1, CẤM STG.",

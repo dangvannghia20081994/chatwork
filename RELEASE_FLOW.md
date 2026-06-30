@@ -11,11 +11,14 @@
 - **Owner**: `hybrid-tech-rezil`
 - **Repos quản lý**:
 
-  | Repo              | Local path                                     | GitHub                                | Main branch |
-  |-------------------|------------------------------------------------|---------------------------------------|-------------|
-  | rezil-esms        | `/home/nghiadv/IdeaProjects/rezil-esms`        | `hybrid-tech-rezil/rezil-esms`        | `develop`   |
-  | rezil-esms-lib    | `/home/nghiadv/IdeaProjects/rezil-esms-lib`    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   |
-  | rezil-esms-mobile | `/home/nghiadv/IdeaProjects/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop`   |
+  > Local path tương đối theo `$REZIL_ROOT` (mặc định `~/IdeaProjects`, các repo checkout cạnh nhau;
+  > đổi máy thì set env `REZIL_ROOT`).
+
+  | Repo              | Local path                      | GitHub                                | Main branch |
+  |-------------------|---------------------------------|---------------------------------------|-------------|
+  | rezil-esms        | `$REZIL_ROOT/rezil-esms`        | `hybrid-tech-rezil/rezil-esms`        | `develop`   |
+  | rezil-esms-lib    | `$REZIL_ROOT/rezil-esms-lib`    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   |
+  | rezil-esms-mobile | `$REZIL_ROOT/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop`   |
 
 - **Auth**: `gh` CLI đã login sẵn (account `htv-nghiadv1`). KHÔNG đụng `gh auth`, KHÔNG đụng `git config`.
 - **Xác định repo target**: caller nói tên repo → dùng `--repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path.
@@ -75,7 +78,7 @@ Trước MỖI PR promote, backup branch **đích (base)** để có điểm rol
 - Tạo từ remote tip của base (không phụ thuộc local):
 
   ```bash
-  cd /home/nghiadv/IdeaProjects/<repo>
+  cd $REZIL_ROOT/<repo>
   git fetch origin <base>
   git branch backup/<suffix>-<YYYYMMDD>-<HHMM> origin/<base>
   git push origin backup/<suffix>-<YYYYMMDD>-<HHMM>

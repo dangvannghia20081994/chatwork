@@ -6,6 +6,19 @@ import os from "os";
 
 export const ROOT = path.resolve(process.cwd(), "..");
 
+// Where the sibling project repos (rezil-esms*, story, ai-film-studio…) live. Defaults to the parent
+// of this repo (they're checked out side-by-side); override with REZIL_ROOT to relocate on another
+// machine WITHOUT editing config/*.json. Config files store repo paths as bare folder names relative
+// to this; absolute paths in config are honored as-is (loadConfig resolves them — see below).
+export function rezilRoot() {
+  return process.env.REZIL_ROOT || path.resolve(ROOT, "..");
+}
+
+// A configured repo path → absolute: absolute stays, relative resolves under REZIL_ROOT.
+function absRepoPath(p) {
+  return path.isAbsolute(p) ? p : path.resolve(rezilRoot(), p);
+}
+
 // Claude config dir for the account this app actually spawns `claude` with. pm2 pins
 // CLAUDE_CONFIG_DIR=~/.claude-account2 (see ecosystem.config.js), so /usage, /cost and /context must
 // read THAT account's credentials/transcripts — not the default ~/.claude. Honors a comma-separated
@@ -16,7 +29,16 @@ export function claudeHome() {
 }
 
 export function loadConfig(name) {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, "config", `${name}.json`), "utf8"));
+  const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "config", `${name}.json`), "utf8"));
+  // Expand repo paths against REZIL_ROOT so every consumer sees absolute paths while config/*.json
+  // stays machine-independent. Covers single-repo configs (`path`) and github.json (`repos[*].path`).
+  if (cfg && typeof cfg.path === "string") cfg.path = absRepoPath(cfg.path);
+  if (cfg && cfg.repos) {
+    for (const r of Object.values(cfg.repos)) {
+      if (r && typeof r.path === "string") r.path = absRepoPath(r.path);
+    }
+  }
+  return cfg;
 }
 
 // Resolve a single REZIL repo entry by name (for auto mode). Defaults to defaultRepo.

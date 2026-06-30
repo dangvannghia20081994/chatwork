@@ -11,12 +11,14 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
 
 - **Owner**: `hybrid-tech-rezil`
 - **Repos quản lý** (local + remote):
+  > Local path tương đối theo `$REZIL_ROOT` (mặc định `~/IdeaProjects`; đổi máy thì set env `REZIL_ROOT`).
+
   | Repo | Local path | GitHub | Main branch |
   |---|---|---|---|
-  | rezil-esms | `/home/nghiadv/IdeaProjects/rezil-esms` | `hybrid-tech-rezil/rezil-esms` | `develop` |
-  | rezil-esms-lib | `/home/nghiadv/IdeaProjects/rezil-esms-lib` | `hybrid-tech-rezil/rezil-esms-lib` | `develop` |
-  | rezil-esms-mobile | `/home/nghiadv/IdeaProjects/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop` |
-  | rezil-esms-portal | `/home/nghiadv/IdeaProjects/rezil-esms-portal` | `hybrid-tech-rezil/rezil-esms-portal` | `develop` |
+  | rezil-esms | `$REZIL_ROOT/rezil-esms` | `hybrid-tech-rezil/rezil-esms` | `develop` |
+  | rezil-esms-lib | `$REZIL_ROOT/rezil-esms-lib` | `hybrid-tech-rezil/rezil-esms-lib` | `develop` |
+  | rezil-esms-mobile | `$REZIL_ROOT/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop` |
+  | rezil-esms-portal | `$REZIL_ROOT/rezil-esms-portal` | `hybrid-tech-rezil/rezil-esms-portal` | `develop` |
 - **Auth**: `gh` CLI đã login sẵn (account `htv-nghiadv1`, token keyring). KHÔNG đụng `gh auth`, KHÔNG đụng `git config`.
 - **Xác định repo target**: caller nói tên repo → dùng `gh ... --repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path tương ứng. Không rõ repo nào → hỏi caller, KHÔNG đoán.
 

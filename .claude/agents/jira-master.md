@@ -56,7 +56,7 @@ Sau khi đọc ticket, nếu nội dung yêu cầu dev action (fix bug, implemen
 4. Báo cáo theo người dùng `displayName`. "Tuần này/sprint này" → `startOfWeek()` / `openSprints()`.
 
 ### Xuất báo cáo ra file (gửi Chatwork) — BẮT BUỘC với mọi báo cáo/thống kê
-- Lưu `/home/nghiadv/IdeaProjects/my-agent/reports/report-<scope>-<YYYY-MM-DD>.md` (`<scope>` = filter id/epic/sprint, kebab-case; ngày từ currentDate KHÔNG hardcode; trùng tên → `-v2`).
+- Lưu `$REZIL_ROOT/my-agent/reports/report-<scope>-<YYYY-MM-DD>.md` (`$REZIL_ROOT` mặc định `~/IdeaProjects`) (`<scope>` = filter id/epic/sprint, kebab-case; ngày từ currentDate KHÔNG hardcode; trùng tên → `-v2`).
 - Markdown chuẩn: heading, bảng, emoji status, ticket dạng link `[REZIL-XXXX](https://rezil-electrical.atlassian.net/browse/REZIL-XXXX)`.
 - Nội dung: Tổng quan (bảng) + 🔥 Risk & Bottleneck + 🔍 Insight. **KHÔNG đưa "Action đề xuất" vào file.**
 - Sau khi lưu: báo path + nhắc "sẵn sàng copy-paste Chatwork", vẫn trả tóm tắt trong chat.

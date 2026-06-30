@@ -18,6 +18,7 @@ const EXAMPLES = [
 
 const config = {
   apiPath: "/api/report",
+  uploadPath: "/api/report/upload",
   storageKey: "report:console",
   accent: "blue",
   icon: "📊",
@@ -26,7 +27,7 @@ const config = {
   renderMarkdown: true,
   examples: EXAMPLES,
   emptyText:
-    "Hỏi báo cáo Jira bất kỳ (standup / sprint / velocity / quá hạn / JQL tự do…). Agent jira-master query Jira READ-ONLY và tổng hợp tiếng Việt — không sửa gì trên Jira. Đa lượt: hỏi tiếp để tinh chỉnh.",
+    "Hỏi báo cáo Jira bất kỳ bằng JQL tự do. Agent jira-master query Jira READ-ONLY và tổng hợp tiếng Việt — không sửa gì trên Jira. Đa lượt: hỏi tiếp để tinh chỉnh.",
   placeholder: "Vd: Sprint summary sprint đang mở · hoặc: ticket Resolved filter=10656",
   editToggle: false,
   nav: [{ href: "/auto", label: "⚙️ Auto" }, { href: "/", label: "⌂ Home" }],

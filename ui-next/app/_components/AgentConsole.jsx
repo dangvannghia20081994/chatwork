@@ -230,10 +230,18 @@ export default function AgentConsole({ config }) {
     };
   }
 
-  // Upload picked/pasted images → server saves them in the project cwd, returns a path the agent
-  // can Read. We hold the paths until the next send, then append them to the message.
+  // Accepted attachment kinds: images, Excel. Anything else is dropped client-side so the user
+  // gets the picker filter + a clean send.
+  const isUploadable = (f) =>
+    f.type.startsWith("image/") ||
+    /\.(xlsx?|xlsm|xlsb)$/i.test(f.name || "") ||
+    f.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    f.type === "application/vnd.ms-excel";
+
+  // Upload picked/pasted files → server saves them in the agent cwd, returns a path the agent can
+  // Read. We hold the paths until the next send, then append them to the message.
   async function uploadFiles(files) {
-    const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
+    const list = Array.from(files || []).filter(isUploadable);
     if (!config.uploadPath || list.length === 0 || uploading) return;
     setUploading(true);
     try {
@@ -262,19 +270,20 @@ export default function AgentConsole({ config }) {
   }
 
   function onPaste(e) {
-    const imgs = Array.from(e.clipboardData?.files || []).filter((f) => f.type.startsWith("image/"));
-    if (imgs.length && config.uploadPath) { e.preventDefault(); uploadFiles(imgs); }
+    const files = Array.from(e.clipboardData?.files || []).filter(isUploadable);
+    if (files.length && config.uploadPath) { e.preventDefault(); uploadFiles(files); }
   }
 
   function submitChat(text) {
     const typed = (text ?? input).trim();
     if ((!typed && attachments.length === 0) || busy || uploading) return;
     if (attachments.length === 0 && handleClientSlash(typed)) { setInput(""); return; }
-    // Append uploaded image paths so the agent reads them via the Read tool.
+    // Append uploaded file paths so the agent reads them via the Read tool. (Excel is already
+    // converted to a multi-sheet Markdown file on the server, so the path points to that .md.)
     let q = typed;
     if (attachments.length > 0) {
       const lines = attachments.map((x) => `- ${x.path} (${x.name})`).join("\n");
-      q = `${typed}\n\nẢnh đính kèm (đọc bằng tool Read):\n${lines}`.trim();
+      q = `${typed}\n\nTệp đính kèm (đọc bằng tool Read):\n${lines}`.trim();
     }
     const display = attachments.length > 0 ? `${typed} 📎${attachments.length}`.trim() : typed;
     const qs = new URLSearchParams({ msg: q, ...(config.params || {}) });
@@ -445,7 +454,7 @@ export default function AgentConsole({ config }) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.xlsx,.xls,.xlsm,.xlsb"
                   multiple
                   className="hidden"
                   onChange={(e) => uploadFiles(e.target.files)}
@@ -454,8 +463,8 @@ export default function AgentConsole({ config }) {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={busy || uploading}
-                  title="Đính kèm ảnh"
-                  aria-label="Đính kèm ảnh"
+                  title="Đính kèm tệp (ảnh / Excel)"
+                  aria-label="Đính kèm tệp"
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {uploading ? "⏳" : "📎"}

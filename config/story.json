@@ -1,6 +1,6 @@
 {
   "name": "story",
-  "path": "/home/nghiadv/IdeaProjects/story",
+  "path": "story",
   "remote": "https://github.com/dangvannghia20081994/story.git",
   "baseBranch": "develop",
   "branchTypes": ["fix", "feature", "hotfix"],

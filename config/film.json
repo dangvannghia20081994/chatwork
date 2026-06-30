@@ -1,6 +1,6 @@
 {
   "name": "ai-film-studio",
-  "path": "/home/nghiadv/IdeaProjects/ai-film-studio",
+  "path": "ai-film-studio",
   "remote": "git@github-personal:dangvannghia20081994/ai-studio.git",
   "baseBranch": "develop",
   "branchTypes": ["fix", "feature", "hotfix"],

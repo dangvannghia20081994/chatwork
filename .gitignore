@@ -1,3 +1,6 @@
 .env
 node_modules
 .idea
+
+# Uploaded attachments from the report/chat consoles (images / PDF / converted Excel)
+.ai-uploads/
