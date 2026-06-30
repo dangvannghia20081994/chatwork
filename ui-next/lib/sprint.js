@@ -158,20 +158,22 @@ export function toChatwork(result, meta = {}) {
     const [id, ...nm] = String(to).split(":");
     L.push(`[To:${id}]${nm.join(":")}`.trimEnd());
   }
+  const dayLabel = result.all ? "cả sprint" : `ngày ${fmtDM(result.serial)}`;
+  const title = `📉 Report Actual ${sprint ? ` Sprint ${sprint}` : ""} — ${dayLabel}`;
   L.push("Em gửi Report Actual Sprint ạ");
-  L.push("[info]");
-  L.push(`Member đã update thời gian làm việc cho ngày ${result.all ? "cả sprint" : fmtDM(result.serial)}`);
-  if (sprint) L.push(`SPRINT ${sprint}:`);
-  L.push(meta.link ? linkWithRange(meta.link, result.colLetter) : "<dán link Google Sheet ở đây>");
-  L.push("NG có trong file");
+  L.push(`[info][title]${title}[/title]`);
+  L.push(`🔗 ${meta.link ? linkWithRange(meta.link, result.colLetter) : "<dán link Google Sheet ở đây>"}`);
+  L.push("[hr]");
   for (const p of result.people) {
-    L.push(`- ${p.name} => âm ${p.total}h`);
+    L.push(`👤 ${p.name} — âm ${p.total}h`);
     for (const t of p.tickets) {
       const day = result.all ? `[${t.day}] ` : "";
       L.push(`  + ${day}${t.id} (Expect ${t.expect} / Actual ${t.actual}) — (lý do...)`);
     }
   }
-  if (!result.people.length) L.push("- Không ai bị âm");
+  if (!result.people.length) {
+    L.push("✅ Các ticket đã keep plan");
+  }
   L.push("[/info]");
   return L.join("\n");
 }

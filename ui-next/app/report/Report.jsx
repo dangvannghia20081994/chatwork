@@ -7,9 +7,7 @@ import AgentConsole from "../_components/AgentConsole";
 const EXAMPLES = [
   "Ticket Resolved thuộc PreUAT-MVP2-A (filter=10652)",
   "Ticket Resolved thuộc UAT-MVP2-A (filter=10695)",
-  "Phân bố theo status các ticket UAT-MVP2-A (filter=10695)",
-  "So sánh số ticket Resolved: PreUAT-MVP2-A vs UAT-MVP2-A",
-  "Ticket quá hạn chưa Done, sắp theo duedate",
+  "Report UAT-MVP2-A hôm nay (filter=10695)",
   "Ticket chưa có assignee trong sprint đang mở",
   "Top 5 người đang giữ nhiều ticket Open nhất",
   "Bug được Resolved trong tuần này, kèm người fix",
