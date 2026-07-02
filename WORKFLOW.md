@@ -12,6 +12,7 @@
    `type` is auto-mapped from the Jira issue type (Bug→`bug`, RoC→`roc`, Task→`feature`, ... see `config/jira.json`). `scripts/fix-ticket.js REZIL-XXXX SCREEN-CODE --issue-type="Bug"`.
 4. **Analyze code** — trace the relevant path: LIB (domain/validation/business rule/mapper in `rezil-esms-lib`) → BE (controller→service→repo) → FE (component→store→api). Domain/business rules live in LIB, not in controllers — if the root cause is a domain/validation rule, fix it in LIB.
 5. **Implement** — minimal change, reuse existing patterns, no unrelated refactor.
+   ↳ **Schema/data change?** Tạo migration theo `templates/migration.md` — BẮT BUỘC sinh file bằng `./etc/scripts/new-migration.sh <db> <folder> "<desc>"` (tên `V<YYYYMMDDHHMMSS>__<desc>.sql`), chọn `db` = `esms`/`inspection`, `folder` = `common` (mặc định) hoặc `env-*`. KHÔNG gõ tay version, KHÔNG sửa migration đã apply.
 6. **Code quality** — BE `sbt scalafmtCheckAll "scalafix --check"`; FE `npm run check`.
 7. **Run tests + build**.
 8. **Security** — `./semgrep-rules/scan.sh`.

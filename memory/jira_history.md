@@ -18,5 +18,5 @@
 ## Notes
 - PR numbers backfilled where known (REZIL-2297 → PR #1269). Fill the rest from `gh pr list` when needed.
 - PR title convention: `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` — phase `[PreUAT-MVP2-A]` for base `develop`, `[Sprint NN]` for `feature/mvp2-b`.
-- Branch names reconstructed to the `fix/YYYY-MM-REZIL-XXXX-<desc>` convention; actual historical branches may differ.
+- Branch convention (canonical): `<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>` — `type` mapped from issue type (Bug→`bug`, Task/Story/Epic/Sub-Task→`feature`, RoC/Sub-RoC→`roc`, QA→`fix`; default `fix`, see `config/jira.json`), `<SCREEN-CODE>` uppercase (e.g. `EQUIP-003`). The `fix/…-<desc>` names in the table above are reconstructed placeholders from git history and may not match the real branches.
 - Status = Done for merged work. Update this table when you start/finish a ticket.

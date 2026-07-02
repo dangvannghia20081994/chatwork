@@ -8,7 +8,8 @@
 
 ## Migrations (Flyway)
 - Location: `etc/database/<schema>/{common,env-<env>}/`. Tool: flyway-play + flyway-mysql.
-- Naming: **`V<YYYYMMDDHHMMSS>__<desc>.sql`** (timestamp-based to avoid version collisions across branches). Legacy `V<YYYYMMDD>_<NN>__...` also present.
+- **Tạo migration mới**: BẮT BUỘC sinh bằng `./etc/scripts/new-migration.sh <db> <folder> "<desc>"` (`db`=`esms`/`inspection`, `folder`=`common`/`env-*`) — KHÔNG gõ tay version. Full quy tắc: `templates/migration.md`.
+- Naming: **`V<YYYYMMDDHHMMSS>__<desc>.sql`** (timestamp-based to avoid version collisions across branches). Legacy `V<YYYYMMDD>_<NN>__...` also present. **Không đổi tên/sửa migration đã apply.**
 - Config in `be-api/conf/application.conf` (~L146): `outOfOrder=true`, `initOnMigrate=true`, locations `["common","env-<env>"]`.
 - Run: `cd be-api && sbt migrateAll`. History in `flyway_schema_history` per schema.
 

@@ -12,7 +12,7 @@ Update a Jira ticket with progress, a comment, or a status transition.
 
 ## Steps
 1. Read current ticket state (status, assignee, links).
-2. Add comment using `templates/jira_comment.md` — include root cause, what was done, branch/PR link, next step.
+2. Add comment using **EXACTLY** `templates/jira_comment.md` — chỉ điền `{{pr_link}}` (PR URL, dạng markdown link `[url](url)` để Jira render click được) và `{{scope}}` (screen code / phạm vi), DROP các dòng `#` ghi chú. KHÔNG thêm root cause / mô tả fix / next step / prose ngoài template.
 3. If transitioning status: confirm the target status is valid and intended **before** applying.
 4. Keep comments factual; no timeline promises.
 
