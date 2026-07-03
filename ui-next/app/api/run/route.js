@@ -5,7 +5,7 @@
 import fs from "fs";
 import { assertTicketKey, assembleSystemPrompt, assembleUserPrompt, buildAutoArgv } from "../../../lib/auto.js";
 import { resolveProject } from "../../../lib/config.js";
-import { claudeSSE } from "../../../lib/claude.js";
+import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { running } from "../../../lib/jobs.js";
 
@@ -21,6 +21,10 @@ const SSE_HEADERS = {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const ticket = (searchParams.get("ticket") || "").trim();
+  // Resume path: after a ⛔ NEED-INFO stop the UI sends back the user's answer (msg) + the session
+  // id of the stopped run, so we --resume it instead of restarting the ticket from scratch.
+  const session = cleanSessionId(searchParams.get("session") || "");
+  const answer = (searchParams.get("msg") || "").trim();
 
   const slash = await maybeSlashResponse(ticket);
   if (slash) return slash;
@@ -47,11 +51,15 @@ export async function GET(req) {
   const job = { child: null, label: ticket };
   running.set(ticket, job);
 
-  const argv = buildAutoArgv(assembleUserPrompt(ticket), assembleSystemPrompt(), proj.addDirs);
+  // Fresh run → "implement ticket" prompt; resume → the user's answer is the next turn's prompt.
+  const userPrompt = session && answer ? answer : assembleUserPrompt(ticket);
+  const argv = buildAutoArgv(userPrompt, assembleSystemPrompt(), proj.addDirs, session);
   const stream = claudeSSE({
     cwd: proj.cwd,
     argv,
     timeoutMs: 30 * 60 * 1000,
+    // Capture the session id (emitted as a `session` SSE event) so the UI can resume this run.
+    onSession: () => {},
     onSpawn: (child) => { job.child = child; },
     onClose: (code, child, emit) => {
       emit("result", { exitCode: code });

@@ -10,6 +10,7 @@ export default function Auto() {
   const config = {
     mode: "job",
     apiPath: "/api/run",
+    resumable: true, // NEED-INFO → cho nhập câu trả lời & --resume đúng session (không chạy lại từ đầu)
     accent: "blue",
     icon: "⚙️",
     title: "Auto (Fix-Bug)",

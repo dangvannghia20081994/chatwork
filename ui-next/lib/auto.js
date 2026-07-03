@@ -66,7 +66,8 @@ export function assembleSystemPrompt() {
       "If NOT — e.g. unclear/missing requirements, no acceptance criteria or repro, cannot determine",
       "the screen code or target repo, or the change is too ambiguous/risky — then DO NOT create a",
       "branch and DO NOT edit anything. Instead output a block that STARTS with the exact token",
-      "`⛔ NEED-INFO:` followed by a short list of what is missing / what you'd need, then STOP.",
+      "`⛔ NEED-INFO:` then list EACH missing item on ITS OWN line beginning with `- ` (một mục /",
+      "dòng, ngắn gọn — để UI biến thành nút bấm cho người dùng trả lời), then STOP.",
       "Take no mutating actions in that case (the user will decide).",
       "",
       "If there IS enough info, implement end-to-end, STOPPING at PR creation:",
@@ -124,7 +125,9 @@ export const AUTO_ALLOWED = [
   "mcp__atlassian__addCommentToJiraIssue",
 ];
 
-export function buildAutoArgv(userPrompt, systemPrompt, addDirs) {
+// sessionId: when set (resume after a ⛔ NEED-INFO stop), continue the SAME claude session with
+// --resume so the agent picks up mid-workflow instead of re-reading the ticket from scratch.
+export function buildAutoArgv(userPrompt, systemPrompt, addDirs, sessionId) {
   return [
     "-p", userPrompt,
     "--permission-mode", "auto",
@@ -135,5 +138,6 @@ export function buildAutoArgv(userPrompt, systemPrompt, addDirs) {
     ...addDirs.flatMap((d) => ["--add-dir", d]),
     "--allowedTools", ...AUTO_ALLOWED,
     "--disallowedTools", ...DISALLOWED_TOOLS,
+    ...(sessionId ? ["--resume", sessionId] : []),
   ];
 }

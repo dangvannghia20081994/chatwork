@@ -70,6 +70,11 @@ export default function AgentConsole({ config }) {
   const [suggests, setSuggests] = useState([]); // follow-up chips for the latest answer (chat-mode)
   const [attachments, setAttachments] = useState([]); // uploaded images {name, path} for next turn
   const [uploading, setUploading] = useState(false);
+  // Job-mode resume (config.resumable): after a ⛔ NEED-INFO stop, show an answer box and --resume
+  // the same session instead of re-running the ticket from scratch.
+  const [needInfoActive, setNeedInfoActive] = useState(false);
+  const [answer, setAnswer] = useState("");
+  const lastJobRef = useRef(null); // last submitted job {display, params, cancelKey} — reused on resume
   const sessionRef = useRef("");
   const esRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -130,8 +135,11 @@ export default function AgentConsole({ config }) {
   function clearChat() {
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
     sessionRef.current = "";
+    lastJobRef.current = null;
     setMessages([]);
     setSuggests([]);
+    setNeedInfoActive(false);
+    setAnswer("");
     setBusy(false);
     try { localStorage.removeItem(config.storageKey); } catch {}
   }
@@ -175,13 +183,17 @@ export default function AgentConsole({ config }) {
     accRef.current += t;
     if (accRef.current.includes("NEED-INFO")) {
       needInfoRef.current = true;
-      patchLast((m) => ({ ...m, status: "⛔ Thiếu thông tin — bấm Dừng" }));
+      // Resumable job (auto): offer an answer box instead of asking the user to stop.
+      const canResume = isJob && config.resumable;
+      patchLast((m) => ({ ...m, status: canResume ? "⛔ Thiếu thông tin — trả lời bên dưới để chạy tiếp" : "⛔ Thiếu thông tin — bấm Dừng" }));
+      if (canResume) setNeedInfoActive(true);
     }
   }
 
   // Open the stream for one turn/run. `url` is the full /api path with query string.
   function start(display, url, cancelKey) {
     needInfoRef.current = false;
+    setNeedInfoActive(false);
     accRef.current = "";
     cancelKeyRef.current = cancelKey || "";
     sawErrorRef.current = false;
@@ -298,8 +310,43 @@ export default function AgentConsole({ config }) {
     if (busy) return;
     const sub = config.getSubmission?.();
     if (!sub) return;
+    lastJobRef.current = sub; // remember for a possible NEED-INFO resume
     const qs = new URLSearchParams(sub.params);
     start(sub.display, config.apiPath + "?" + qs.toString(), sub.cancelKey || "");
+  }
+
+  // Missing-info items parsed from the latest ⛔ NEED-INFO block (each on its own `- ` line) —
+  // rendered as chips that append to the answer box (no auto-run, so the user can edit/combine).
+  const needInfoItems =
+    isJob && config.resumable && needInfoActive
+      ? (() => {
+          const lastAi = [...messages].reverse().find((m) => m.role === "ai");
+          const text = lastAi?.text || "";
+          const idx = text.indexOf("NEED-INFO");
+          if (idx < 0) return [];
+          return text
+            .slice(idx)
+            .split("\n")
+            .map((l) => l.trim().match(/^(?:[-*•]|\d+[.)])\s+(.+)$/))
+            .map((mm) => (mm ? mm[1].trim() : null))
+            .filter(Boolean)
+            .slice(0, 6);
+        })()
+      : [];
+
+  function addAnswerItem(item) {
+    setAnswer((prev) => (prev.trim() ? prev.trim() + "; " + item : item));
+  }
+
+  // Resume a NEED-INFO'd job: send the user's answer as the next turn's `msg` + the captured
+  // session id, so the backend --resumes the same run instead of restarting the ticket.
+  function submitJobAnswer() {
+    const text = answer.trim();
+    const sub = lastJobRef.current;
+    if (!text || busy || !sub || !sessionRef.current) return;
+    const qs = new URLSearchParams({ ...sub.params, msg: text, session: sessionRef.current });
+    setAnswer("");
+    start("↳ " + text, config.apiPath + "?" + qs.toString(), sub.cancelKey || "");
   }
 
   function send(e) {
@@ -428,6 +475,47 @@ export default function AgentConsole({ config }) {
                 Dừng
               </button>
             </div>
+            {config.resumable && needInfoActive && !busy && sessionRef.current ? (
+              <div className="flex flex-col gap-2 rounded-lg border border-warnink/40 bg-warnbg p-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-warnink">
+                  ⛔ Trả lời để chạy tiếp (giữ nguyên session)
+                </span>
+                {needInfoItems.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {needInfoItems.map((it, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => addAnswerItem(it)}
+                        title="Bấm để thêm vào ô trả lời"
+                        className="max-w-full truncate rounded-full border border-warnink/40 bg-panel px-2.5 py-1 text-left text-[12px] text-warnink transition-colors hover:opacity-80"
+                      >
+                        + {it}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitJobAnswer(); } }}
+                    placeholder="Cung cấp thông tin còn thiếu…"
+                    autoFocus
+                    className={`${FIELD_BASE} h-10 flex-1 focus:border-blue`}
+                  />
+                  <button
+                    type="button"
+                    onClick={submitJobAnswer}
+                    disabled={!answer.trim()}
+                    className={`h-10 shrink-0 rounded-lg px-4 font-semibold text-field transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 ${a.btn}`}
+                  >
+                    ▶ Chạy tiếp
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
