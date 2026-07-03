@@ -44,17 +44,29 @@ const SLASH_HELP =
 const ACCENT = {
   blue: {
     dot: "bg-blue", text: "text-blue", focus: "focus-within:border-blue", btn: "bg-blue",
-    me: "bg-mebubble", check: "accent-blue", hover: "hover:border-blue/60", chip: "bg-blue/15 text-blue",
+    me: "bg-mebubble", check: "accent-blue", hover: "hover:border-blue/60", chip: "bg-blue/15 text-blue", ring: "border-blue",
   },
   purple: {
     dot: "bg-purple", text: "text-purple", focus: "focus-within:border-purple", btn: "bg-purple",
-    me: "bg-mebubblestory", check: "accent-purple", hover: "hover:border-purple/60", chip: "bg-purple/15 text-purple",
+    me: "bg-mebubblestory", check: "accent-purple", hover: "hover:border-purple/60", chip: "bg-purple/15 text-purple", ring: "border-purple",
   },
   green: {
     dot: "bg-green", text: "text-green", focus: "focus-within:border-green", btn: "bg-green",
-    me: "bg-mebubble", check: "accent-green", hover: "hover:border-green/60", chip: "bg-green/15 text-green",
+    me: "bg-mebubble", check: "accent-green", hover: "hover:border-green/60", chip: "bg-green/15 text-green", ring: "border-green",
   },
 };
+
+// Thời gian tương đối gọn cho danh sách phiên (vd "5 phút trước", "3 ngày trước").
+function relTime(ms) {
+  const m = Math.round((Date.now() - ms) / 60000);
+  if (m < 1) return "vừa xong";
+  if (m < 60) return `${m} phút trước`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} giờ trước`;
+  const d = Math.round(h / 24);
+  if (d < 30) return `${d} ngày trước`;
+  return new Date(ms).toLocaleDateString("vi-VN");
+}
 
 // Field styles for job composers, so every page's inputs look identical.
 export const LABEL = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted";
@@ -70,6 +82,10 @@ export default function AgentConsole({ config }) {
   const [suggests, setSuggests] = useState([]); // follow-up chips for the latest answer (chat-mode)
   const [attachments, setAttachments] = useState([]); // uploaded images {name, path} for next turn
   const [uploading, setUploading] = useState(false);
+  // Panel "Phiên đã lưu" (chat-mode, khi config.sessionsPath có): liệt kê + mở lại phiên .jsonl cũ.
+  const [showSessions, setShowSessions] = useState(false);
+  const [sessions, setSessions] = useState(null);
+  const [loadingSessions, setLoadingSessions] = useState(false);
   // Job-mode resume (config.resumable): after a ⛔ NEED-INFO stop, show an answer box and --resume
   // the same session instead of re-running the ticket from scratch.
   const [needInfoActive, setNeedInfoActive] = useState(false);
@@ -142,6 +158,63 @@ export default function AgentConsole({ config }) {
     setAnswer("");
     setBusy(false);
     try { localStorage.removeItem(config.storageKey); } catch {}
+  }
+
+  // ── Phiên đã lưu (config.sessionsPath) ─────────────────────────────────────
+  // API cần biết project để đọc đúng thư mục .jsonl (mỗi project có cwd riêng).
+  function sessionsQuery() {
+    return new URLSearchParams(config.params || {}).toString();
+  }
+
+  async function openSessions() {
+    if (!config.sessionsPath) return;
+    setShowSessions(true);
+    setLoadingSessions(true);
+    try {
+      const res = await fetch(BASE + config.sessionsPath + "?" + sessionsQuery());
+      const data = await res.json().catch(() => ({}));
+      setSessions(res.ok ? data.sessions || [] : []);
+    } catch {
+      setSessions([]);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }
+
+  // Mở lại 1 phiên cũ: dựng lại hội thoại + set session_id để lượt sau --resume nối tiếp context.
+  async function loadSession(id) {
+    if (!config.sessionsPath || busy) return;
+    setShowSessions(false);
+    try {
+      const res = await fetch(BASE + config.sessionsPath + "/" + id + "?" + sessionsQuery());
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessages((prev) => [...prev, { role: "ai", text: "", status: "✗ không tải được phiên", errors: [data.error || ""] }]);
+        return;
+      }
+      const msgs = Array.isArray(data.messages) ? data.messages : [];
+      if (esRef.current) { esRef.current.close(); esRef.current = null; }
+      sessionRef.current = id;
+      setMessages(msgs);
+      setSuggests([]);
+      try { localStorage.setItem(config.storageKey, JSON.stringify({ messages: msgs, session: id })); } catch {}
+    } catch {
+      /* mạng lỗi — bỏ qua, người dùng bấm lại */
+    }
+  }
+
+  async function deleteSession(id, e) {
+    e?.stopPropagation();
+    if (!config.sessionsPath) return;
+    if (!confirm("Xoá vĩnh viễn phiên này? Không thể hoàn tác.")) return;
+    try {
+      const res = await fetch(BASE + config.sessionsPath + "/" + id + "?" + sessionsQuery(), { method: "DELETE" });
+      if (!res.ok) return;
+      setSessions((prev) => (prev ? prev.filter((s) => s.id !== id) : prev));
+      if (sessionRef.current === id) clearChat(); // đang xem đúng phiên vừa xoá → về phiên mới
+    } catch {
+      /* bỏ qua */
+    }
   }
 
   // Client-side slash commands — handled in the browser, no server round-trip / no claude spawn.
@@ -358,7 +431,7 @@ export default function AgentConsole({ config }) {
   const nav = config.nav || [{ href: "/auto", label: "⚙️ Auto" }, { href: "/", label: "⌂ Home" }];
 
   return (
-    <div className="flex h-[100dvh] flex-col">
+    <div className="relative flex h-[100dvh] flex-col">
       <BackToTop targetRef={logRef} btnClass={a.btn} />
       <header className="flex items-center gap-2.5 border-b border-line bg-panel px-5 py-3">
         <span className={`h-2 w-2 shrink-0 rounded-full ${a.dot}`} />
@@ -378,6 +451,17 @@ export default function AgentConsole({ config }) {
           <small className="text-muted max-sm:hidden">· {messages.length} msg</small>
         ) : null}
         <span className="ml-auto flex items-center gap-3.5">
+          {!isJob && config.sessionsPath ? (
+            <button
+              type="button"
+              onClick={openSessions}
+              disabled={busy}
+              title="Phiên đã lưu"
+              className="text-muted hover:text-ink disabled:opacity-40"
+            >
+              🕘 Phiên
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={clearChat}
@@ -393,6 +477,65 @@ export default function AgentConsole({ config }) {
           <ThemeToggle />
         </span>
       </header>
+
+      {/* Panel danh sách phiên đã lưu — overlay phủ vùng nội dung */}
+      {showSessions ? (
+        <div className="absolute inset-0 z-20 flex flex-col bg-bg/95 backdrop-blur">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-5 py-3">
+            <b className={`font-bold ${a.text}`}>🕘 Phiên đã lưu</b>
+            <div className="flex items-center gap-3.5">
+              <button
+                type="button"
+                onClick={() => { clearChat(); setShowSessions(false); }}
+                className="text-muted hover:text-ink"
+              >
+                ＋ Phiên mới
+              </button>
+              <button type="button" onClick={() => setShowSessions(false)} title="Đóng" aria-label="Đóng" className="text-muted hover:text-ink">
+                ✕
+              </button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-auto p-4">
+            {loadingSessions ? <p className="py-8 text-center text-sm text-muted">Đang tải…</p> : null}
+            {!loadingSessions && sessions && sessions.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted">Chưa có phiên nào.</p>
+            ) : null}
+            {!loadingSessions && sessions
+              ? sessions.map((s) => {
+                  const active = s.id === sessionRef.current;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`flex items-center gap-2 rounded-xl border bg-panel pr-2 transition-colors ${active ? a.ring : "border-line"} ${a.hover}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => loadSession(s.id)}
+                        className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left"
+                      >
+                        <span className="shrink-0">{active ? "✅" : "💬"}</span>
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate text-[13px] font-medium text-ink">{s.title}</span>
+                          <span className="text-xs text-dim">{relTime(s.mtime)} · {s.turns} lượt</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => deleteSession(s.id, e)}
+                        title="Xoá phiên"
+                        aria-label="Xoá phiên"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-err"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  );
+                })
+              : null}
+          </div>
+        </div>
+      ) : null}
 
       <div ref={logRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
         {messages.length === 0 ? (

@@ -40,6 +40,14 @@ const GROUPS = [
       { href: "/chat?project=film", icon: "💬", title: "Chat", body: "Hỏi/sửa repo ai-film-studio" },
     ],
   },
+  {
+    name: "Toàn năng",
+    accent: "purple",
+    tag: "Mọi project · không giới hạn",
+    cards: [
+      { href: "/chat?project=free", icon: "🛸", title: "Toàn năng", body: "Mọi project trong ~/IdeaProjects · full tool, không rào chắn" },
+    ],
+  },
 ];
 
 function Card({ href, icon, title, body, accent }) {

@@ -3,3 +3,6 @@
 /out
 *.log
 .env*.local
+
+# Telegram bot runtime state (offset + per-chat session ids)
+.telegram-state.json

@@ -29,6 +29,17 @@ const SUGGEST_INSTR =
   "đổi, viết tiếng Việt, ngắn gọn. TUYỆT ĐỐI không viết gì sau khối này.";
 
 function chatSystemPrompt(project, canEdit) {
+  if (project === "free") {
+    // Unrestricted, all-projects mode. cwd = workspace root (~/IdeaProjects) with every repo in scope.
+    return [
+      "Bạn là trợ lý kỹ thuật TOÀN NĂNG, làm việc trên MỌI project trong thư mục làm việc (~/IdeaProjects) — rezil-esms, story, ai-film-studio và bất kỳ repo nào khác nằm trong đó.",
+      "Mỗi repo có CLAUDE.md / .claude/agents / .mcp.json riêng — khi thao tác trong repo nào thì tuân theo quy ước của repo đó.",
+      "Bạn được TOÀN QUYỀN: đọc + sửa/tạo/xoá file (Read/Edit/Write), chạy mọi lệnh (Bash), git, gọi Agent và mọi tool/MCP có sẵn. KHÔNG có hạn chế nào.",
+      "Vì không có rào chắn, hãy cẩn trọng với thao tác phá huỷ (xoá, force-push, reset, drop DB) — chỉ làm khi yêu cầu rõ ràng. Sau khi thay đổi, giải thích ngắn gọn đã làm gì.",
+      "Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm. Tên branch/commit/PR/code giữ tiếng Anh theo convention của từng repo.",
+      SUGGEST_INSTR,
+    ].join("\n");
+  }
   if (project === "story") {
     const base = [
       'Bạn là trợ lý kỹ thuật cho repo "story" (đọc truyện: Laravel + Next.js + Expo + Python workers).',
@@ -113,6 +124,20 @@ function chatTools(project, canEdit) {
 }
 
 export function buildChatArgv(project, message, sessionId, canEdit, addDirs) {
+  // "free" = unrestricted mode: bypass permissions entirely, no allowed/disallowed tool filters.
+  // canEdit is irrelevant here — this mode is always fully capable across every project.
+  if (project === "free") {
+    return [
+      "-p", message,
+      "--permission-mode", "bypassPermissions",
+      "--output-format", "stream-json",
+      "--include-partial-messages",
+      "--verbose",
+      "--append-system-prompt", chatSystemPrompt(project, true),
+      ...addDirs.flatMap((d) => ["--add-dir", d]),
+      ...(sessionId ? ["--resume", sessionId] : []),
+    ];
+  }
   const { allow, disallow } = chatTools(project, canEdit);
   return [
     "-p", message,

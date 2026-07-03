@@ -63,13 +63,27 @@ export const SIMPLE_PROJECTS = {
 };
 
 // Normalize an arbitrary project param to a known key; anything unknown → "rezil".
+// "free" is the unrestricted, all-projects mode (see resolveProject) — kept explicit here so it
+// survives the normalize step instead of being coerced to "rezil".
 export function normalizeProject(p) {
-  return p === "rezil" || SIMPLE_PROJECTS[p] ? p : "rezil";
+  return p === "rezil" || p === "free" || SIMPLE_PROJECTS[p] ? p : "rezil";
 }
 
 // Resolve a "project" (rezil | story | film | …) into the bits a run/chat needs.
 // Keeping this in one place is what makes adding another project a one-entry change.
 export function resolveProject(project) {
+  // "free" = unrestricted, all-projects mode: cwd is the workspace root (~/IdeaProjects by default,
+  // = rezilRoot) so claude can reach EVERY project checked out side-by-side, not just one repo.
+  if (project === "free") {
+    const root = rezilRoot();
+    return {
+      key: "free",
+      label: "Toàn bộ",
+      cwd: root,
+      addDirs: [root].filter((p) => fs.existsSync(p)),
+      cfg: null,
+    };
+  }
   const simple = SIMPLE_PROJECTS[project];
   if (simple) {
     const s = loadConfig(project);
