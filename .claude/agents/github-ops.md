@@ -11,14 +11,12 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
 
 - **Owner**: `hybrid-tech-rezil`
 - **Repos quản lý** (local + remote):
-  > Local path tương đối theo `$REZIL_ROOT` (mặc định `~/IdeaProjects`; đổi máy thì set env `REZIL_ROOT`).
-
   | Repo | Local path | GitHub | Main branch |
   |---|---|---|---|
-  | rezil-esms | `$REZIL_ROOT/rezil-esms` | `hybrid-tech-rezil/rezil-esms` | `develop` |
-  | rezil-esms-lib | `$REZIL_ROOT/rezil-esms-lib` | `hybrid-tech-rezil/rezil-esms-lib` | `develop` |
-  | rezil-esms-mobile | `$REZIL_ROOT/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop` |
-  | rezil-esms-portal | `$REZIL_ROOT/rezil-esms-portal` | `hybrid-tech-rezil/rezil-esms-portal` | `develop` |
+  | rezil-esms | `/home/nghiadv/IdeaProjects/rezil-esms` | `hybrid-tech-rezil/rezil-esms` | `develop` |
+  | rezil-esms-lib | `/home/nghiadv/IdeaProjects/rezil-esms-lib` | `hybrid-tech-rezil/rezil-esms-lib` | `develop` |
+  | rezil-esms-mobile | `/home/nghiadv/IdeaProjects/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop` |
+  | rezil-esms-portal | `/home/nghiadv/IdeaProjects/rezil-esms-portal` | `hybrid-tech-rezil/rezil-esms-portal` | `develop` |
 - **Auth**: `gh` CLI đã login sẵn (account `htv-nghiadv1`, token keyring). KHÔNG đụng `gh auth`, KHÔNG đụng `git config`.
 - **Xác định repo target**: caller nói tên repo → dùng `gh ... --repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path tương ứng. Không rõ repo nào → hỏi caller, KHÔNG đoán.
 
@@ -128,8 +126,11 @@ trigger CI → vào GitHub Actions re-run thủ công nếu cần (`gh run rerun
 Lib phải `success` mới tag admin/mobile; lib `failure` → báo caller, dừng.
 
 ### Sau tag
-CI build + deploy; BE workflow tự **back-merge** tag commit vào `develop` (FE không back-merge — BE cùng repo lo).
-Back-merge conflict → CI fail, báo caller resolve tay.
+CI build + deploy. **DEV1 KHÔNG back-merge về `develop`**: app BE (`be-api-*` admin+mobile) đã GỠ back-merge
+(`after-release.sh` bị xoá, commit `rezil-esms@4fa819c5` / `rezil-esms-mobile@f42629f3`); lib snapshot
+(`02_snapshot_dev1`) vốn không back-merge. **Chỉ lib prod `01_release.yaml` (tag `v<X.Y.Z>`) mới back-merge** — mà
+đó là prod, ngoài quyền release DEV1. ⇒ Không có gì auto-sync tag DEV1 về `develop`: LUÔN cherry-pick từ `develop`
+để `develop` giữ superset; fix cắm thẳng nhánh release phải tự merge về `develop` (nếu có, báo caller).
 
 ## Output mẫu
 ```

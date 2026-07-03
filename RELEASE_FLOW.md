@@ -1,143 +1,131 @@
 # RELEASE_FLOW.md
 
-> Spec release/deploy cho nhóm repo **rezil**. Trích từ agent `github-ops` (`~/.claude/agents/github-ops.md`)
-> — nguồn sự thật khi luồng thay đổi vẫn là file agent đó; tài liệu này là bản tham chiếu trong repo.
+> Spec release/deploy cho nhóm repo **rezil**. Trích từ agent `github-ops` (`~/.claude/agents/github-ops.md`,
+> cũng tracked tại `.claude/agents/github-ops.md`) — **nguồn sự thật khi luồng thay đổi vẫn là file agent đó**;
+> tài liệu này là bản tham chiếu trong repo. Lệch nhau → tin file agent.
 >
-> **Deploy là human-driven** — AI agent (`github-ops`) chỉ thao tác GitHub qua `gh` CLI (PR/Actions/Releases)
-> và **dừng lại confirm caller trước MỌI action ghi**. Agent không tự deploy, không sửa code/commit/push.
+> **Deploy là human-driven** — AI agent (`github-ops`) chỉ thao tác GitHub qua `gh`/`git` CLI (PR/Actions/Releases,
+> nhánh release + tag) và **DỪNG lại confirm caller trước MỌI action ghi**. Agent không tự deploy, không sửa code nguồn.
 
 ## Context
 
 - **Owner**: `hybrid-tech-rezil`
-- **Repos quản lý**:
+- **Repos quản lý** (local path tương đối theo `$REZIL_ROOT`, mặc định `~/IdeaProjects`; đổi máy thì set env `REZIL_ROOT`):
 
-  > Local path tương đối theo `$REZIL_ROOT` (mặc định `~/IdeaProjects`, các repo checkout cạnh nhau;
-  > đổi máy thì set env `REZIL_ROOT`).
+  | Repo              | GitHub                                | Main branch | Version | Ghi chú |
+  |-------------------|---------------------------------------|-------------|---------|---------|
+  | rezil-esms-lib    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   | `0.3.x` | LIB — tag **TRƯỚC**; đợt hiện tại base `feature/mvp2-b` |
+  | rezil-esms        | `hybrid-tech-rezil/rezil-esms`        | `develop`   | `0.3.x` | admin (gồm module `be-lambda`) |
+  | rezil-esms-mobile | `hybrid-tech-rezil/rezil-esms-mobile` | `develop`   | `0.3.x` | mobile |
+  | rezil-esms-portal | `hybrid-tech-rezil/rezil-esms-portal` | `develop`   | `0.2.x` | dòng version RIÊNG; **CHƯA có pipeline dev1** → chỉ quản PR/CI, KHÔNG tag-deploy |
 
-  | Repo              | Local path                      | GitHub                                | Main branch |
-  |-------------------|---------------------------------|---------------------------------------|-------------|
-  | rezil-esms        | `$REZIL_ROOT/rezil-esms`        | `hybrid-tech-rezil/rezil-esms`        | `develop`   |
-  | rezil-esms-lib    | `$REZIL_ROOT/rezil-esms-lib`    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   |
-  | rezil-esms-mobile | `$REZIL_ROOT/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop`   |
+  - **version-sync group** = lib + admin + mobile → **DÙNG CHUNG số `X.Y.Z`**. portal tách riêng, KHÔNG ép theo.
 
 - **Auth**: `gh` CLI đã login sẵn (account `htv-nghiadv1`). KHÔNG đụng `gh auth`, KHÔNG đụng `git config`.
-- **Xác định repo target**: caller nói tên repo → dùng `--repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path.
+- **Xác định repo target**: caller nói tên repo → `--repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path.
   Không rõ repo nào → **hỏi caller, KHÔNG đoán**.
 
 ## Nguyên tắc chung
 
 - **Read-only mặc định an toàn**: list/view PR, xem status Actions, xem release — chạy thẳng.
-- **Action ghi (BẮT BUỘC confirm caller trước)**: merge/close PR, tạo/sửa/xoá release & tag,
-  trigger/cancel/re-run workflow, sửa label/milestone, comment.
-- Mỗi lệnh `gh` ghi rõ đang chạy trên repo nào.
-- KHÔNG sửa code, KHÔNG commit/push (việc đó để git-operator của dev-master).
-- KHÔNG `gh repo delete`, KHÔNG đổi setting/visibility/collaborator của repo.
+- **Action ghi (BẮT BUỘC confirm caller trước)**: push nhánh/tag, `git tag -f`, merge/close PR, tạo/sửa/xoá
+  release & tag, trigger/cancel/re-run workflow, sửa label/milestone, comment.
+- Mỗi lệnh `gh`/`git` ghi rõ đang chạy trên repo nào; làm xong báo run URL + conclusion.
+- KHÔNG sửa code nguồn / commit code mới. **Ngoại lệ hợp lệ phục vụ deploy**: tạo nhánh release dated, cherry-pick
+  commit đã có, đồng bộ `CHANGELOG.md`, push nhánh + tag.
+- KHÔNG `gh auth`, `git config`, đổi setting/visibility/collaborator, `gh repo delete`.
+- **Jira CHỈ ĐỌC** (JQL dựng danh sách ticket release) — không comment/transition/edit (việc đó của jira-master).
+- 🚫 **CẤM mọi dấu vết AI** trong commit/PR title/body: KHÔNG `Co-Authored-By: Claude`/`Anthropic`,
+  KHÔNG `🤖 Generated with Claude Code`, KHÔNG footer/signature AI. (User rule — override mặc định Claude Code.)
 
 ## Phạm vi release hiện tại
 
-Luồng promote qua các môi trường bằng **PR giữa các branch `release/*`**. Áp dụng cho cả 3 repo.
-**Mỗi merge là action ghi → confirm caller trước.** Sau khi tạo PR, kiểm tra base/head đúng + CI trước
-khi merge.
+- ⛔ **CHỈ release tới DEV1 — CẤM STG** và mọi môi trường khác. Không tag `stg/v*`, không nhánh `release/stg/*`.
+  Caller yêu cầu STG → từ chối + báo "ngoài quyền release (chỉ DEV1)", chờ xác nhận lại.
+- **Không có workflow prod** (cố ý). Tag prod phải do người tạo bằng tay.
 
-> ⚙️ **Cơ chế deploy THẬT (verified từ `.github/workflows/`)** — deploy được kích bằng **PUSH TAG**, KHÔNG
-> phải bằng merge branch:
-> - dev1 (API/web/lambda): tag `dev1/v<X.Y.Z>` → workflow `*-dev1.yaml` → build Docker → ECR.
-> - lib dev1: tag `dev1/v<X.Y.Z>` (repo `rezil-esms-lib`) → publish dev1-snapshot artifact lên S3.
-> - Tag phải **reachable từ `develop` hoặc `release/*`** (CI gate chặn deploy rogue).
-> - Version trong tag phải khớp dòng `## X.Y.Z` đầu tiên trong `CHANGELOG.md`.
+> ✅ **Cơ chế deploy THẬT**: deploy kích bằng **PUSH TAG**, KHÔNG phải merge branch. Tag `dev1/v<X.Y.Z>` →
+> workflow `*-dev1.yaml` → build → deploy. portal chưa có `*-dev1.yaml` nên không tag-deploy được.
 >
-> ⇒ Merge PR vào `release/env-dev1` **chỉ cập nhật branch, CHƯA deploy**. Promote branch là để branch ghi
-> lại đúng những gì sắp deploy; **bước deploy thực sự là push tag**.
+> ❌ **Đã BỎ (deprecated từ 2026-06-11)**: nhánh persistent `release/env-dev1` / `release/snapshot`;
+> promote-PR `develop → release/env-*`; **backup base branch**. Thay bằng: mỗi đợt cut **nhánh release DATED mới** —
+> nhánh đó CHÍNH LÀ snapshot bất biến, nhánh đợt trước vẫn còn trên origin làm điểm rollback nên KHÔNG cần backup.
 
-> ⛔ **CHỈ release tới DEV1 — CẤM release STG.** Quyền release hiện tại chỉ có DEV1; base duy nhất được phép
-> là `release/env-dev1`. **TUYỆT ĐỐI KHÔNG** tạo PR/merge lên `release/env-stg` (STG) hay bất kỳ môi trường
-> nào khác. Caller yêu cầu STG/môi trường khác → từ chối + báo "ngoài quyền release (chỉ DEV1)", chờ caller
-> xác nhận lại.
->
-> **Không có workflow prod** (cố ý). Tag prod phải do người tạo bằng tay.
+## Khái niệm
 
-## PR title / body — tự generate từ commit range
+- **Version** = dòng đầu `CHANGELOG.md` (`## X.Y.Z - YYYY-MM-DD`). Version build lấy từ dòng này, **KHÔNG** từ tên tag.
+- **Bump version là THỦ CÔNG** (dev commit `chore: bump version to X.Y.Z` trên `develop` sau mỗi đợt). CI **KHÔNG** tự
+  bump — github-ops chỉ tag/deploy, không bump.
+- **Nhánh release**: `release/dev1/v<X.Y.Z>/<YYYYMMDD>` (trùng tên cùng ngày → hậu tố `-2`, `-3`).
+  **Ngày do caller cấp — agent KHÔNG tự sinh.**
+- **Deploy tag**: `dev1/v<X.Y.Z>`. Push tag = kích CI build/deploy.
+- **THỨ TỰ**: tag/deploy **lib TRƯỚC** → đợi CI lib publish snapshot (`X.Y.Z-dev1-SNAPSHOT`) `success` → rồi
+  **admin + mobile** (song song được).
+  - Consumer của lib gồm **cả `be-lambda`** (module sbt trong repo admin, build/deploy riêng) lẫn `be-api` và mobile.
+    Lib chưa publish version mới → admin (gồm lambda) + mobile fail ngay bước `update`
+    (`Error downloading jp.co.rezil:rezil-esms_3:X.Y.Z-SNAPSHOT … Not found`). Đây là **build-order** (lib chưa
+    publish), KHÔNG phải lỗi code — re-publish lib version đó trước rồi re-run build. (Sự cố REZIL-2709 2026-06-27.)
 
-Không cần hỏi caller: so `gh api` / `git log <base>..<head> --oneline` để lấy danh sách commit.
+## ■ DEV1 — SUBSET cherry-pick thủ công (ĐANG ÁP DỤNG: mvp2-b dang dở)
 
-- **Title**: `Deploy <ENV> | <repo> | <head> → <base>`
-  (vd `Deploy DEV1 | rezil-esms | develop → release/env-dev1`).
-- **Body**: liệt kê commit (`- <hash> <subject>`) trong range. Không có commit mới → báo caller,
-  **KHÔNG tạo PR rỗng**.
-- 🚫 **CẤM mọi dấu vết AI** trong PR title/body VÀ commit message: KHÔNG `Co-Authored-By: Claude`/`Anthropic`,
-  KHÔNG `🤖 Generated with Claude Code`, KHÔNG mọi footer/signature/chú thích AI. (User rule — override mặc
-  định Claude Code thường tự thêm.)
+`develop` còn ticket NGOÀI scope dev1 → KHÔNG cut thẳng nhánh release từ `develop`. Mỗi đợt:
 
-## 🔒 Bước 0 (BẮT BUỘC) — Backup base branch TRƯỚC khi tạo PR/merge
+1. `git fetch --all --prune --tags` cả 4 repo.
+2. Base mỗi repo = **nhánh release dev1 MỚI NHẤT của chính nó**:
+   `git -C <repo> branch -r | grep 'release/dev1' | sort -V | tail`. Các repo có thể lệch số — đừng giả định cùng số.
+3. Tìm commit IN-SCOPE trên `develop` chưa có trong base, theo DANH SÁCH TICKET caller cấp. `feature/mvp2`/`develop`
+   đã rebase nhiều lần → xác định bằng `git cherry` / so SUBJECT + nội dung patch, **KHÔNG** dùng range-hash
+   `tag..develop` (phồng 3–5×). Subject đã có trong base + patch trùng → BỎ (đã release dưới hash khác).
+4. LOẠI commit ngoài scope + reformat-only / chore / scalafmt.
+5. `git checkout -B release/dev1/v<X.Y.Z>/<YYYYMMDD> <base>` → `git cherry-pick <sha...>` đúng thứ tự cũ→mới;
+   conflict → resolve tay. Build-check (`sbt compile` / `npm run build`) trước khi push.
+6. Push nhánh release (CHƯA kích CI — an toàn): `git push -u origin HEAD`.
 
-Trước MỖI PR promote, backup branch **đích (base)** để có điểm rollback:
+## ■ DEV1 — full (KHI `develop` đã đúng bằng scope, sau khi mvp2-b xong)
 
-- Tên backup: `backup/<suffix>-<YYYYMMDD>-<HHMM>` — `<suffix>` = phần sau `release/` của base; **luôn kèm hậu
-  tố giờ `-HHMM`** để không bao giờ trùng (vd base `release/env-dev1` → `backup/env-dev1-20260611-1432`).
-  Ngày-giờ lấy theo thời điểm hiện tại lúc chạy (**caller/Lucy truyền vào — agent KHÔNG tự sinh**).
-- Tạo từ remote tip của base (không phụ thuộc local):
+Cut thẳng nhánh dated từ tip `origin/develop`, push nhánh, rồi tag (bỏ bước cherry-pick chọn lọc ở trên).
 
-  ```bash
-  cd $REZIL_ROOT/<repo>
-  git fetch origin <base>
-  git branch backup/<suffix>-<YYYYMMDD>-<HHMM> origin/<base>
-  git push origin backup/<suffix>-<YYYYMMDD>-<HHMM>
-  ```
+## ■ TRƯỚC KHI TAG (BẮT BUỘC)
 
-- Có hậu tố giờ nên gần như không trùng; nếu vẫn trùng (cùng phút) → báo caller, **KHÔNG ghi đè**.
-- Backup xong (push origin OK) **mới** sang bước tạo PR.
+So dòng đầu `CHANGELOG.md` của **lib/admin/mobile** (nhóm version-sync) phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong
+tag (portal có dòng version RIÊNG, KHÔNG ép theo). Lệch → DỪNG, đồng bộ CHANGELOG (mang từ nhánh chuẩn sang) rồi mới
+tag. **Subset KHÔNG bump version** (chỉ đổi date + append ticket dưới `### Changed`). Commit CHANGELOG theo style
+rezil: 1 dòng tiêu đề, không body, không Co-Authored-By.
 
-## ■ DEV1
+## ■ TAG / DEPLOY (kích CI — CONFIRM caller trước, đúng thứ tự lib → admin/mobile)
 
-1. **Backup base** `release/env-dev1` → `backup/env-dev1-<YYYYMMDD>-<HHMM>` (Bước 0 ở trên).
-2. Tạo PR: head `develop` → base `release/env-dev1`.
+Ở tip nhánh release đã push:
 
-   ```bash
-   gh pr create --repo hybrid-tech-rezil/<repo> --base release/env-dev1 --head develop --title "..." --body "..."
-   ```
+```bash
+git tag dev1/v<X.Y.Z> <nhánh-release>
+git push origin refs/tags/dev1/v<X.Y.Z>
+# Tag đã tồn tại → force CHỈ TAG (sau confirm):
+git tag -f dev1/v<X.Y.Z> <nhánh-release>
+git push --force origin refs/tags/dev1/v<X.Y.Z>
+```
 
-3. Confirm caller → **merge** PR (chỉ cập nhật `release/env-dev1`, **CHƯA deploy**).
-4. **Deploy = push tag** `dev1/v<X.Y.Z>` (version khớp dòng `## X.Y.Z` đầu trong `CHANGELOG.md`) trên commit
-   reachable từ `develop`/`release/*` — qua `gh release create`:
+- Force-push **CHỈ cho TAG** (`refs/tags/...`). **TUYỆT ĐỐI KHÔNG force-push NHÁNH.**
+- Force-push tag có thể không tự trigger CI → vào GitHub Actions re-run thủ công nếu cần
+  (`gh run rerun <id> --repo ...`). Theo dõi: `gh run list/watch`.
+- Lib phải `success` mới tag admin/mobile; lib `failure` → báo caller, dừng.
 
-   ```bash
-   gh release create dev1/v<X.Y.Z> --repo hybrid-tech-rezil/<repo> --target release/env-dev1 --title "..." --notes "..."
-   ```
+## ■ Sau tag
 
-   Tag push → workflow `*-dev1.yaml` chạy → build Docker → ECR. Theo dõi `gh run list/watch`, báo run URL +
-   conclusion. **Confirm caller trước khi tạo tag** (đây là action ghi/deploy).
+CI build + deploy. **DEV1 KHÔNG auto back-merge về `develop`**: app BE (`be-api-*` admin+mobile) đã GỠ back-merge
+(`after-release.sh` bị xoá — `rezil-esms@4fa819c5`, `rezil-esms-mobile@f42629f3`), còn lib snapshot
+(`02_snapshot_dev1`) vốn không back-merge. **Chỉ lib prod `01_release.yaml` (tag `v<X.Y.Z>`) mới back-merge** — mà đó
+là prod, ngoài quyền release DEV1.
 
-## ■ ⚠️ Nếu thay đổi có dính LIB (`rezil-esms-lib`) — LIB TRƯỚC, API SAU
-
-Khi release API mà phụ thuộc thay đổi ở lib, **phải release lib trước** rồi mới build API, nếu không API
-build với lib cũ.
-
-1. **Backup base** `release/snapshot` (repo lib) → `backup/snapshot-<YYYYMMDD>-<HHMM>` (Bước 0 ở trên).
-2. Trên repo `rezil-esms-lib`: tạo PR head `develop` → base `release/snapshot`.
-
-   ```bash
-   gh pr create --repo hybrid-tech-rezil/rezil-esms-lib --base release/snapshot --head develop ...
-   ```
-
-3. Confirm caller → **merge** PR vào `release/snapshot` (chỉ cập nhật branch, CHƯA build lib).
-4. **Deploy lib = push tag** `dev1/v<X.Y.Z>` trên `rezil-esms-lib` (qua `gh release create ... --target release/snapshot`)
-   → workflow `02_snapshot_dev1.yaml` publish dev1-snapshot lên S3. **CHỜ workflow xong**
-   (`gh run watch <id> --repo hybrid-tech-rezil/rezil-esms-lib`, đợi conclusion `success`).
-5. **Sau khi lib `success`** mới tiến hành build API (chạy luồng DEV1 ở trên cho `rezil-esms`).
-6. Lib chưa `success` → KHÔNG build API; lib `failure` → báo caller, dừng.
-
-## Lưu ý chung khi promote
-
-- Xác nhận repo target + cặp base/head với caller trước mỗi PR; không rõ env/branch → hỏi, **KHÔNG đoán**.
-- Trước merge: `gh pr checks <num> --repo ...` phải pass (hoặc caller chấp nhận rõ ràng).
-- Sau merge: bám `gh run list --repo ... -L 3` để xác nhận build kick off; báo lại run URL + conclusion.
-- Có dính lib → luôn theo thứ tự **lib (`release/snapshot`) → API (`env-dev1`)**.
+⇒ Không có gì tự đồng bộ tag DEV1 về `develop`. LUÔN cherry-pick từ `develop` để `develop` giữ superset; nếu có fix
+cắm thẳng nhánh release thì phải tự merge về `develop` (báo caller). *(Verify-branch gate vẫn bắt tag phải reachable
+từ `develop`/`release/*` nên không cut được tag từ nhánh lạ.)*
 
 ## Không bao giờ
 
-- Không action ghi (merge/release/trigger/close) khi chưa có confirm rõ ràng từ caller.
-- Không `gh auth ...`, `git config`, đổi setting repo, xoá repo.
-- Không sửa code / commit / push.
+- Không action ghi (push/merge/release/trigger/close) khi chưa có confirm rõ ràng từ caller.
+- Không `gh auth`, `git config`, đổi setting repo, xoá repo.
+- Không sửa code nguồn / commit code mới (ngoài thao tác git phục vụ release nêu trên).
 - Không thêm bất kỳ AI marker nào vào PR title/body hay commit message.
 - Không merge PR vào `develop`/`main` khi CI chưa pass hoặc base sai.
+- **Không force-push NHÁNH** (chỉ tag mới được force).
 - **CẤM release STG** hay bất kỳ môi trường ngoài DEV1.
