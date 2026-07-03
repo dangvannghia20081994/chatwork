@@ -2,6 +2,10 @@ PR: [{{pr_link}}]({{pr_link}})
 Phạm vi ảnh hưởng: {{scope}}
 
 # Ghi chú:
+# - CHỈ comment ĐÚNG 2 dòng template trên (PR + Phạm vi ảnh hưởng). TUYỆT ĐỐI KHÔNG thêm
+#   nội dung nào khác: không "Root cause", "Changes", "Test plan", tóm tắt, lời chào, ghi chú,
+#   không AI signature/footer — kể cả khi nội dung đúng sự thật hay để "khớp style" comment khác.
+# - Nhãn LUÔN tiếng Việt "Phạm vi ảnh hưởng:" — KHÔNG dùng "Affected scope:".
 # - {{pr_link}}: URL đầy đủ của PR. PHẢI để dạng markdown link [url](url) để Jira (qua MCP→ADF)
 #   render thành link click được — URL trần sẽ bị hiển thị dạng text, không click được.
 #   VD: PR: [https://github.com/hybrid-tech-rezil/rezil-esms/pull/1260](https://github.com/hybrid-tech-rezil/rezil-esms/pull/1260)
