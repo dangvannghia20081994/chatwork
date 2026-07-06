@@ -70,5 +70,5 @@ A feature spanning LIB + BE may produce changes in **both** `rezil-esms` and `re
 - Comment the Jira ticket with the PR link(s) (markdown link form) + scope.
 
 ## Human Gate
-- AI stops after PR creation. **Never merges, never deploys, never force-pushes.**
+- AI stops after PR creation. **Never merges, never deploys, never force-pushes `develop`/`main`** (force-push nhánh feature của mình được nếu cần).
 - Human reviews the PR(s) and the digest, then merges.

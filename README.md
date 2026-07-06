@@ -167,13 +167,13 @@ Phạm vi ảnh hưởng: <SCREEN-CODE>
 | `create-pr.js`   | Push branch + open PR (base `develop`, body from template)          | `<REZIL-XXXX> <SCREEN-CODE> [repo] --summary="..." [--dry-run]`              |
 | `update-jira.js` | Render the Jira comment to post (applied via Atlassian integration) | `<REZIL-XXXX> comment --pr=<url> --scope=<SCREEN-CODE>`                      |
 
-Scripts read `config/*.json`, shell out to `git`/`gh`, and enforce the guardrails (never force-push, refuse to PR from the base branch). Jira **writes** are performed by the agent via the Atlassian integration, not by the script.
+Scripts read `config/*.json`, shell out to `git`/`gh`, and enforce the guardrails (never force-push `develop`/`main`, refuse to PR from the base branch). Jira **writes** are performed by the agent via the Atlassian integration, not by the script.
 
 ---
 
 ## 6. Guardrails (hard rules)
 
-- Never merge PRs · never force push · never modify secrets.
+- Never merge PRs · never force-push `develop`/`main` · never modify secrets.
 - **Never deploy** (any env) — deploy is out of scope; all releases are human-driven per `RELEASE_FLOW.md`.
 - Never change infra / CI/CD without explicit approval.
 - Stop and ask if requirements are ambiguous.
@@ -233,8 +233,9 @@ The REZIL coding workflows — pick by task type:
 - **Info gate**: if the ticket/task lacks enough info, Claude stops and prints `⛔ NEED-INFO:`
   (no changes) — the UI shows a banner so you can Cancel.
 - **Concurrency per repo**: one job per repo at a time; a second job on the **same repo** returns `409`.
-- **Hard limits**: never merge, never deploy, never force-push (enforced via `disallowedTools` +
-  system prompt). Non-interactive — it states assumptions and proceeds.
+- **Hard limits**: never merge, never deploy, never force-push `develop`/`main` (force-push of your own
+  feature/fix branch is allowed; the ban on `develop`/`main` is enforced via the system prompt).
+  Non-interactive — it states assumptions and proceeds.
 - Binds **127.0.0.1 only**; **Basic Auth** via `ui-next/.env` `UI_BASIC_AUTH` (needed when exposed via ngrok).
 - ⚠️ Auto mode makes **real changes** to the selected repo and opens a **real PR**. Review before merging.
 
@@ -244,7 +245,7 @@ each keeps its own saved conversation + session). Ask about code or tickets, ans
 Vietnamese. Type `/usage` to see token usage + estimated cost. Multi-turn (session resume).
 - **Read-only by default**: Read/Grep code, search the web, read Jira — no edits.
 - **✏️ Sửa code toggle**: tick it to let the chat edit files and run build/test (`Edit`/`Write`/`Bash`).
-  Same hard limits apply — never merge, never deploy, never force-push. Leave it off for plain Q&A.
+  Same hard limits apply — never merge, never deploy, never force-push `develop`/`main`. Leave it off for plain Q&A.
 - ⚠️ With the toggle on, the chat edits the **default repo's working tree** on its current branch
   (no auto branch/commit) — use it for quick iterative changes, not the full ticket workflow (use Auto for that).
 
@@ -258,7 +259,7 @@ rezil repos — promote a DEV1 PR, create releases/tags, watch CI. Just describe
 - **DEV1 only — STG is refused.** Backup of the base branch happens before any promote/merge; the
   server injects the current timestamp for the backup-branch name.
 - **Release MAY merge** the DEV1 promote PR (that's the flow) — so unlike Auto/Chat it is *not* blocked
-  from merging. Everything destructive stays blocked via `disallowedTools`: force/delete push, history
+  from merging. Everything destructive stays blocked via `disallowedTools`: delete push, history
   rewrite (`reset --hard`/`rebase`/`clean`), repo settings & deletion, `gh release delete`, CI secrets,
   `gh auth`/`git config`, `rm`/`sudo`, and code edits (`Edit`/`Write`). See `lib/release.js`.
 - ⚠️ Acts on **real GitHub repos**. Review each confirm prompt before approving.

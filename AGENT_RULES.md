@@ -10,6 +10,7 @@
 - Build
 - Commit
 - Push
+- Force-push your own branch (feature/fix, `release/*`) or a tag when needed
 - Create PR
 - Update Jira
 
@@ -17,7 +18,7 @@
 
 - Merge PR
 - Deploy production
-- Force push
+- Force-push `develop` / `main` (protected branches)
 - Delete branches
 - Rotate secrets
 - Modify CI/CD without approval

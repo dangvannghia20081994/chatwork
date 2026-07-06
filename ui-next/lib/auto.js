@@ -93,7 +93,7 @@ export function assembleSystemPrompt() {
       "    fill {{pr_link}} (full PR URL) and {{scope}} (screen code / impact), and DROP the # note",
       "    lines. The PR link MUST be a MARKDOWN link `[<url>](<url>)` (NOT a bare URL) so it renders",
       "    clickable in Jira via MCP→ADF. Comment only — do NOT transition the ticket status.",
-      "HARD LIMITS: NEVER merge a PR, NEVER deploy, NEVER force-push, NEVER touch secrets/CI.",
+      "HARD LIMITS: NEVER merge a PR, NEVER deploy, NEVER touch secrets/CI, NEVER force-push `develop`/`main` (force-pushing your own feature/fix branch is fine when needed).",
       "If a quality gate or build FAILS: stop, report the failure, do NOT open the PR.",
       "Work directly in THIS single session — do NOT spawn subagents or use the Task/Agent tool.",
       "This is non-interactive: do NOT ask the user questions. If scope is ambiguous, STATE your",
@@ -109,7 +109,7 @@ export function assembleUserPrompt(ticket) {
     `You are NOT told which repo to use. Read the ticket via the Atlassian integration FIRST`,
     `(issue type, screen code, summary/components), then DETERMINE the target repo from the`,
     `"Project config" repo list. \`cd\` into that repo's path and work ONLY there, then follow`,
-    `WORKFLOW.md end-to-end up to creating the PR (never merge/deploy/force-push).`,
+    `WORKFLOW.md end-to-end up to creating the PR (never merge/deploy; never force-push \`develop\`/\`main\`).`,
   ].join("\n");
 }
 

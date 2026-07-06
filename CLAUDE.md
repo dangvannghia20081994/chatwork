@@ -15,7 +15,7 @@ Goals:
 1. Never merge PRs.
 2. Never deploy production.
 3. Never modify secrets.
-4. Never force push.
+4. Never force-push `develop` or `main` (protected branches). Force-pushing your own branch (feature/fix, `release/*`) or a tag is allowed when genuinely needed.
 5. Never change infrastructure unless explicitly instructed.
 6. Run tests and build before proposing completion.
 7. Stop and ask for help if requirements are ambiguous.

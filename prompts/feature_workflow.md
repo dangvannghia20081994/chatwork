@@ -51,7 +51,7 @@ sub-agents follow the role/scope descriptions in this prompt, not pre-registered
 - **Never** change OpenAPI without updating BE + FE + Aspida + tests.
 - **Never** hardcode an API URL/fetch in FE when Aspida exists.
 - **Never** put domain/business rule in a controller if LIB should own it.
-- **Never** merge, deploy, force-push, touch secrets/CI.
+- **Never** merge, deploy, touch secrets/CI. **Never force-push `develop`/`main`** (force-push nhánh feature của mình được nếu cần).
 - Non-interactive: do not ask the user; state Assumptions and proceed (unless the INFO GATE triggers).
 
 ## Output

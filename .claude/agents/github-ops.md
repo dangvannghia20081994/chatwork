@@ -121,7 +121,7 @@ git push origin refs/tags/dev1/v<X.Y.Z>
 git tag -f dev1/v<X.Y.Z> <nhánh-release>
 git push --force origin refs/tags/dev1/v<X.Y.Z>
 ```
-Force-push **CHỈ cho TAG** (`refs/tags/...`). **TUYỆT ĐỐI KHÔNG force-push NHÁNH.** Force-push tag có thể không tự
+Force-push được cho **TAG** (`refs/tags/...`) và **nhánh release** (`release/*`) khi cần (sau confirm). **TUYỆT ĐỐI KHÔNG force-push `develop`/`main`.** Force-push tag có thể không tự
 trigger CI → vào GitHub Actions re-run thủ công nếu cần (`gh run rerun <id> --repo ...`). Theo dõi: `gh run list/watch`.
 Lib phải `success` mới tag admin/mobile; lib `failure` → báo caller, dừng.
 

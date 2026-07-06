@@ -9,8 +9,9 @@ export const DISALLOWED_TOOLS = [
   "AskUserQuestion",
   "Bash(gh pr merge:*)",
   "Bash(git merge:*)",
-  "Bash(git push --force:*)",
-  "Bash(git push -f:*)",
+  // Force-push is allowed on your own branch (feature/fix, release/*) + tags. Prefix matching can't
+  // tell the target branch from the pattern, so raw `--force`/`-f` is NOT hard-blocked here — the
+  // system prompt is the brake forbidding force-push of `develop`/`main`.
 ];
 
 // Claude session ids are UUIDs. Only forward a well-formed one to `--resume`; anything else
@@ -48,7 +49,7 @@ function chatSystemPrompt(project, canEdit) {
     if (canEdit) {
       base.push(
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash), và dùng Agent để gọi agent layer của story.",
-        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push, KHÔNG --no-verify. Tên branch/commit/PR/code giữ tiếng Anh theo convention."
+        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention."
       );
     } else {
       base.push(
@@ -67,7 +68,7 @@ function chatSystemPrompt(project, canEdit) {
     if (canEdit) {
       base.push(
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash).",
-        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push, KHÔNG --no-verify. Tên branch/commit/PR/code giữ tiếng Anh theo convention."
+        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention."
       );
     } else {
       base.push(
@@ -84,7 +85,7 @@ function chatSystemPrompt(project, canEdit) {
     base.push(
       "Chế độ SỬA CODE đang BẬT: bạn có thể đọc và CHỈNH SỬA file (Edit/Write) cùng chạy lệnh read-only/build/test (Bash) theo yêu cầu.",
       "Sau khi sửa, giải thích ngắn gọn những gì đã thay đổi.",
-      "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push. Tên branch/commit/PR/code giữ tiếng Anh theo convention."
+      "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention."
     );
   } else {
     base.push(

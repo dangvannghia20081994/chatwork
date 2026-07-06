@@ -19,7 +19,7 @@ Open a pull request for a completed change. NEVER merge — human reviews and me
 2. PR body = **EXACTLY** nội dung `templates/pr_template.md`, chỉ điền placeholder (Ticket URL, AI Usage %, tick các ô checklist đã thực sự pass). KHÔNG thêm/bớt/đổi thứ tự section, KHÔNG append summary / change list / test plan / footer "Generated with" / emoji. Dùng `gh pr create --body-file <file template đã điền>` (KHÔNG dùng `--body` với text tự gõ).
 3. Set base = `develop`. Title = `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` (phase `[PreUAT-MVP2-A]` for `develop`, `[Sprint NN]` for `feature/mvp2-b`).
 4. Link the Jira ticket.
-5. Request review. **Do not merge. Do not force push.**
+5. Request review. **Do not merge. Do not force-push `develop`/`main`** (force-push nhánh PR của mình được nếu cần).
 
 ## Output
 - PR link

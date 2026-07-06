@@ -32,12 +32,11 @@ export const RELEASE_DISALLOWED = [
   // Release / tag DELETION (create/edit allowed with confirm; delete never).
   "Bash(gh release delete:*)",
   "Bash(gh release delete-asset:*)",
-  // Force / delete pushes + local history rewrite — backups exist, never rewrite/destroy.
-  // NOTE: raw `git push --force` / `-f` is intentionally NOT blocked — the DEV1 re-tag step needs
-  // `git push --force origin refs/tags/<tag>`. Prefix matching can't tell tag- from branch-force-push,
-  // so the system prompt is the brake limiting raw --force to refs/tags only. The branch force-push
-  // form (`--force-with-lease origin <branch>`) stays blocked below, so branch force-push is hard-denied.
-  "Bash(git push --force-with-lease:*)",
+  // Delete pushes + local history rewrite — backups exist, never rewrite/destroy.
+  // NOTE: force-push is allowed for the DEV1 re-tag step (`git push --force origin refs/tags/<tag>`)
+  // and for release branches (`release/*`). Prefix matching can't tell the target ref from the
+  // pattern, so neither `--force` nor `--force-with-lease` is hard-blocked here — the system prompt
+  // is the brake forbidding force-push of `develop`/`main`.
   "Bash(git push --delete:*)",
   "Bash(git push -d:*)",
   "Bash(git reset --hard:*)",
@@ -66,7 +65,7 @@ export function releaseSystemPrompt(nowStamp) {
     "KHÔNG promote-PR nhánh persistent).",
     "Với mọi ACTION GHI (push nhánh/tag, `git tag -f`, merge PR, trigger workflow): DỪNG lại, nêu rõ lệnh +",
     "repo, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm. CHỈ DEV1, CẤM STG.",
-    "Force-push CHỈ cho TAG (`refs/tags/...`), TUYỆT ĐỐI KHÔNG force-push nhánh. KHÔNG thêm mọi dấu vết AI",
+    "Force-push được cho TAG (`refs/tags/...`) và nhánh release (`release/*`) khi cần (sau confirm), TUYỆT ĐỐI KHÔNG force-push `develop`/`main`. KHÔNG thêm mọi dấu vết AI",
     "vào PR title/body hay commit message.",
     "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi dòng",
     "`- <gợi ý ngắn bấm để làm/hỏi tiếp>` (vd liệt kê ticket, tag lib, check CI). Tiếng Việt, không viết gì sau khối này.",

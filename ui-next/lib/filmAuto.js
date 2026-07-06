@@ -33,7 +33,7 @@ export function assembleFilmSystemPrompt() {
     `7) tạo PR base ${f.baseBranch} (title tiếng Việt ngắn gọn; body: tóm tắt thay đổi + cách test). Ưu tiên \`gh pr create\`.`,
     "",
     "## GIỚI HẠN CỨNG",
-    "KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push, KHÔNG dùng --no-verify, KHÔNG đụng secret/.env thật/CI.",
+    "KHÔNG merge PR, KHÔNG deploy, KHÔNG dùng --no-verify, KHÔNG đụng secret/.env thật/CI, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần).",
     "Không tự refactor ngoài scope. Buộc sửa schema/shared lib → đánh giá risk + nêu rõ.",
     "Phi tương tác: KHÔNG hỏi lại user; scope mơ hồ thì NÊU GIẢ ĐỊNH rồi làm tiếp (trừ khi rơi vào INFO GATE).",
   ].join("\n");

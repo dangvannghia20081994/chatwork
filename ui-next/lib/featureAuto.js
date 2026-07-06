@@ -112,7 +112,7 @@ export function assembleFeatureSystemPrompt() {
       "URL as MARKDOWN link `[<url>](<url>)`) and {{scope}}, DROP the # note lines, add nothing else.",
       "",
       "## HARD LIMITS",
-      "NEVER merge a PR, NEVER deploy, NEVER force-push, NEVER touch secrets/CI.",
+      "NEVER merge a PR, NEVER deploy, NEVER touch secrets/CI, NEVER force-push `develop`/`main` (force-pushing your own feature branch is fine when needed).",
       "You MAY use the Task tool to delegate per-phase work to keep context small.",
       "This is non-interactive: do NOT ask the user questions. If scope is ambiguous, STATE your",
       "Assumption explicitly and proceed (unless the INFO GATE triggers).",
