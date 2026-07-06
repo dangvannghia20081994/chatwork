@@ -562,7 +562,7 @@ export default function AgentConsole({ config }) {
             m.role === "me" ? (
               <div
                 key={i}
-                className={`max-w-[80%] self-end whitespace-pre-wrap break-words rounded-lg px-3 py-2.5 text-[13px] leading-normal text-[#cdd6f4] ${a.me}`}
+                className={`max-w-[80%] self-end whitespace-pre-wrap break-words rounded-lg px-3 py-2.5 text-[13px] leading-normal text-mebubbleink ${a.me}`}
               >
                 {m.text}
               </div>
