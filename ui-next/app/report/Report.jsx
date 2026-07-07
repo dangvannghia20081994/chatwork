@@ -2,33 +2,33 @@
 
 import AgentConsole from "../_components/AgentConsole";
 
-// Same multi-turn console as /chat & /release (no ✏️ edit toggle). Drives the jira-master agent
-// READ-ONLY to produce Jira reports (see /api/report).
+// Multi-turn chat console (like /chat & /release). The report agent turns each free-form request into
+// a JQL, fetches Jira via the LOCAL REST CLI (scripts/jira-search.mjs — not MCP), then analyses the
+// compact JSON. READ-ONLY. See /api/report + lib/report.js.
 const EXAMPLES = [
-  "Ticket Resolved thuộc PreUAT-MVP2-A (filter=10652)",
-  "Ticket Resolved thuộc UAT-MVP2-A (filter=10695)",
-  "Report UAT-MVP2-A hôm nay (filter=10695)",
-  "Ticket chưa có assignee trong sprint đang mở",
-  "Top 5 người đang giữ nhiều ticket Open nhất",
-  "Bug được Resolved trong tuần này, kèm người fix",
-  "Ticket tạo mới trong 7 ngày qua, theo issue type",
+  "Report UAT-MVP2-A hôm nay",
+  "Report PreUAT-MVP2-A",
+  "Ticket Resolved thuộc UAT-MVP2-A, nhóm theo người",
+  "Bug đang mở của REZIL, nhóm theo assignee",
+  "Ticket chưa có assignee trong filter=10695",
+  "Top 5 người giữ nhiều ticket 'còn' nhất ở UAT-MVP2-A",
+  "Ticket tạo trong 7 ngày qua, theo issue type",
 ];
 
 const config = {
   apiPath: "/api/report",
-  uploadPath: "/api/report/upload",
   storageKey: "report:console",
   accent: "blue",
   icon: "📊",
   title: "Report",
-  badge: "jira-master · read-only",
+  badge: "Jira REST · read-only",
   renderMarkdown: true,
   examples: EXAMPLES,
   emptyText:
-    "Hỏi báo cáo Jira bất kỳ bằng JQL tự do. Agent jira-master query Jira READ-ONLY và tổng hợp tiếng Việt — không sửa gì trên Jira. Đa lượt: hỏi tiếp để tinh chỉnh.",
-  placeholder: "Vd: Sprint summary sprint đang mở · hoặc: ticket Resolved filter=10656",
+    "Gõ yêu cầu báo cáo tự do bằng tiếng Việt. Claude tự dựng JQL, lấy data qua REST API (không dùng MCP) rồi phân tích/thống kê — không sửa gì trên Jira. Đa lượt: hỏi tiếp để tinh chỉnh (đổi env, nhóm theo epic, xem chi tiết…).",
+  placeholder: "Vd: Report UAT-MVP2-A hôm nay · hoặc: bug đang mở nhóm theo người",
   editToggle: false,
-  nav: [{ href: "/auto", label: "⚙️ Auto" }, { href: "/", label: "⌂ Home" }],
+  nav: [{ href: "/", label: "⌂ Home" }],
 };
 
 export default function Report() {

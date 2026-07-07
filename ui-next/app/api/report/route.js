@@ -1,10 +1,11 @@
-// SSE report endpoint (EventSource → GET): a free-form instruction → the jira-master agent builds a
-// READ-ONLY Jira report via Atlassian MCP. Multi-turn via --resume so the user can refine across turns
-// (like /chat & /release). No job lock / no timeout — a report is short and read-only; the user stops
-// it by closing the stream.
+// SSE report endpoint (EventSource → GET): a free-form instruction → the report agent turns it into
+// a JQL, fetches Jira via the LOCAL REST CLI (scripts/jira-search.mjs — not the Atlassian MCP), then
+// analyses the compact JSON. Multi-turn via --resume so the user can refine across turns (like /chat
+// & /release). No job lock / no timeout — a report is short and read-only; the user stops it by
+// closing the stream.
 //
-// cwd = the ai-agent project ROOT (not a rezil repo): the report touches Jira only, and running here
-// lets Claude load the project-local jira agents copied into ROOT/.claude/agents.
+// cwd = the ai-agent project ROOT (repo root): the CLI path `ui-next/scripts/jira-search.mjs` is
+// relative to it, and the report touches Jira only.
 import fs from "fs";
 import { buildReportArgv } from "../../../lib/report.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
