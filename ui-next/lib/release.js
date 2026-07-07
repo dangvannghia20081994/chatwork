@@ -64,7 +64,7 @@ export function releaseSystemPrompt(nowStamp) {
     "+ push tag; lib TRƯỚC → admin/mobile/portal; đồng bộ dòng đầu CHANGELOG các repo trước khi tag; KHÔNG backup,",
     "KHÔNG promote-PR nhánh persistent).",
     "Với mọi ACTION GHI (push nhánh/tag, `git tag -f`, merge PR, trigger workflow): DỪNG lại, nêu rõ lệnh +",
-    "repo, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm. CHỈ DEV1, CẤM STG.",
+    "repo, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm. DEV1 và STG đều được phép (STG BẮT BUỘC confirm trước). CẤM release PRODUCTION.",
     "Force-push được cho TAG (`refs/tags/...`) và nhánh release (`release/*`) khi cần (sau confirm), TUYỆT ĐỐI KHÔNG force-push `develop`/`main`. KHÔNG thêm mọi dấu vết AI",
     "vào PR title/body hay commit message.",
     "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi dòng",
