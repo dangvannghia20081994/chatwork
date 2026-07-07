@@ -40,12 +40,14 @@
 
 ## Phạm vi release hiện tại
 
-- ⛔ **CHỈ release tới DEV1 — CẤM STG** và mọi môi trường khác. Không tag `stg/v*`, không nhánh `release/stg/*`.
-  Caller yêu cầu STG → từ chối + báo "ngoài quyền release (chỉ DEV1)", chờ xác nhận lại.
-- **Không có workflow prod** (cố ý). Tag prod phải do người tạo bằng tay.
+- ✅ **Được release DEV1 và STG.** DEV1 confirm trước mọi action ghi (như mọi luồng). **STG BẮT BUỘC hỏi/confirm
+  caller trước khi push tag** — tóm tắt sẽ tag repo/version/nhánh gì rồi mới chạy, KHÔNG tự động.
+- ⛔ **CẤM prod** (tag `v<X.Y.Z>` không prefix, workflow lib `01_release.yaml`) và mọi môi trường ngoài dev1/stg.
+- **Không có workflow prod cho agent** (cố ý). Tag prod phải do người tạo bằng tay.
 
 > ✅ **Cơ chế deploy THẬT**: deploy kích bằng **PUSH TAG**, KHÔNG phải merge branch. Tag `dev1/v<X.Y.Z>` →
-> workflow `*-dev1.yaml` → build → deploy. portal chưa có `*-dev1.yaml` nên không tag-deploy được.
+> workflow `*-dev1.yaml`; tag `stg/v<X.Y.Z>` → workflow `*-stg.yaml` → build → deploy. portal chưa có
+> `*-dev1.yaml`/`*-stg.yaml` nên không tag-deploy được.
 >
 > ❌ **Đã BỎ (deprecated từ 2026-06-11)**: nhánh persistent `release/env-dev1` / `release/snapshot`;
 > promote-PR `develop → release/env-*`; **backup base branch**. Thay bằng: mỗi đợt cut **nhánh release DATED mới** —
@@ -120,6 +122,31 @@ là prod, ngoài quyền release DEV1.
 cắm thẳng nhánh release thì phải tự merge về `develop` (báo caller). *(Verify-branch gate vẫn bắt tag phải reachable
 từ `develop`/`release/*` nên không cut được tag từ nhánh lạ.)*
 
+## ■ STG (ĐƯỢC PHÉP — CONFIRM caller trước mỗi lần)
+
+STG chạy song song DEV1: **CÙNG nhánh release + CÙNG số version**, chỉ khác **prefix tag** (`stg/` thay vì `dev1/`)
+và **workflow** (`*-stg.yaml` thay vì `*-dev1.yaml`). Toàn bộ bước cut nhánh / cherry-pick / đồng bộ CHANGELOG y hệt DEV1.
+
+- **Deploy tag**: `stg/v<X.Y.Z>` (regex `stg/v[0-9]+.[0-9]+.[0-9]+`). Trigger:
+  - lib: `03_snapshot_stg.yaml` → publish snapshot **suffix `-stg`** (`X.Y.Z-stg-SNAPSHOT`), coexist với snapshot dev1 cùng version trên S3.
+  - admin: `be-api-stg.yaml`, `be-lambda-stg.yaml`, `web-stg.yaml`. *(comment header `be-lambda-stg.yaml` ghi nhầm "dev1" — filter tag thật là `stg/v*`.)*
+  - mobile: `be-api-stg.yaml`, `app-stg.yaml`.
+  - portal: **chưa có `*-stg.yaml`** → không tag-deploy stg.
+- **Verify-branch**: tag phải reachable từ `develop` HOẶC nhánh `release/*` → tag được stg ngay trên nhánh release đã cut cho dev1.
+- **THỨ TỰ y hệt dev1**: lib TRƯỚC → đợi CI lib publish `X.Y.Z-stg-SNAPSHOT` `success` → admin + mobile (song song). Lib `failure` → dừng, báo caller.
+
+```bash
+# CHỈ chạy SAU khi caller confirm (tóm tắt repo/version/nhánh/tag trước):
+git tag stg/v<X.Y.Z> <nhánh-release>
+git push origin refs/tags/stg/v<X.Y.Z>
+# Tag đã tồn tại → force CHỈ TAG (sau confirm):
+git tag -f stg/v<X.Y.Z> <nhánh-release>
+git push --force origin refs/tags/stg/v<X.Y.Z>
+```
+
+- STG **không** back-merge về `develop` (như dev1).
+- **BẮT BUỘC**: trước khi push tag `stg/v*` → tóm tắt cho caller (repo/version/nhánh/tag) và chờ xác nhận. Không tự động.
+
 ## Không bao giờ
 
 - Không action ghi (push/merge/release/trigger/close) khi chưa có confirm rõ ràng từ caller.
@@ -128,4 +155,5 @@ từ `develop`/`release/*` nên không cut được tag từ nhánh lạ.)*
 - Không thêm bất kỳ AI marker nào vào PR title/body hay commit message.
 - Không merge PR vào `develop`/`main` khi CI chưa pass hoặc base sai.
 - **Không force-push `develop`/`main`** (nhánh `release/*` và tag được force khi cần, sau confirm).
-- **CẤM release STG** hay bất kỳ môi trường ngoài DEV1.
+- **Release STG mà chưa confirm caller** — STG được phép nhưng phải hỏi/xác nhận trước mỗi lần push tag `stg/v*`.
+- **CẤM release prod** (tag `v<X.Y.Z>` không prefix) hay bất kỳ môi trường ngoài dev1/stg.
