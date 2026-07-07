@@ -148,7 +148,8 @@ export default function AgentConsole({ config }) {
     });
   }
 
-  function clearChat() {
+  // Reset chỉ phía client: đóng stream, quên session, xoá localStorage + state hiển thị.
+  function resetLocal() {
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
     sessionRef.current = "";
     lastJobRef.current = null;
@@ -158,6 +159,17 @@ export default function AgentConsole({ config }) {
     setAnswer("");
     setBusy(false);
     try { localStorage.removeItem(config.storageKey); } catch {}
+  }
+
+  // "Xóa hội thoại": reset local, và khi console có sessionsPath thì XOÁ LUÔN file phiên phía server
+  // (trước đây chỉ xoá localStorage nên phiên vẫn còn trong "Phiên đã lưu"). deleteServer=false = chỉ
+  // bắt đầu phiên mới, GIỮ phiên cũ (dùng cho "＋ Phiên mới" / lệnh /new).
+  function clearChat(deleteServer = false) {
+    const id = sessionRef.current;
+    resetLocal();
+    if (deleteServer && id && config.sessionsPath) {
+      fetch(BASE + config.sessionsPath + "/" + id + "?" + sessionsQuery(), { method: "DELETE" }).catch(() => {});
+    }
   }
 
   // ── Phiên đã lưu (config.sessionsPath) ─────────────────────────────────────
@@ -211,7 +223,7 @@ export default function AgentConsole({ config }) {
       const res = await fetch(BASE + config.sessionsPath + "/" + id + "?" + sessionsQuery(), { method: "DELETE" });
       if (!res.ok) return;
       setSessions((prev) => (prev ? prev.filter((s) => s.id !== id) : prev));
-      if (sessionRef.current === id) clearChat(); // đang xem đúng phiên vừa xoá → về phiên mới
+      if (sessionRef.current === id) resetLocal(); // đã xoá file server ở trên → chỉ cần reset local
     } catch {
       /* bỏ qua */
     }
@@ -221,7 +233,8 @@ export default function AgentConsole({ config }) {
   // (/usage and /cost are server-side — see lib/slashCommands.js — so they fall through to the API.)
   function handleClientSlash(typed) {
     const cmd = typed.toLowerCase();
-    if (cmd === "/clear" || cmd === "/new") { clearChat(); return true; }
+    if (cmd === "/clear") { clearChat(true); return true; }  // xoá hẳn phiên hiện tại
+    if (cmd === "/new") { clearChat(false); return true; }   // giữ phiên cũ, bắt đầu phiên mới
     if (cmd === "/help") {
       setMessages((prev) => [
         ...prev,
@@ -464,9 +477,9 @@ export default function AgentConsole({ config }) {
           ) : null}
           <button
             type="button"
-            onClick={clearChat}
+            onClick={() => clearChat(true)}
             disabled={busy || !messages.length}
-            title="Xóa hội thoại đã lưu"
+            title={config.sessionsPath ? "Xóa hội thoại (xoá luôn phiên đã lưu)" : "Xóa hội thoại"}
             className="text-muted hover:text-ink disabled:opacity-40"
           >
             🗑 Xóa
@@ -486,7 +499,7 @@ export default function AgentConsole({ config }) {
             <div className="flex items-center gap-3.5">
               <button
                 type="button"
-                onClick={() => { clearChat(); setShowSessions(false); }}
+                onClick={() => { clearChat(false); setShowSessions(false); }}
                 className="text-muted hover:text-ink"
               >
                 ＋ Phiên mới
