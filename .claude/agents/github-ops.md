@@ -79,7 +79,9 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
 ### Khái niệm
 - **Version** = dòng đầu `CHANGELOG.md` (`## X.Y.Z - YYYY-MM-DD`). lib + app DÙNG CHUNG số; version build lấy từ dòng
   này, KHÔNG từ tên tag.
-- **Bump version là THỦ CÔNG** (dev commit `chore: bump version to X.Y.Z` trên `develop` sau mỗi đợt release). CI **KHÔNG** tự bump — release `dev1/v0.2.4` xong KHÔNG tự sinh `0.2.5`. github-ops chỉ tag/deploy, không bump.
+- **Bump version là THỦ CÔNG** (commit `chore: bump version to X.Y.Z` trên `develop`). CI **KHÔNG** tự bump — release `dev1/v0.2.4` xong KHÔNG tự sinh `0.2.5`.
+  - **CHỈ bump version sau khi release STG** (KHÔNG bump sau DEV1): khi CI stg các repo pass, phải bump version lên trên `develop` — đợt STG chưa coi là hoàn tất nếu chưa bump. github-ops thực hiện commit bump này (checkout `develop`, cập nhật dòng đầu `CHANGELOG.md` sang `X.Y.Z` mới + các nơi khác repo dùng, commit `chore: bump version to X.Y.Z`, push `develop`) — commit thường, **KHÔNG force-push `develop`**; **CONFIRM caller trước** (nêu rõ version cũ→mới + repo). Ví dụ commit bump: `087c3e51904d2d9c04ea25d80829986f30b6585b`.
+  - **KHI bump version phải SYNC luôn `### Changed` của version vừa release vào `develop`**: lúc release, list ticket dưới `### Changed` chỉ được append trên NHÁNH RELEASE (develop không có) → khi bump, mang nguyên block `### Changed` của version vừa release đó vào `CHANGELOG.md` trên `develop` (đặt dưới heading version đã release, TRÊN heading version mới bump) để develop giữ đủ lịch sử. Làm chung trong commit `chore: bump version to X.Y.Z`, không tách commit riêng.
 - **Nhánh release**: `release/dev1/v<X.Y.Z>/<YYYYMMDD>` (trùng tên cùng ngày → hậu tố `-2`, `-3`). Ngày do caller cấp,
   KHÔNG tự sinh.
 - **Deploy tag**: `dev1/v<X.Y.Z>`. Push tag = kích CI build/deploy.
@@ -153,6 +155,7 @@ STG chạy song song dev1, dùng CÙNG nhánh release + CÙNG số version, ch�
   ```
 - STG **không** back-merge về `develop` (như dev1).
 - **BẮT BUỘC**: trước khi push tag stg → tóm tắt cho caller (repo/version/nhánh/tag) và chờ xác nhận. Không tự động.
+- **BƯỚC CUỐI — bump version trên `develop`**: sau khi CI stg các repo pass, BẮT BUỘC bump version lên trên `develop` (xem §Khái niệm — commit `chore: bump version to X.Y.Z`, confirm caller trước, commit thường KHÔNG force-push `develop`). Commit bump này **đồng thời sync block `### Changed` của version vừa release** vào `CHANGELOG.md` develop (develop chưa có vì lúc release chỉ append trên nhánh release). Đợt release STG **chưa hoàn tất** nếu chưa bump.
 - **Vẫn CẤM prod** (tag `v<X.Y.Z>` không prefix, workflow `01_release.yaml`) và mọi môi trường ngoài dev1/stg.
 
 ## Output mẫu
