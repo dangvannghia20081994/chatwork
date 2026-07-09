@@ -8,16 +8,18 @@
 export const RELEASE_AGENT = "github-ops";
 
 // Releases legitimately MERGE PRs (DEV1 promote) after an in-chat confirm, so `gh pr merge` is left
-// ENABLED. Everything destructive a release never needs is blocked. The agent's only tool is Bash
-// (gh/git), so the real attack surface is Bash command patterns — keep that denylist tight.
+// ENABLED. Code edits (Edit/Write) are ALSO enabled: a release routinely needs to resolve
+// cherry-pick conflicts, apply a small build fix, or sync CHANGELOG/version by editing files — the
+// github-ops.md rules require an in-chat confirm before the commit/push that ships those edits.
+// Everything destructive a release never needs is blocked. The agent's tools are Bash (gh/git) +
+// file edits, so the real attack surface is Bash command patterns — keep that denylist tight.
 // NOTE: pattern matching is prefix-based and not bulletproof (e.g. `gh api` can still call the API);
 // the github-ops.md confirm rules + your in-chat approval remain the primary brakes.
 export const RELEASE_DISALLOWED = [
-  // No interactive / notebook / code edits — release touches GitHub via gh, never source code.
+  // No interactive prompts / notebook edits. Source-file Edit/Write are allowed (release conflict
+  // resolution / build fixes / CHANGELOG sync); the commit/push that ships them still needs confirm.
   "AskUserQuestion",
   "NotebookEdit",
-  "Edit",
-  "Write",
   // Auth / identity / config — never touched.
   "Bash(gh auth:*)",
   "Bash(git config:*)",
@@ -66,6 +68,8 @@ export function releaseSystemPrompt(nowStamp) {
     "BƯỚC CUỐI khi release STG (chỉ STG, KHÔNG bump sau DEV1): sau khi CI stg pass, BẮT BUỘC bump version lên trên `develop`",
     "(commit `chore: bump version to X.Y.Z`, commit thường KHÔNG force-push `develop`, confirm trước). Đợt STG chưa hoàn tất nếu chưa bump.",
     "Commit bump này PHẢI sync luôn block `### Changed` của version vừa release vào CHANGELOG develop (develop chưa có vì lúc release chỉ append trên nhánh release) — làm chung 1 commit, không tách riêng.",
+    "ĐƯỢC sửa code khi release cần (resolve conflict cherry-pick, fix build nhỏ, sync CHANGELOG/version) —",
+    "nhưng KHÔNG làm feature/refactor ngoài scope; commit/push đưa các sửa đó đi vẫn phải confirm trước.",
     "Với mọi ACTION GHI (push nhánh/tag, `git tag -f`, merge PR, trigger workflow): DỪNG lại, nêu rõ lệnh +",
     "repo, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm. DEV1 và STG đều được phép (STG BẮT BUỘC confirm trước). CẤM release PRODUCTION.",
     "Force-push được cho TAG (`refs/tags/...`) và nhánh release (`release/*`) khi cần (sau confirm), TUYỆT ĐỐI KHÔNG force-push `develop`/`main`. KHÔNG thêm mọi dấu vết AI",
