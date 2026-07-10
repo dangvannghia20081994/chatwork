@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/chatwork.iml" filepath="$PROJECT_DIR$/.idea/chatwork.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/rezil-docker.iml" filepath="$PROJECT_DIR$/.idea/rezil-docker.iml" />
     </modules>
   </component>
 </project>
