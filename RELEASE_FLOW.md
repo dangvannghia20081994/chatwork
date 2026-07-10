@@ -44,6 +44,8 @@
   caller trước khi push tag** — tóm tắt sẽ tag repo/version/nhánh gì rồi mới chạy, KHÔNG tự động.
 - ⛔ **CẤM prod** (tag `v<X.Y.Z>` không prefix, workflow lib `01_release.yaml`) và mọi môi trường ngoài dev1/stg.
 - **Không có workflow prod cho agent** (cố ý). Tag prod phải do người tạo bằng tay.
+- ⛔ **KHÔNG release portal** (`rezil-esms-portal`). portal chưa có pipeline `*-dev1.yaml`/`*-stg.yaml` → không tag-deploy;
+  chỉ quản PR/CI. **Mọi đợt release (dev1/stg) chỉ gồm 3 repo version-sync: lib → admin → mobile.**
 
 > ✅ **Cơ chế deploy THẬT**: deploy kích bằng **PUSH TAG**, KHÔNG phải merge branch. Tag `dev1/v<X.Y.Z>` →
 > workflow `*-dev1.yaml`; tag `stg/v<X.Y.Z>` → workflow `*-stg.yaml` → build → deploy. portal chưa có
@@ -56,6 +58,10 @@
 ## Khái niệm
 
 - **Version** = dòng đầu `CHANGELOG.md` (`## X.Y.Z - YYYY-MM-DD`). Version build lấy từ dòng này, **KHÔNG** từ tên tag.
+- **DEV1 và STG là 2 dòng version ĐỘC LẬP — KHÔNG liên quan nhau.** Mỗi lần release 1 môi trường: version mới = **tăng
+  từ version của lần release GẦN NHẤT của chính môi trường đó** (không nhìn sang môi trường kia, không bắt buộc khớp
+  `develop`). VD: dev1 vừa ở `0.2.10` → dev1 tiếp theo `0.2.11`; stg đang ở `0.2.11` là dòng RIÊNG. Trong CÙNG 1 môi
+  trường, nhóm version-sync (lib/admin/mobile) vẫn DÙNG CHUNG số.
 - **Bump version là THỦ CÔNG** (dev commit `chore: bump version to X.Y.Z` trên `develop` sau mỗi đợt). CI **KHÔNG** tự
   bump — github-ops chỉ tag/deploy, không bump.
 - **Nhánh release**: `release/dev1/v<X.Y.Z>/<YYYYMMDD>` (trùng tên cùng ngày → hậu tố `-2`, `-3`).
@@ -124,15 +130,16 @@ từ `develop`/`release/*` nên không cut được tag từ nhánh lạ.)*
 
 ## ■ STG (ĐƯỢC PHÉP — CONFIRM caller trước mỗi lần)
 
-STG chạy song song DEV1: **CÙNG nhánh release + CÙNG số version**, chỉ khác **prefix tag** (`stg/` thay vì `dev1/`)
-và **workflow** (`*-stg.yaml` thay vì `*-dev1.yaml`). Toàn bộ bước cut nhánh / cherry-pick / đồng bộ CHANGELOG y hệt DEV1.
+STG là dòng release RIÊNG, **version ĐỘC LẬP với DEV1** (tăng từ lần release STG gần nhất, KHÔNG lấy theo dev1/`develop`).
+Nhánh release RIÊNG `release/stg/v<X.Y.Z>/<YYYYMMDD>`, prefix tag `stg/` (thay vì `dev1/`), workflow `*-stg.yaml`
+(thay vì `*-dev1.yaml`). Toàn bộ bước cut nhánh / cherry-pick / đồng bộ CHANGELOG y hệt DEV1, chỉ khác **số version**.
 
 - **Deploy tag**: `stg/v<X.Y.Z>` (regex `stg/v[0-9]+.[0-9]+.[0-9]+`). Trigger:
   - lib: `03_snapshot_stg.yaml` → publish snapshot **suffix `-stg`** (`X.Y.Z-stg-SNAPSHOT`), coexist với snapshot dev1 cùng version trên S3.
   - admin: `be-api-stg.yaml`, `be-lambda-stg.yaml`, `web-stg.yaml`. *(comment header `be-lambda-stg.yaml` ghi nhầm "dev1" — filter tag thật là `stg/v*`.)*
   - mobile: `be-api-stg.yaml`, `app-stg.yaml`.
   - portal: **chưa có `*-stg.yaml`** → không tag-deploy stg.
-- **Verify-branch**: tag phải reachable từ `develop` HOẶC nhánh `release/*` → tag được stg ngay trên nhánh release đã cut cho dev1.
+- **Verify-branch**: tag phải reachable từ `develop` HOẶC nhánh `release/*` → nhánh `release/stg/*` qua được.
 - **THỨ TỰ y hệt dev1**: lib TRƯỚC → đợi CI lib publish `X.Y.Z-stg-SNAPSHOT` `success` → admin + mobile (song song). Lib `failure` → dừng, báo caller.
 
 ```bash

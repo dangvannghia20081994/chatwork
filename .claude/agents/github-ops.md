@@ -79,6 +79,11 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
 ### Khái niệm
 - **Version** = dòng đầu `CHANGELOG.md` (`## X.Y.Z - YYYY-MM-DD`). lib + app DÙNG CHUNG số; version build lấy từ dòng
   này, KHÔNG từ tên tag.
+- **DEV1 và STG là 2 dòng version ĐỘC LẬP — KHÔNG liên quan nhau.** Mỗi lần release 1 môi trường: version mới =
+  **tăng từ version của lần release GẦN NHẤT của CHÍNH môi trường đó** (không nhìn sang môi trường kia, không bắt buộc
+  khớp `develop`). VD: dev1 vừa ở `0.2.10` → dev1 tiếp theo `0.2.11`; stg đang ở `0.2.11` là dòng RIÊNG, không ảnh
+  hưởng số của dev1 (dev1/v0.2.11 có thể khác nội dung stg/v0.2.11). Trong CÙNG 1 môi trường, nhóm version-sync
+  (lib/admin/mobile) vẫn DÙNG CHUNG số.
 - **Bump version là THỦ CÔNG** (commit `chore: bump version to X.Y.Z` trên `develop`). CI **KHÔNG** tự bump — release `dev1/v0.2.4` xong KHÔNG tự sinh `0.2.5`.
   - **CHỈ bump version sau khi release STG** (KHÔNG bump sau DEV1): khi CI stg các repo pass, phải bump version lên trên `develop` — đợt STG chưa coi là hoàn tất nếu chưa bump. github-ops thực hiện commit bump này (checkout `develop`, cập nhật dòng đầu `CHANGELOG.md` sang `X.Y.Z` mới + các nơi khác repo dùng, commit `chore: bump version to X.Y.Z`, push `develop`) — commit thường, **KHÔNG force-push `develop`**; **CONFIRM caller trước** (nêu rõ version cũ→mới + repo). Ví dụ commit bump: `087c3e51904d2d9c04ea25d80829986f30b6585b`.
   - **KHI bump version phải SYNC luôn `### Changed` của version vừa release vào `develop`**: lúc release, list ticket dưới `### Changed` chỉ được append trên NHÁNH RELEASE (develop không có) → khi bump, mang nguyên block `### Changed` của version vừa release đó vào `CHANGELOG.md` trên `develop` (đặt dưới heading version đã release, TRÊN heading version mới bump) để develop giữ đủ lịch sử. Làm chung trong commit `chore: bump version to X.Y.Z`, không tách commit riêng.
@@ -138,15 +143,15 @@ CI build + deploy. **DEV1 KHÔNG back-merge về `develop`**: app BE (`be-api-*`
 để `develop` giữ superset; fix cắm thẳng nhánh release phải tự merge về `develop` (nếu có, báo caller).
 
 ### STG (ĐƯỢC PHÉP — CONFIRM caller trước)
-STG chạy song song dev1, dùng CÙNG nhánh release + CÙNG số version, chỉ khác **prefix tag** và **workflow**:
+STG là dòng release RIÊNG, **version ĐỘC LẬP với dev1** (tăng từ lần release STG gần nhất, KHÔNG lấy theo dev1 hay `develop`). Nhánh release RIÊNG `release/stg/v<X.Y.Z>/<YYYYMMDD>`, prefix tag `stg/`, workflow `*-stg.yaml`. Bước cut nhánh / cherry-pick / đồng bộ CHANGELOG y hệt dev1, chỉ khác **số version** + **prefix tag** + **workflow**:
 - **Deploy tag**: `stg/v<X.Y.Z>` (regex `stg/v[0-9]+.[0-9]+.[0-9]+`). Trigger:
   - lib: `03_snapshot_stg.yaml` → publish snapshot **suffix `-stg`** (`X.Y.Z-stg-SNAPSHOT`), coexist với snapshot dev1 cùng version trên S3.
   - admin: `be-api-stg.yaml`, `be-lambda-stg.yaml`, `web-stg.yaml`. *(Lưu ý: comment header `be-lambda-stg.yaml` ghi nhầm "dev1" nhưng filter tag thật là `stg/v*`.)*
   - mobile: `be-api-stg.yaml`, `app-stg.yaml`.
   - portal: **chưa có `*-stg.yaml`** → không tag-deploy stg.
-- **Verify-branch**: tag phải reachable từ `develop` HOẶC một nhánh `release/*` (giống dev1) — nên tag được stg ngay trên nhánh release đã cut cho dev1.
+- **Verify-branch**: tag phải reachable từ `develop` HOẶC một nhánh `release/*` (giống dev1) — nhánh `release/stg/*` qua được.
 - **THỨ TỰ y hệt dev1**: tag/deploy **lib TRƯỚC** → đợi CI lib `03_snapshot_stg.yaml` publish `X.Y.Z-stg-SNAPSHOT` `success` → rồi **admin + mobile** (song song). Lib `failure` → dừng, báo caller.
-- **Nhánh release**: dùng lại nhánh `release/dev1/v<X.Y.Z>/<YYYYMMDD>` đã cut (nội dung như nhau) hoặc nhánh `release/*` khác caller chỉ định — miễn qua được verify-branch.
+- **Nhánh release**: cut nhánh RIÊNG `release/stg/v<X.Y.Z>/<YYYYMMDD>` cho STG (version stg độc lập → KHÔNG dùng chung nhánh với dev1). Nếu caller chỉ định nhánh `release/*` khác thì cũng được, miễn qua verify-branch.
 - **Lệnh** (chỉ chạy SAU khi caller confirm):
   ```bash
   git tag stg/v<X.Y.Z> <nhánh-release>
