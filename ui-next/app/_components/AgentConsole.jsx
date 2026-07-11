@@ -7,9 +7,10 @@ import ThemeToggle from "../ThemeToggle";
 import BackToTop from "./BackToTop";
 import { playDoneSound, playErrorSound } from "../../lib/notifySound";
 
-// Markdown rendering for agent answers that emit GFM (tables, lists, links) — opt-in per console
-// via config.renderMarkdown (used by /report). Tables get a horizontal-scroll wrapper; links open
-// in a new tab so Jira ticket links are clickable. See `.md` styles in globals.css.
+// Markdown rendering for agent answers that emit GFM (tables, lists, links) — ON by default for
+// every console; a console can opt OUT with config.renderMarkdown: false. Tables get a
+// horizontal-scroll wrapper; links open in a new tab so Jira ticket links are clickable.
+// See `.md` styles in globals.css.
 const MD_COMPONENTS = {
   table: ({ node, ...props }) => <div className="md-tablewrap"><table {...props} /></div>,
   a: ({ node, ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
@@ -582,10 +583,10 @@ export default function AgentConsole({ config }) {
             ) : (
               <div
                 key={i}
-                className={`w-full self-stretch break-words rounded-lg border border-line bg-panel px-3 py-2.5 text-[13px] leading-normal ${config.renderMarkdown ? "" : "whitespace-pre-wrap"}`}
+                className={`w-full self-stretch break-words rounded-lg border border-line bg-panel px-3 py-2.5 text-[13px] leading-normal ${config.renderMarkdown !== false ? "" : "whitespace-pre-wrap"}`}
               >
                 {m.status ? <div className="text-xs text-dim">{m.status}</div> : null}
-                {config.renderMarkdown ? (m.text ? <Markdown text={m.text} /> : null) : m.text}
+                {config.renderMarkdown !== false ? (m.text ? <Markdown text={m.text} /> : null) : m.text}
                 {(m.errors || []).map((er, j) => (
                   <div key={j} className="text-xs text-err">⚠ {er}</div>
                 ))}

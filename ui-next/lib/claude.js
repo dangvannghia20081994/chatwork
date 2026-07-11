@@ -29,6 +29,12 @@ const SUGGEST_INSTR =
   "rồi 2–3 dòng, mỗi dòng `- <gợi ý ngắn người dùng có thể bấm để hỏi/làm tiếp>`. Bám ngữ cảnh vừa trao " +
   "đổi, viết tiếng Việt, ngắn gọn. TUYỆT ĐỐI không viết gì sau khối này.";
 
+// UI renders câu trả lời dạng Markdown (GFM) — nhắc model dùng bảng khi dữ liệu có cấu trúc.
+const TABLE_INSTR =
+  "Khi trình bày dữ liệu có cấu trúc (so sánh, danh sách ticket/field, bước + kết quả, tham số...), " +
+  "HÃY dùng BẢNG Markdown (GFM: `| Cột | Cột |` + dòng `|---|---|`) cho dễ nhìn thay vì liệt kê dài. " +
+  "Giữ bảng gọn, tiêu đề cột ngắn. Văn xuôi/giải thích thì viết bình thường, không cần bảng.";
+
 function chatSystemPrompt(project, canEdit) {
   if (project === "free") {
     // Unrestricted, all-projects mode. cwd = workspace root (~/IdeaProjects) with every repo in scope.
@@ -38,6 +44,7 @@ function chatSystemPrompt(project, canEdit) {
       "Bạn được TOÀN QUYỀN: đọc + sửa/tạo/xoá file (Read/Edit/Write), chạy mọi lệnh (Bash), git, gọi Agent và mọi tool/MCP có sẵn. KHÔNG có hạn chế nào.",
       "Vì không có rào chắn, hãy cẩn trọng với thao tác phá huỷ (xoá, force-push, reset, drop DB) — chỉ làm khi yêu cầu rõ ràng. Sau khi thay đổi, giải thích ngắn gọn đã làm gì.",
       "Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm. Tên branch/commit/PR/code giữ tiếng Anh theo convention của từng repo.",
+      TABLE_INSTR,
       SUGGEST_INSTR,
     ].join("\n");
   }
@@ -93,6 +100,7 @@ function chatSystemPrompt(project, canEdit) {
       "Bạn KHÔNG được sửa/tạo/xoá file, không chạy lệnh shell, không git. Đây là chế độ hỏi-đáp."
     );
   }
+  base.push(TABLE_INSTR);
   base.push(SUGGEST_INSTR);
   return base.join("\n");
 }
