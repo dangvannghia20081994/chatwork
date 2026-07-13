@@ -1,7 +1,35 @@
 // Claude CLI plumbing for route handlers: per-project chat prompts/tools, argv builders,
 // stream-json → SSE pump. Ported from ui/server.js (chat flow). Node runtime only.
 import { spawn } from "child_process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { resolveProject, normalizeProject } from "./config.js";
+
+// Absolute path to the screenshot helper (ui-next/scripts/snapshot.mjs). The chat agent runs in a
+// sibling repo's cwd, so it needs the full path to invoke the script via Bash.
+const SNAPSHOT_SCRIPT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "scripts",
+  "snapshot.mjs"
+);
+
+// Instruction (edit-mode only) telling the agent to screenshot the running app when the user asks to
+// "check on web / xem giao diện", save it under public/, and embed it in the answer as Markdown so it
+// renders inline in the chat. `defaultUrl` is the project's fixed dev port; the agent overrides the
+// path/route as needed.
+function snapshotInstr(defaultUrl) {
+  return (
+    "CHỤP MÀN HÌNH WEB: khi người dùng yêu cầu KIỂM TRA GIAO DIỆN / xem thử trên web / 'check trên web' " +
+    "sau khi sửa code — app chạy ở cổng cố định" +
+    (defaultUrl ? ` (mặc định ${defaultUrl})` : "") +
+    "; nếu chưa chạy thì start rồi chờ nó sẵn sàng. Chụp bằng lệnh Bash:\n" +
+    `  node ${SNAPSHOT_SCRIPT} <url> --label <ten-ngan>\n` +
+    "Lệnh in ra đường dẫn ảnh ở dòng cuối stdout (vd `/ai/api/snapshot/xxx.png`). Hãy chèn NGUYÊN " +
+    "đường dẫn đó vào câu trả lời dưới dạng ảnh Markdown `![mô tả](/ai/api/snapshot/xxx.png)` để ảnh " +
+    "hiển thị ngay trong khung chat. Chỉ chụp khi được yêu cầu kiểm tra giao diện — không tự chụp sau mỗi lần sửa."
+  );
+}
 
 // Hard guardrails shared by every edit-capable flow.
 export const DISALLOWED_TOOLS = [
@@ -44,6 +72,7 @@ function chatSystemPrompt(project, canEdit) {
       "Bạn được TOÀN QUYỀN: đọc + sửa/tạo/xoá file (Read/Edit/Write), chạy mọi lệnh (Bash), git, gọi Agent và mọi tool/MCP có sẵn. KHÔNG có hạn chế nào.",
       "Vì không có rào chắn, hãy cẩn trọng với thao tác phá huỷ (xoá, force-push, reset, drop DB) — chỉ làm khi yêu cầu rõ ràng. Sau khi thay đổi, giải thích ngắn gọn đã làm gì.",
       "Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm. Tên branch/commit/PR/code giữ tiếng Anh theo convention của từng repo.",
+      snapshotInstr(""),
       TABLE_INSTR,
       SUGGEST_INSTR,
     ].join("\n");
@@ -56,7 +85,8 @@ function chatSystemPrompt(project, canEdit) {
     if (canEdit) {
       base.push(
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash), và dùng Agent để gọi agent layer của story.",
-        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention."
+        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
+        snapshotInstr("http://localhost:3000")
       );
     } else {
       base.push(
@@ -75,7 +105,8 @@ function chatSystemPrompt(project, canEdit) {
     if (canEdit) {
       base.push(
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash).",
-        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention."
+        "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
+        snapshotInstr("http://localhost:4100")
       );
     } else {
       base.push(
@@ -92,7 +123,8 @@ function chatSystemPrompt(project, canEdit) {
     base.push(
       "Chế độ SỬA CODE đang BẬT: bạn có thể đọc và CHỈNH SỬA file (Edit/Write) cùng chạy lệnh read-only/build/test (Bash) theo yêu cầu.",
       "Sau khi sửa, giải thích ngắn gọn những gì đã thay đổi.",
-      "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention."
+      "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
+      snapshotInstr("http://localhost:5173")
     );
   } else {
     base.push(

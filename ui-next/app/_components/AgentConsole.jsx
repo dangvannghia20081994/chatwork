@@ -14,6 +14,20 @@ import { playDoneSound, playErrorSound } from "../../lib/notifySound";
 const MD_COMPONENTS = {
   table: ({ node, ...props }) => <div className="md-tablewrap"><table {...props} /></div>,
   a: ({ node, ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
+  // Screenshots (e.g. /api/snapshot/*.png emitted by the snapshot helper): a small thumbnail inside
+  // the bubble; clicking opens it full-size in an in-page lightbox (see the overlay in AgentConsole)
+  // instead of a new tab. The click dispatches a window event the console listens for.
+  img: ({ node, src, alt, ...props }) => (
+    <img
+      src={src}
+      alt={alt || ""}
+      loading="lazy"
+      title="Bấm để phóng to"
+      onClick={() => window.dispatchEvent(new CustomEvent("chat-lightbox", { detail: src }))}
+      className="my-1 max-h-40 w-auto max-w-full cursor-zoom-in rounded-md border border-line"
+      {...props}
+    />
+  ),
 };
 function Markdown({ text }) {
   return (
@@ -83,6 +97,7 @@ export default function AgentConsole({ config }) {
   const [suggests, setSuggests] = useState([]); // follow-up chips for the latest answer (chat-mode)
   const [attachments, setAttachments] = useState([]); // uploaded images {name, path} for next turn
   const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState(null); // src of the image shown full-size in the overlay
   // Panel "Phiên đã lưu" (chat-mode, khi config.sessionsPath có): liệt kê + mở lại phiên .jsonl cũ.
   const [showSessions, setShowSessions] = useState(false);
   const [sessions, setSessions] = useState(null);
@@ -106,6 +121,18 @@ export default function AgentConsole({ config }) {
   const soundedRef = useRef(false);
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Lightbox: open on the `chat-lightbox` event dispatched by a rendered <img>; close on Esc.
+  useEffect(() => {
+    const open = (e) => setLightbox(e.detail);
+    const onKey = (e) => { if (e.key === "Escape") setLightbox(null); };
+    window.addEventListener("chat-lightbox", open);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("chat-lightbox", open);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   // restore saved conversation on mount / when the storage key changes (e.g. project or repo switch)
   useEffect(() => {
@@ -446,6 +473,23 @@ export default function AgentConsole({ config }) {
 
   return (
     <div className="relative flex h-[100dvh] flex-col">
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-4"
+        >
+          <img src={lightbox} alt="" className="max-h-full max-w-full rounded-md shadow-2xl" />
+          <button
+            onClick={() => setLightbox(null)}
+            aria-label="Đóng"
+            className="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1 text-lg leading-none text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <BackToTop targetRef={logRef} btnClass={a.btn} />
       <header className="flex items-center gap-2.5 border-b border-line bg-panel px-5 py-3">
         <span className={`h-2 w-2 shrink-0 rounded-full ${a.dot}`} />
