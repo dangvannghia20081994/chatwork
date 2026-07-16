@@ -37,6 +37,100 @@ function Markdown({ text }) {
   );
 }
 
+// Full-screen image viewer with zoom + pan: mouse wheel / +− buttons / double-click to zoom, drag to
+// pan when zoomed, pinch on touch. Click the dark backdrop (or Esc / ✕) to close; clicking the image
+// itself does not close so it can be zoomed and dragged freely.
+function Lightbox({ src, onClose }) {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const wrapRef = useRef(null);
+  const pointers = useRef(new Map()); // pointerId -> {x,y} for pinch/pan tracking
+  const pinchRef = useRef(null); // {dist, scale} at start of a 2-finger pinch
+  const panRef = useRef(null); // {px,py, x,y} at start of a drag
+  const MIN = 1;
+  const MAX = 6;
+  const clamp = (s) => Math.min(MAX, Math.max(MIN, s));
+  const zoomBy = (f) => setScale((s) => clamp(s * f));
+  const reset = () => { setScale(1); setPos({ x: 0, y: 0 }); };
+
+  // Snap back to centre whenever we're fully zoomed out.
+  useEffect(() => { if (scale <= 1) setPos({ x: 0, y: 0 }); }, [scale]);
+
+  // Native wheel listener (passive:false) so we can preventDefault page scroll while zooming.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e) => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function onPointerDown(e) {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinchRef.current = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, scale };
+      panRef.current = null;
+    } else if (scale > 1) {
+      panRef.current = { px: e.clientX, py: e.clientY, x: pos.x, y: pos.y };
+    }
+  }
+  function onPointerMove(e) {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2 && pinchRef.current) {
+      const [a, b] = [...pointers.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      setScale(clamp(pinchRef.current.scale * (dist / pinchRef.current.dist)));
+    } else if (panRef.current) {
+      setPos({ x: panRef.current.x + (e.clientX - panRef.current.px), y: panRef.current.y + (e.clientY - panRef.current.py) });
+    }
+  }
+  function onPointerUp(e) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchRef.current = null;
+    if (pointers.current.size === 0) panRef.current = null;
+  }
+
+  const btn = "flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-lg leading-none text-white transition-colors hover:bg-black/80";
+
+  return (
+    <div
+      ref={wrapRef}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80 p-4"
+    >
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => { e.stopPropagation(); scale > 1 ? reset() : setScale(2.5); }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{
+          transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+          touchAction: "none",
+          cursor: scale > 1 ? "grab" : "zoom-in",
+        }}
+        className="max-h-full max-w-full select-none rounded-md shadow-2xl"
+      />
+      <div onClick={(e) => e.stopPropagation()} className="absolute right-4 top-4 flex items-center gap-2">
+        <button type="button" onClick={() => zoomBy(1 / 1.4)} title="Thu nhỏ" aria-label="Thu nhỏ" className={btn}>−</button>
+        <span className="min-w-[3.5ch] select-none text-center text-sm text-white/90">{Math.round(scale * 100)}%</span>
+        <button type="button" onClick={() => zoomBy(1.4)} title="Phóng to" aria-label="Phóng to" className={btn}>+</button>
+        <button type="button" onClick={reset} title="Vừa màn hình" aria-label="Vừa màn hình" className={`${btn} w-auto px-3 text-sm`}>Vừa</button>
+        <button type="button" onClick={onClose} title="Đóng" aria-label="Đóng" className={btn}>✕</button>
+      </div>
+    </div>
+  );
+}
+
 // Shared multi-turn console for every agent UI. Two modes via config.mode:
 //   - "chat" (default): free text input (+ optional ✏️ Sửa code toggle), session resume — /chat, /release.
 //   - "job": page supplies a composer (ticket/repo/task fields) + getSubmission(); one-shot run with
@@ -473,23 +567,7 @@ export default function AgentConsole({ config }) {
 
   return (
     <div className="relative flex h-[100dvh] flex-col">
-      {lightbox && (
-        <div
-          onClick={() => setLightbox(null)}
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/80 p-4"
-        >
-          <img src={lightbox} alt="" className="max-h-full max-w-full rounded-md shadow-2xl" />
-          <button
-            onClick={() => setLightbox(null)}
-            aria-label="Đóng"
-            className="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1 text-lg leading-none text-white"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
       <BackToTop targetRef={logRef} btnClass={a.btn} />
       <header className="flex items-center gap-2.5 border-b border-line bg-panel px-5 py-3">
         <span className={`h-2 w-2 shrink-0 rounded-full ${a.dot}`} />
