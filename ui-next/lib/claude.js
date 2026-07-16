@@ -41,8 +41,12 @@ function snapshotInstr(defaultUrl) {
 export const DISALLOWED_TOOLS = [
   "NotebookEdit",
   "AskUserQuestion",
+  // `gh pr merge` (merging a PR) stays HARD-BLOCKED — CLAUDE.md rule #1 "Never merge PRs".
   "Bash(gh pr merge:*)",
-  "Bash(git merge:*)",
+  // `git merge` (LOCAL branch integration) is ALLOWED: hoà develop vào nhánh feature là thao tác dev
+  // hợp lệ, reversible (`git merge --abort`), và là đường ưu tiên hơn rebase cho nhánh diverge nhiều
+  // (xem agent git-rebaser). Nó KHÁC `gh pr merge` (ship PR) vẫn cấm ở trên. Push/force-push đi kèm
+  // vẫn bị system prompt phanh (không force-push develop/main).
   // Force-push is allowed on your own branch (feature/fix, release/*) + tags. Prefix matching can't
   // tell the target branch from the pattern, so raw `--force`/`-f` is NOT hard-blocked here — the
   // system prompt is the brake forbidding force-push of `develop`/`main`.
