@@ -25,6 +25,12 @@ function snapshotInstr(defaultUrl) {
     (defaultUrl ? ` (mặc định ${defaultUrl})` : "") +
     "; nếu chưa chạy thì start rồi chờ nó sẵn sàng. Chụp bằng lệnh Bash:\n" +
     `  node ${SNAPSHOT_SCRIPT} <url> --label <ten-ngan>\n` +
+    "BẮT BUỘC KHOANH ĐỎ ITEM đang nói tới cho dễ phân biệt (cờ --mark, lặp lại được, selector là CSS):\n" +
+    `  • 1 item  → chỉ khoanh đỏ, KHÔNG cần note:  --mark "<css-selector>"\n` +
+    `  • nhiều item → khoanh đỏ + note tiếng Việt cạnh mỗi item (script tự đánh số):\n` +
+    `      --mark "<selector-1>::<ghi chú tiếng Việt>" --mark "<selector-2>::<ghi chú tiếng Việt>"\n` +
+    "  Chọn selector ổn định (id, data-*, class đặc trưng). Nếu script báo 'chỉ khoanh được x/y item' " +
+    "thì selector sai — sửa lại rồi chụp lần nữa.\n" +
     "Lệnh in ra đường dẫn ảnh ở dòng cuối stdout (vd `/ai/api/snapshot/xxx.png`). Hãy chèn NGUYÊN " +
     "đường dẫn đó vào câu trả lời dưới dạng ảnh Markdown `![mô tả](/ai/api/snapshot/xxx.png)` để ảnh " +
     "hiển thị ngay trong khung chat. Chỉ chụp khi được yêu cầu kiểm tra giao diện — không tự chụp sau mỗi lần sửa."
