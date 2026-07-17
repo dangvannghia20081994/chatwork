@@ -168,6 +168,8 @@ function chatTools(project, canEdit) {
     "mcp__atlassian__getJiraIssue",
     "mcp__atlassian__searchJiraIssuesUsingJql",
     "mcp__atlassian__fetch",
+    "mcp__mysql_207__mysql_query",
+    "mcp__gsheets-rezil",
   ];
   const allow = canEdit ? [...ro, "Edit", "Write", "Bash"] : ro;
   const disallow = canEdit ? DISALLOWED_TOOLS : ["Edit", "Write", "NotebookEdit", "Bash", "AskUserQuestion"];

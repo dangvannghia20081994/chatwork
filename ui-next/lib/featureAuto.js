@@ -148,6 +148,8 @@ export const FEATURE_ALLOWED = [
   "mcp__atlassian__getAccessibleAtlassianResources",
   "mcp__atlassian__fetch",
   "mcp__atlassian__addCommentToJiraIssue",
+  "mcp__mysql_207__mysql_query",
+  "mcp__gsheets-rezil",
 ];
 
 export function buildFeatureAutoArgv(userPrompt, systemPrompt, addDirs) {
