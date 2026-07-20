@@ -2,7 +2,7 @@
 """Checklist độ phủ test case theo SECTION của Basic Design.
 
 Đọc report/design/<ScreenCode>*.md → lấy các section (## N. ...).
-Đối chiếu với case đã sinh (UT/IT csv) → mỗi section đánh ✅ (đã có case phủ) / ⬜ (chưa) / ➖ (bỏ qua: COMMON / out-of-scope).
+Đối chiếu với case đã sinh (UT/IT, file .md hoặc .csv trong report/testcase/) → mỗi section đánh ✅ (đã có case phủ) / ⬜ (chưa) / ➖ (bỏ qua: COMMON / out-of-scope).
 Ghi report/testcase/<ScreenCode>-coverage.md và in ra.
 
 Dùng: python3 coverage.py "<ScreenCode>"   (chạy từ thư mục làm việc chứa report/)
@@ -10,13 +10,29 @@ Dùng: python3 coverage.py "<ScreenCode>"   (chạy từ thư mục làm việc 
 import csv, re, os, sys, glob
 
 
-def read_cases(path):
-    if not os.path.exists(path):
-        return None
+def _rows_csv(path):
     rows = list(csv.reader(open(path, encoding='utf-8')))
-    if not rows:
-        return []
-    cases = [r for r in rows if r and r[0].strip().isdigit()]
+    return [r for r in rows if r and r[0].strip().isdigit()]
+
+
+def _rows_md(path):
+    """Parse bảng markdown: hàng bắt đầu bằng số TC. Cell = split theo '|' (bỏ leading/trailing)."""
+    out = []
+    for line in open(path, encoding='utf-8'):
+        s = line.strip()
+        if not (s.startswith('|') and s.endswith('|')):
+            continue
+        cells = [c.strip() for c in s[1:-1].split('|')]
+        if cells and cells[0].isdigit():
+            out.append(cells)
+    return out
+
+
+def read_cases(path):
+    """Đọc file case (.md hoặc .csv) → list case (mỗi case là list cell, cell[0]=TC No.)."""
+    if not path or not os.path.exists(path):
+        return None
+    cases = _rows_md(path) if path.endswith('.md') else _rows_csv(path)
     last = ''
     for r in cases:
         if len(r) > 1 and r[1].strip() == '↑':
@@ -111,7 +127,9 @@ def main():
            'Ký hiệu: ✅ đã phủ · 🔶 phủ một phần · ⬜ chưa có case · ➖ bỏ qua (COMMON/out-of-scope)', '']
 
     for kind in ['UT', 'IT']:
-        cs = glob.glob(os.path.join(cwd, 'report', 'testcase', f'{screen}*-{kind}.csv'))
+        # naming chuẩn: <Screen>_<KIND>.md|csv ; hỗ trợ cả '-' cũ. Ưu tiên .md.
+        cs = (glob.glob(os.path.join(cwd, 'report', 'testcase', f'{screen}*{kind}.md'))
+              or glob.glob(os.path.join(cwd, 'report', 'testcase', f'{screen}*{kind}.csv')))
         cases = read_cases(cs[0]) if cs else None
         out.append(f'## {kind}')
         if cases is None:

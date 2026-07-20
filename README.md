@@ -1,30 +1,33 @@
 # Rezil-support
-Giúp hỗ trợ trong việc báo cáo hàng ngày
-## Đọc nội dung từ Folder html (được download từ google sheet về)
-- Các file chính cần quan tâm:
-  + Overview: tổng hợp, báo cáo từ các sheet liên quan
-  + Expect: Chứa estimate của từng ticket theo member, date
-  + Actual: Thời gian mà member giảm dần theo từng ngày
-- Báo cáo với column tương ứng với ngày hiện tại
-## Sau khi đọc được hết nội dung từ folder
-- Đưa ra được báo cáo về tình hình các ticket: Ticket nào chậm, ticket nào nhanh hơn cho với expect
-- Đưa ra báo cáo về tình hình của từng member: Chậm bao nhiêu giờ, chậm ticket nào, ...
-## Sau khi có được báo cáo
-- Đưa ra nội dung hỗ trợ trong chartwork để tôi có thể copy
+
+Bộ công cụ hỗ trợ dự án Rezil: đọc **Basic Design** / **mẫu test case** rồi sinh **test case (UT/IT)** và **code (LIB/BE/FE)** theo convention của team.
+
+## Nguồn dữ liệu — Google Sheet qua MCP
+
+- Input đọc **trực tiếp Google Sheet qua MCP `gsheets-rezil`** (`mcp__gsheets-rezil__*`, service account `~/.config/gcloud/rezil-agent.json`) — không còn export HTML, không còn script parse. File phải **share Viewer cho email service account** đó (nếu không → 403).
+- **Quy ước**: 1 tab = 1 màn, tên tab = tên màn (vd `CLIENT-001 Client List`). 3 spreadsheet nguồn:
+
+| Vai trò                         | Spreadsheet                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| REZIL - Basic Design Web Admin  | [1ABO6so…](https://docs.google.com/spreadsheets/d/1ABO6soPFhw9zFUUFgCnqEDSscw7ihmXosa_ETEmOoO8/edit) |
+| REZIL - Basic Design Mobile     | [15cDzvb…](https://docs.google.com/spreadsheets/d/15cDzvbNfkzFGCMNSGGeFc3lSmCai4iqh-TsnliCSUPU/edit) |
+| REZIL - Test Plan - Test Report | [1YJa5iF…](https://docs.google.com/spreadsheets/d/1YJa5iFt74z_bw0GfWy2CObK7JldkHfBbXRLDRwaQ86w/edit) |
+
+- BD: IT test case ở tab `<CODE Tên màn>`, UT ở tab `UT_<CODE Tên màn>` (file Test Plan).
+- Đổi nguồn → sửa spreadsheet ID trong `SKILL.md` của `read-basic-design` (2 file BD) và `read-testcase-template` (file Test Plan).
 
 ## Các plugin trong marketplace
 
 Repo này là marketplace plugin nội bộ `rezil-support`, gồm:
 
-| Plugin | Skill | Việc | Phụ thuộc |
-|---|---|---|---|
-| `report-plan` | `/report-plan` | Báo cáo tiến độ daily → nội dung Chatwork | (độc lập) |
-| `read-basic-design` | `/read-basic-design` | Tóm tắt spec 1 màn; ghi `report/design/<Screen>.md` | (độc lập) |
-| `read-testcase-template` | `/read-testcase-template` | Trích template UT/IT → `report/template/{ut,it}.md` | (độc lập) |
-| `gen-testcase` | `/gen-testcase`, `/gen-testcase-batch` | Sinh UT/IT test case cho 1 màn / nhiều màn | **cần** `read-basic-design` + `read-testcase-template` |
-| `gen-code` | `/gen-code` | Sinh code FE/BE/LIB theo convention repo | **cần** `read-basic-design` (khi gen từ Basic Design) |
+| Plugin                   | Skill                                  | Việc                                                | Phụ thuộc                                              |
+| ------------------------ | -------------------------------------- | --------------------------------------------------- | ------------------------------------------------------ |
+| `read-basic-design`      | `/read-basic-design`                   | Tóm tắt spec 1 màn; ghi `report/design/<Screen>.md` | (độc lập)                                              |
+| `read-testcase-template` | `/read-testcase-template`              | Trích template UT/IT → `report/template/{ut,it}.md` | (độc lập)                                              |
+| `gen-testcase`           | `/gen-testcase`, `/gen-testcase-batch` | Sinh UT/IT test case cho 1 màn / nhiều màn          | **cần** `read-basic-design` + `read-testcase-template` |
+| `gen-code`               | `/gen-code`                            | Sinh code FE/BE/LIB theo convention repo            | **cần** `read-basic-design` (khi gen từ Basic Design)  |
 
-> ⚠️ `gen-testcase` và `gen-code` đọc file `.md` trung gian do `read-basic-design` / `read-testcase-template` sinh ra; khi thiếu chúng sẽ gọi `/read-basic-design`, `/read-testcase-template`. **Nên cài cả cụm** (read-basic-design + read-testcase-template + gen-testcase + gen-code) cùng nhau. `report-plan` cài riêng cũng được.
+> ⚠️ `gen-testcase` và `gen-code` đọc file `.md` trung gian do `read-basic-design` / `read-testcase-template` sinh ra; khi thiếu chúng sẽ gọi `/read-basic-design`, `/read-testcase-template`. **Nên cài cả cụm** (read-basic-design + read-testcase-template + gen-testcase + gen-code) cùng nhau.
 
 ## Cài plugin khi repository để private
 
@@ -44,11 +47,10 @@ Cài đặt (trong Claude Code):
 # hoặc dùng SSH URL
 /plugin marketplace add git@github.com:<owner>/rezil-support.git
 
-# cài plugin cần dùng (report-plan độc lập; cụm test case cài cả 3)
-/plugin install report-plan@rezil-support
+# cài plugin cần dùng (cụm test case cài cả 3)
 /plugin install read-basic-design@rezil-support
 /plugin install read-testcase-template@rezil-support
 /plugin install gen-testcase@rezil-support
 ```
 
-Sau đó dùng `/report-plan`, `/read-basic-design`, `/gen-testcase`... ở bất kỳ project nào (đặt folder HTML nguồn vào thư mục làm việc trước khi chạy).
+Sau đó dùng `/read-basic-design`, `/gen-testcase`... ở bất kỳ project nào (cần đã kết nối MCP Google Sheet để đọc spreadsheet nguồn).

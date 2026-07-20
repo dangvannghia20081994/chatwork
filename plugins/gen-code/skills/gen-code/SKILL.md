@@ -1,6 +1,6 @@
 ---
 name: gen-code
-description: Sinh code FE / BE / LIB cho dự án Rezil ESMS (web Admin + mobile) từ Basic Design (HTML export Google Sheet) hoặc từ mô tả tự do, theo đúng convention thật của các repo. Dùng khi người dùng muốn generate code cho 1 màn/endpoint/feature, hoặc gõ /gen-code.
+description: Sinh code FE / BE / LIB cho dự án Rezil ESMS (web Admin + mobile) từ Basic Design hoặc từ mô tả tự do, theo đúng convention thật của các repo. Dùng khi người dùng muốn generate code cho 1 màn/endpoint/feature, hoặc gõ /gen-code.
 ---
 
 # gen-code — Sinh code FE / BE / LIB theo convention Rezil ESMS
@@ -8,14 +8,14 @@ description: Sinh code FE / BE / LIB cho dự án Rezil ESMS (web Admin + mobile
 Mục tiêu: từ **spec màn hình** (Basic Design) hoặc **mô tả feature** → sinh code đúng layer, đúng
 **variant (web vs mobile)**, đúng package & style của repo tương ứng, để dán/commit thẳng vào repo code.
 
-> Skill này **không tự parse HTML Basic Design**. Có spec thì đọc lại file trung gian
-> `report/design/<ScreenCode>.md` (do plugin `read-basic-design` sinh), giống `gen-testcase`. Chỉ có
+> Skill này **không tự đọc Google Sheet Basic Design**. Có spec thì đọc lại file trung gian
+> `report/design/<ScreenCode>.md` (do plugin `read-basic-design` sinh qua MCP), giống `gen-testcase`. Chỉ có
 > mô tả tự do thì bỏ qua bước đọc design.
 
 ## Các repo & stack (đường dẫn mặc định dưới `~/IdeaProjects/`)
 
 | Layer   | Web                                       | Mobile                     | Stack                                                                                                                                                                                           |
-|---------|-------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ------- | ----------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **FE**  | `rezil-esms/app`                          | `rezil-esms-mobile/app`    | Svelte 5 (runes). Web = **SvelteKit**; Mobile = **Vite + Capacitor/Ionic** (không SvelteKit). Cả hai gọi API qua **aspida** (`api.<resource>.<sub>.$get/$post/...`).                            |
 | **BE**  | `rezil-esms/be-api`                       | `rezil-esms-mobile/be-api` | **Scala 3.3.5 + Play**. 1 controller class / 1 endpoint. JSON = **Circe** + `ixias.core.util.JsonDecoder`. `JsonSuccess/request.decode/BaseAbstractController` từ **ixias** (`ixias.web.play`). |
 | **LIB** | `rezil-esms-lib` (`framework/rezil-esms`) | (dùng chung)               | **Scala 3.3.1 + Ixias (`net.ixias`) + Slick**, publish `jp.co.rezil %% rezil-esms`. Domain model + repository sống ở đây, **cả 2 BE đều phụ thuộc**.                                            |
@@ -33,7 +33,7 @@ Hỏi/làm rõ (đừng đoán nếu mơ hồ):
    - **Ưu tiên Basic Design**: người dùng đưa mã màn (vd `EQUIP-004 Edit Equipment`)
      → cần `report/design/<ScreenCode>.md`. ⚠️ File này thường nằm ở repo `rezil-support`, còn gen-code chạy ở
        repo code đích (xem Bước 2) → người dùng đưa **đường dẫn tuyệt đối** tới file design, hoặc copy vào cwd.
-       **Thiếu/không tới được → gọi skill `/read-basic-design`** với file `.html` của màn, chạy `--full --write`.
+       **Thiếu/không tới được → gọi skill `/read-basic-design`** cho màn đó (nó đọc tab Basic Design qua MCP và ghi file).
        (gen-code không tự định vị plugin khác bằng path; gọi skill là chắc nhất.)
    - **Fallback mô tả tự do**: không có Basic Design thì người dùng mô tả resource/field/action/validation, sinh thẳng.
 5. **Phạm vi**: endpoint/màn/model nào; tạo mới hay sửa file sẵn có.
@@ -42,7 +42,7 @@ Hỏi/làm rõ (đừng đoán nếu mơ hồ):
 
 - Có Basic Design: đọc `report/design/<ScreenCode>.md` — field ở `3. Screen Items` (Spec-ID, Data Type,
   Required, Value, Description), DB ở `4. Database`, event/flow/validation/error (`E-MSG-xxx`) ở `5. 処理`,
-  Figma/COMMON ở `1. Interface`. Cần nội dung error chính xác → bản `--full` hoặc `Error Msg.html`.
+  Figma/COMMON ở `1. Interface`. Cần nội dung error chính xác → xem section 5 trong file design (hoặc gọi lại `/read-basic-design`).
 - **Bắt buộc mở 1–2 file cùng loại gần nhất trong repo đích để bắt chước** (naming, import, style). Đừng
   hardcode theo trí nhớ — convention dưới đây là điểm khởi đầu, file thật là chuẩn cuối.
 - ⛔ Nếu cwd **không phải** repo code (vd đang ở `rezil-support`) → báo người dùng `cd` sang repo đích
@@ -217,7 +217,7 @@ Svelte 5 (runes) cả 2. Cùng convention dưới đây cho cả pha **mockup** 
 
 - **1 skill chung**, chọn **layer `FE|BE|LIB` + variant `web|mobile`** khi chạy (cho nhiều layer cùng lúc).
 - 🔢 **Thứ tự sinh khi nhiều layer (khớp `## Follow` của CLAUDE.md): LIB ‖ FE-mockup → BE → OpenAPI/aspida → Integrate.** FE chia 2 pha: *mockup* (data giả, song song LIB) rồi *integrate* (ghép aspida client thật ở cuối). BE cần LIB xong; OpenAPI cần BE xong; Integrate cần aspida xong. Yêu cầu 1 layer lẻ thì làm layer đó nhưng nêu rõ phụ thuộc còn thiếu.
-- **Ưu tiên Basic Design** (`report/design/<ScreenCode>.md`; thiếu → `/read-basic-design --full --write`); **fallback** mô tả tự do. Không tự parse HTML.
+- **Ưu tiên Basic Design** (`report/design/<ScreenCode>.md`; thiếu → `/read-basic-design`); **fallback** mô tả tự do. Không tự đọc Google Sheet.
 - **Luôn dò file cùng loại trong repo đích trước khi sinh**; convention trong skill là khởi điểm, code thật là chuẩn cuối.
 - **FE gọi API qua aspida client đã generate** (`src/lib/api/defs/`), không viết fetch tay. **Web: `import api from '$lib/api'`, đọc `response.body`; Mobile: `import api from '@lib/api'`, gọi `.$post(...)`, đọc `response.data` (2 tầng `payload.data`/`payload.total`).** Form 2 nền dùng **custom `useForm`** (KHÔNG phải Felte) + Yup. Thiếu endpoint → báo bổ sung OpenAPI + regenerate.
 - **BE**: Scala 3.3.5 + Play, 1 controller/endpoint (`{Verb}{Entity}Controller`), `extends BaseAbstractController(cc):`; `JsonSuccess/JsonFailure/request.decode` là **của ixias**; Circe DTO ở `model/reads|writes` (`deriveDecoder/deriveEncoder` hoặc `Decoder.instance`); `EitherT`+`request.decode`+`JsonSuccess(...).withData(...).build`+`.value.map(_.merge)`; route id thường `Box[<Entity>.Id]`; `conf/routes` + `conf/messages.ja`. **Web `E-MSG-nnn` + permission (`permissionAction.andThen(permissionAction.apply(Seq(PermissionMode.X.code), SCREENS_LIST.Y.code))`); mobile `E-MOB-xxx`, chỉ `authAction`, có thể có `/offline`.**

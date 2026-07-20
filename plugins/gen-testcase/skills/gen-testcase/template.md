@@ -20,12 +20,12 @@ File này chỉ bổ sung: cách *map* Basic Design ra case, và *kỹ thuật* 
 ## 2. Bảng ánh xạ Basic Design → Test case
 
 | Phần trong Basic Design                                    | Sinh case ở section    | Loại case                                                                     |
-|------------------------------------------------------------|------------------------|-------------------------------------------------------------------------------|
+| ---------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
 | `2. Overview` (popup, đi từ đâu, URL)                      | S03 Di chuyển màn hình | Luồng vào màn, URL, title, back                                               |
 | `5.1 First load` + phân quyền (Read/Edit/Delete, engineer) | S04 Hiển thị khởi tạo  | Permission matrix, redirect chưa login (E-MSG-005)                            |
 | `3. Screen Items` (mỗi field)                              | S04/S05                | Item type / Default / Disable-autogen / điều kiện enable / Click-Input-Select |
 | Inline validation trong Description + `6. Validation`      | S05 (validation FE)    | Boundary value + error message (map MSG_ID)                                   |
-| `5.2 Save / 5.3 Copy / 5.4 Delete / 5.5 Remove`            | S05 sau thao tác       | Popup confirm (はい/いいえ) + toast thành công/thất bại                            |
+| `5.2 Save / 5.3 Copy / 5.4 Delete / 5.5 Remove`            | S05 sau thao tác       | Popup confirm (はい/いいえ) + toast thành công/thất bại                       |
 | `7. Log`                                                   | Log                    | Ghi log từng action × thành công/thất bại                                     |
 
 > Mã section (`S03`, `S04`...) là quy ước SQA của team; màn không-list (popup detail như EQUIP-004) có thể không có S12. Giữ tên nhóm tiếng Việt y như mẫu trong `report/template/*.md`.

@@ -1,56 +1,83 @@
 ---
 name: read-basic-design
-description: Đọc và tóm tắt spec của 1 màn hình từ file Basic Design (HTML export từ Google Sheet) của dự án Rezil. Dùng khi người dùng muốn hiểu nhanh một màn hình (field, nút, luồng xử lý, validation), chỉ định 1 file .html trong folder "REZIL - Basic Design ...", hoặc gõ /read-basic-design.
+description: Đọc và tóm tắt spec của 1 màn hình từ Basic Design của dự án Rezil, đọc trực tiếp Google Sheet qua MCP (mcp__gsheets-rezil__*). Dùng khi người dùng muốn hiểu nhanh một màn hình (field, nút, luồng xử lý, validation), hoặc gõ /read-basic-design.
 ---
 
 # read-basic-design — Tóm tắt spec màn hình Rezil
 
-Mục tiêu: đọc **1 file Basic Design** (theo tên người dùng đưa) → tóm tắt dễ hiểu: màn này là gì, có field/nút nào, luồng xử lý, validation/error.
+Mục tiêu: đọc **Basic Design của 1 màn** (đọc thẳng Google Sheet qua MCP) → tóm tắt dễ hiểu: màn này là gì, có field/nút nào, luồng xử lý, validation/error. Đồng thời ghi file trung gian `report/design/<ScreenCode>.md` để plugin `gen-testcase` / `gen-code` đọc lại.
 
-## Bước 1 — Xác định file
+## Nguồn dữ liệu (config cố định)
 
-- Người dùng chỉ định 1 file, vd `REZIL - Basic Design Web Admin/EQUIP-004 Edit Equipment.html`.
-- Các folder `REZIL - Basic Design Web Admin/` và `REZIL - Basic Design Mobile/` nằm trong thư mục làm việc hiện tại, thường bị gitignore (`REZIL*/`) nhưng vẫn trên đĩa.
-- Nếu người dùng chỉ đưa mã màn (vd `EQUIP-004`), tìm file khớp trong 2 folder rồi xác nhận nếu có nhiều kết quả (vd `Create` vs `Edit`).
+Quy ước: **1 tab = 1 màn, tên tab = tên màn** (vd `CLIENT-001 Client List`).
 
-## Bước 2 — Parse
+| Loại màn                 | Spreadsheet ID                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| **Web Admin** (mặc định) | `1ABO6soPFhw9zFUUFgCnqEDSscw7ihmXosa_ETEmOoO8` (REZIL - Basic Design Web Admin) |
+| **Mobile** (`MOB-xxx`)   | `15cDzvbNfkzFGCMNSGGeFc3lSmCai4iqh-TsnliCSUPU` (REZIL - Basic Design Mobile)    |
 
-Chạy script đi kèm plugin:
+- Đọc qua **MCP `gsheets-rezil`** (SA `rezil-agent.json`; file phải share Viewer cho SA — nếu 403 là chưa share). Không còn parse HTML/script Python:
+  - `mcp__gsheets-rezil__list_sheets` — liệt kê tab để tìm màn.
+  - `mcp__gsheets-rezil__get_sheet_data` — lấy dữ liệu tab (values only, `include_grid_data=false`).
+
+> Nếu spreadsheet ID thay đổi, cập nhật lại block config này.
+
+## Bước 1 — Xác định tab (màn)
+
+- Người dùng nêu tên màn (vd `CLIENT-001 Client List`, `MOB-008 ...`). Chọn spreadsheet Web Admin hay Mobile theo mã màn (`MOB-` → Mobile, còn lại → Web Admin).
+- Chạy `mcp__gsheets-rezil__list_sheets` để tìm tab khớp tên màn; nhiều kết quả (vd `Create` vs `Edit`) thì xác nhận với người dùng.
+
+## Bước 2 — Đọc dữ liệu qua MCP
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/parse-basic-design.py" "<đường dẫn file .html>" [--full] [--write]
+mcp__gsheets-rezil__get_sheet_data(
+  spreadsheet_id = "1ABO6soPFhw9zFUUFgCnqEDSscw7ihmXosa_ETEmOoO8",  # hoặc file Mobile
+  sheet          = "<tên màn>"                                       # vd "CLIENT-001 Client List"
+)
 ```
 
-→ in ra Markdown đã tách theo section + bảng (tự bỏ cột số thứ tự và hàng tiêu đề cột bảng tính A, B, C...). Cờ:
-- `--full`: không cắt mô tả dài (mặc định cắt ~120 ký tự cho gọn khi tóm tắt).
-- `--write`: **ghi ra `report/design/<ScreenCode>.md`** trong thư mục làm việc hiện tại — file trung gian này để plugin `gen-testcase` đọc lại. Khi muốn tạo file cho gen-testcase dùng, chạy kèm cả `--full --write`.
+→ trả về mảng `values` (mỗi phần tử là 1 hàng, mỗi hàng là list cell theo cột A, B, C...).
 
-Khi cần nội dung chính xác của một error message (`E-MSG-xxx`, `E-EQUIP-xxx`) xuất hiện trong spec, đối chiếu file `REZIL - Basic Design <Web Admin|Mobile>/Error Msg.html` (parse bằng cùng script trên).
+**Cách đọc mảng values** (thay cho parse HTML trước đây):
+- Cột A (index 0) thường trống — dùng để thụt lề. **Bỏ các cell rỗng ở đầu hàng**; cell nội dung đầu tiên mới là dữ liệu.
+- Hàng rỗng hoàn toàn (`[]` hoặc toàn cell trống) → bỏ.
+- **Section header**: hàng chỉ có 1 cell nội dung khớp `^\d+(\.\d+)*[.\s]` (vd `1. Interface`, `3. Screen Items`, `3.2 Report Form`, `5.1 First load`).
+- **Bảng** (vd Screen Items): hàng header chứa `Spec-ID` / `Field Name` / `Label Name` / `Event`; các hàng sau là dữ liệu field. Cột số thứ tự (`Spec-ID`) và mấy cell rỗng chèn giữa → gom lại theo thứ tự cell không rỗng.
+- Không còn artifact "hàng tiêu đề cột bảng tính A/B/C" như bản HTML — MCP trả values sạch.
 
-> ⚙️ Plugin `gen-testcase` không tự parse HTML mà đọc lại file `report/design/<ScreenCode>.md` do skill này sinh ra (chạy kèm `--full --write`).
+### Cấu trúc Basic Design (các section đánh số)
 
-### Cấu trúc file Basic Design (ritz/waffle của Google Sheet)
-
-Nội dung chia theo **section đánh số**:
-- **1. Interface** — link Figma / Draw.io, ref tới COMMON khác.
-- **2. Overview** — màn này là gì, đi tới từ đâu, URL.
-- **3. Screen Items** — bảng field: `Spec-ID | Field Name | Label Name | Data Type | Display Type | Required | Value | Description`. Đây là phần quan trọng nhất.
+- **1. Interface** — link Figma / Mockup / Draw.io, ref COMMON khác.
+- **2. Overview** — màn này là gì, đi tới từ đâu, URL, breadcrumb/title.
+- **3. Screen Items** — bảng field: `Spec-ID | Field Name | Label Name | Data Type | Display Type | Required | Value | Description`. Có thể chia sub `3.1`, `3.2`... Đây là phần quan trọng nhất.
 - **4. Database** — bảng cột DB.
-- **5. 処理 (Xử lý)** — danh sách event, kèm sub-section `5.1`, `5.2`... mô tả flow + Reference API + validation. Error message dạng `E-MSG-xxx` / `E-EQUIP-xxx`.
+- **5. 処理 (Xử lý)** — danh sách event + sub `5.1`, `5.2`... mô tả flow + Reference API + validation. Error message dạng `E-MSG-xxx` / `E-EQUIP-xxx`.
 
-Label tiếng Nhật trong 【...】; mô tả thường lẫn tiếng Việt + Nhật. Mô tả dài bị cắt ~120 ký tự trong bảng — khi cần chi tiết một field, đọc thẳng ô đó trong HTML.
+Label tiếng Nhật trong 【...】; mô tả thường lẫn Việt + Nhật. Cần nội dung chính xác 1 error message → tìm trong section 5 (hoặc tab `Error Msg` nếu có, dò bằng `list_sheets`).
 
-## Bước 3 — Tóm tắt cho người dùng
+## Bước 3 — Ghi file trung gian `report/design/<ScreenCode>.md`
+
+Sau khi đọc & chuẩn hoá thành Markdown (section `## N. ...` + bảng markdown cho Screen Items, **giữ đầy đủ mô tả, không cắt**), ghi ra:
+
+```
+report/design/<ScreenCode>.md
+```
+
+trong thư mục làm việc hiện tại (tạo folder nếu chưa có). `<ScreenCode>` lấy từ tên màn ở section Overview / tên tab (vd `REPORT-002`). File này để `gen-testcase` / `gen-code` đọc lại thay vì gọi MCP mỗi lần.
+
+> 📐 **Format table (bắt buộc)**: bảng Screen Items và các bảng khác phải là **GFM table căn cột chuẩn** — header + separator `| --- |`, mọi hàng cùng số cột, các `|` thẳng hàng (pad theo bề rộng hiển thị, ký tự CJK/tiếng Nhật = 2). Không xuống dòng thật trong cell (viết inline), ký tự `|` trong cell escape `\|`; nội dung dài (SQL) để ngoài bảng trong code fence.
+
+## Bước 4 — Tóm tắt cho người dùng
 
 Trình bày gọn (tiếng Việt), theo thứ tự:
 
-1. **Màn hình là gì** (từ Overview): loại màn (popup/list/detail), mục đích, vào từ đâu, URL.
-2. **Các field chính** (từ Screen Items): nhóm theo input (Required) vs auto-gen (Disable). Nêu field bắt buộc, kiểu nhập (combobox/textbox/calendar...), field nào tự sinh.
-3. **Các nút & hành động**: save/copy/delete/remove... và làm gì.
+1. **Màn hình là gì** (từ Overview): loại màn (popup/side-panel/list/detail), mục đích, vào từ đâu, URL.
+2. **Các field chính** (từ Screen Items): nhóm input (Required) vs auto-gen (Disable). Nêu field bắt buộc, kiểu nhập (combobox/textbox/calendar...), field tự sinh.
+3. **Các nút & hành động**: save/copy/delete/approve/reject... và làm gì.
 4. **Luồng xử lý chính** (từ section 5): các event + tóm tắt 5.1 first load (check login/permission), validation đáng chú ý + error message (E-MSG-xxx).
-5. **Link tham khảo**: Figma / Draw.io / COMMON liên quan.
+5. **Link tham khảo**: Figma / Mockup / Draw.io / COMMON liên quan.
 
-Giữ nguyên label/tên field gốc (kể cả tiếng Nhật) để khớp với tài liệu. Nếu người dùng hỏi sâu 1 field/luồng cụ thể, đọc lại ô tương ứng trong HTML (không bị cắt) để trả lời đầy đủ.
+Giữ nguyên label/tên field gốc (kể cả tiếng Nhật) để khớp tài liệu. Người dùng hỏi sâu 1 field/luồng → đọc lại đúng cell/section trong values (không cắt) để trả lời đầy đủ.
 
 ## Quy tắc đã chốt
 

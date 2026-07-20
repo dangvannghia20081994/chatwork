@@ -1,7 +1,7 @@
 {
   "name": "gen-testcase",
   "version": "1.0.0",
-  "description": "Sinh UT/IT test case từ file Basic Design (HTML export Google Sheet) của dự án Rezil, theo đúng template test case của team.",
+  "description": "Sinh UT/IT test case từ Basic Design của dự án Rezil, theo đúng template test case của team.",
   "author": {
     "name": "HTV - NghiaDV"
   }

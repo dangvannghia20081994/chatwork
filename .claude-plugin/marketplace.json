@@ -7,19 +7,14 @@
   },
   "plugins": [
     {
-      "name": "report-plan",
-      "source": "./plugins/report-plan",
-      "description": "Báo cáo tiến độ hàng ngày Rezil: đọc folder HTML export (Google Sheet), tìm member âm giờ, sinh nội dung dán Chatwork."
-    },
-    {
       "name": "read-basic-design",
       "source": "./plugins/read-basic-design",
-      "description": "Đọc & tóm tắt spec 1 màn hình từ file Basic Design (HTML export Google Sheet) của dự án Rezil; ghi report/design/<Screen>.md để gen-testcase dùng lại."
+      "description": "Đọc & tóm tắt spec 1 màn hình từ Basic Design của dự án Rezil (đọc Google Sheet qua MCP); ghi report/design/<Screen>.md để gen-testcase dùng lại."
     },
     {
       "name": "read-testcase-template",
       "source": "./plugins/read-testcase-template",
-      "description": "Trích template test case UT/IT từ file mẫu (REZIL - Testcase/UT.html, IT.html) ra report/template/{ut,it}.md cho gen-testcase dùng lại."
+      "description": "Trích template test case UT/IT từ mẫu trên Google Sheet (đọc qua MCP) ra report/template/{ut,it}.md cho gen-testcase dùng lại."
     },
     {
       "name": "gen-testcase",
