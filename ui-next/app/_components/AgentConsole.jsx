@@ -37,6 +37,95 @@ function Markdown({ text }) {
   );
 }
 
+// Turn a raw tool/agent name (từ SSE event `tool`) thành nhãn tiếng Việt + icon dễ đọc cho panel
+// Tiến trình. Ví dụ "Read" → 📖 Đọc file, "mcp__atlassian__getJiraIssue" → 📋 Jira, "↳ agent: dev-master".
+function stepLabel(name) {
+  let n = String(name || "");
+  if (n.startsWith("↳ agent:")) return { icon: "🤖", text: n.replace(/^↳\s*agent:\s*/, "Agent: ") };
+  let sub = false;
+  if (n.startsWith("↳ ")) { sub = true; n = n.slice(2); }
+  const pre = sub ? "↳ " : "";
+  if (n === "phiên bắt đầu") return { icon: "🚀", text: "Phiên bắt đầu" };
+  const rules = [
+    [/^Read$/i, "📖", "Đọc file"],
+    [/^(Grep|Glob)$/i, "🔍", "Tìm trong code"],
+    [/^Bash$/i, "💻", "Chạy lệnh"],
+    [/^(Edit|Write|MultiEdit)$/i, "✏️", "Sửa file"],
+    [/^Web(Search|Fetch)$/i, "🌐", "Tra web"],
+    [/^(TodoWrite|TaskCreate|TaskUpdate)$/i, "🧾", "Cập nhật todo"],
+    [/^(Task|Agent)$/i, "🤖", "Gọi agent"],
+    [/snapshot/i, "📸", "Chụp màn hình"],
+    [/atlassian/i, "📋", "Jira"],
+    [/(mysql|postgres)/i, "🗄️", "Query DB"],
+    [/gsheets/i, "📊", "Google Sheet"],
+  ];
+  for (const [re, icon, text] of rules) if (re.test(n)) return { icon, text: pre + text };
+  const mcp = n.match(/^mcp__[^_]+__(.+)$/);
+  if (mcp) return { icon: "🔌", text: pre + mcp[1] };
+  return { icon: "🔧", text: pre + n };
+}
+
+// Định dạng thời lượng gọn: <60s → "2.3s", ngược lại → "1m05s".
+function fmtDur(ms) {
+  if (ms == null || ms < 0) return "";
+  if (ms < 60000) return (ms / 1000).toFixed(1) + "s";
+  const m = Math.floor(ms / 60000);
+  const s = Math.round((ms % 60000) / 1000);
+  return `${m}m${String(s).padStart(2, "0")}s`;
+}
+
+// Panel "Tiến trình" trong bubble của agent: liệt kê từng bước (tool/agent) agent đã thực hiện.
+// Tự bung khi đang chạy (live) để thấy hoạt động real-time; tự thu lại khi xong (gọn màn hình),
+// vẫn bấm mở lại được để xem đã làm gì. Mỗi bước hiện thời lượng = khoảng cách tới bước kế tiếp
+// (bước cuối: tới lúc kết thúc `endedAt`, hoặc chạy live theo đồng hồ khi đang stream).
+function ProcessLog({ steps, live, endedAt }) {
+  const [open, setOpen] = useState(live);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { setOpen(live); }, [live]);
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setNow(Date.now()), 200); // tick để bước cuối + tổng chạy real-time
+    return () => clearInterval(id);
+  }, [live]);
+  if (!steps || steps.length === 0) return null;
+  // Mốc kết thúc chung cho bước cuối + tổng thời gian: đang chạy → đồng hồ; xong → endedAt.
+  const stopAll = live ? now : endedAt;
+  const total = steps[0]?.t != null && stopAll != null ? stopAll - steps[0].t : null;
+  return (
+    <div className="mb-2 rounded-md border border-line bg-bg/60 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 px-2 py-1 text-dim transition-colors hover:text-muted"
+      >
+        <span className={live ? "animate-pulse" : ""}>{live ? "⚙️" : "✓"}</span>
+        <span>{live ? "Đang thực hiện" : "Tiến trình"} · {steps.length} bước</span>
+        {total != null ? <span className="tabular-nums">· {fmtDur(total)}</span> : null}
+        <span className="ml-auto">{open ? "▾" : "▸"}</span>
+      </button>
+      {open ? (
+        <div className="flex flex-col gap-0.5 border-t border-line px-2 py-1.5">
+          {steps.map((s, i) => {
+            const { icon, text } = stepLabel(s.name);
+            const isLast = i === steps.length - 1;
+            const liveLast = live && isLast;
+            const stop = i < steps.length - 1 ? steps[i + 1].t : stopAll;
+            const dur = s.t != null && stop != null ? stop - s.t : null;
+            return (
+              <div key={i} className={`flex items-center gap-1.5 ${liveLast ? "text-muted" : "text-dim"}`}>
+                <span className="shrink-0">{icon}</span>
+                <span className="min-w-0 flex-1 truncate">{text}</span>
+                {liveLast ? <span className="animate-pulse">…</span> : null}
+                {dur != null ? <span className="shrink-0 tabular-nums text-dim">{fmtDur(dur)}</span> : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // Full-screen image viewer with zoom + pan: mouse wheel / +− buttons / double-click to zoom, drag to
 // pan when zoomed, pinch on touch. Click the dark backdrop (or Esc / ✕) to close; clicking the image
 // itself does not close so it can be zoomed and dragged freely.
@@ -208,7 +297,8 @@ export default function AgentConsole({ config }) {
   const messagesRef = useRef([]);
   const needInfoRef = useRef(false);
   const accRef = useRef("");
-  const cancelKeyRef = useRef("");
+  const cancelKeyRef = useRef(""); // chat: = runId (job-lock key); job: = repo cancel key
+  const reconnectingRef = useRef(false); // chat: đang poll khôi phục sau khi mất kết nối
   // Completion-sound bookkeeping per turn: error seen? user-aborted? already chimed?
   const sawErrorRef = useRef(false);
   const abortedRef = useRef(false);
@@ -227,6 +317,21 @@ export default function AgentConsole({ config }) {
       window.removeEventListener("keydown", onKey);
     };
   }, []);
+
+  // Lưới an toàn cho trường hợp tab bị FREEZE (Page Lifecycle) khiến es.onerror không kịp chạy: khi
+  // quay lại mà đang busy nhưng stream đã chết → kích hoạt khôi phục. (Ẩn tab ngắn, socket còn sống
+  // thì es vẫn OPEN → bỏ qua, các delta buffered tự flush bình thường.)
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!busy || isJob || !config.sessionsPath || reconnectingRef.current || abortedRef.current) return;
+      const es = esRef.current;
+      if (!es || es.readyState === 2) reconnectAndReload();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
 
   // restore saved conversation on mount / when the storage key changes (e.g. project or repo switch)
   useEffect(() => {
@@ -374,7 +479,7 @@ export default function AgentConsole({ config }) {
     }
     abortedRef.current = true; // user stopped → no completion chime
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
-    patchLast((m) => (m.role === "ai" ? { ...m, status: "⏹ đã dừng" } : m));
+    patchLast((m) => (m.role === "ai" ? { ...m, status: "⏹ đã dừng", endedAt: Date.now() } : m));
     setBusy(false);
   }
 
@@ -384,6 +489,53 @@ export default function AgentConsole({ config }) {
     soundedRef.current = true;
     if (sawErrorRef.current) playErrorSound();
     else playDoneSound();
+  }
+
+  // Chat: mất kết nối giữa chừng (ẩn/minimize tab → browser drop socket). Run VẪN chạy tiếp ở server
+  // (killOnDisconnect:false) và ghi vào session .jsonl. Ở đây poll /api/chat/active tới khi run xong,
+  // rồi ĐIỀN NỐT text đáp án vào bong bóng cuối — GIỮ NGUYÊN m.steps + endedAt nên log tiến trình +
+  // thời gian KHÔNG mất. Chỉ áp dụng chat-mode (job có cơ chế resume riêng).
+  async function reconnectAndReload() {
+    if (reconnectingRef.current || abortedRef.current || isJob || !config.sessionsPath) return;
+    reconnectingRef.current = true;
+    const rid = cancelKeyRef.current; // chat: cancelKey = runId
+    const sid = sessionRef.current;
+    patchLast((m) => (m.role === "ai" ? { ...m, status: "↻ mất kết nối — đang khôi phục…" } : m));
+    let miss = 0; // số vòng chưa hỏi được trạng thái (mạng chưa lên lại) — chờ thêm, đừng bỏ cuộc sớm
+    for (let i = 0; i < 900 && !abortedRef.current; i++) { // cap ~30' @ 2s/vòng
+      let active = null; // null = chưa xác định (fetch lỗi vì còn offline)
+      if (rid) {
+        try {
+          const r = await fetch(BASE + "/api/chat/active?runId=" + encodeURIComponent(rid));
+          const d = await r.json();
+          active = !!d.running;
+        } catch { active = null; }
+      } else {
+        active = false;
+      }
+      if (active === false) break; // server xác nhận run đã xong
+      if (active === null && ++miss > 30) break; // mạng chết ~60s liên tục → thôi, dùng nội dung hiện có
+      if (active === true) miss = 0;
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+    if (sid && !abortedRef.current) {
+      try {
+        const res = await fetch(BASE + config.sessionsPath + "/" + sid + "?" + sessionsQuery());
+        const data = await res.json().catch(() => ({}));
+        const msgs = Array.isArray(data.messages) ? data.messages : [];
+        const lastAi = [...msgs].reverse().find((m) => m.role === "ai");
+        patchLast((m) =>
+          m.role === "ai"
+            ? { ...m, text: lastAi ? lastAi.text : m.text, status: "", endedAt: m.endedAt || Date.now() }
+            : m
+        );
+      } catch {
+        patchLast((m) => (m.role === "ai" ? { ...m, status: "", endedAt: m.endedAt || Date.now() } : m));
+      }
+    }
+    reconnectingRef.current = false;
+    setBusy(false); // persist effect lưu lại messages (đã có text + steps) vào localStorage
+    finalizeSound();
   }
 
   function watchNeedInfo(t) {
@@ -407,11 +559,12 @@ export default function AgentConsole({ config }) {
     sawErrorRef.current = false;
     abortedRef.current = false;
     soundedRef.current = false;
+    reconnectingRef.current = false;
     setSuggests([]);
     setMessages((prev) => [
       ...prev,
       { role: "me", text: display },
-      { role: "ai", text: "", status: "…", errors: [] },
+      { role: "ai", text: "", status: "…", errors: [], steps: [] },
     ]);
     setBusy(true);
 
@@ -426,9 +579,14 @@ export default function AgentConsole({ config }) {
     });
     es.addEventListener("tool", (ev) => {
       const name = JSON.parse(ev.data);
-      // Always reflect the latest tool/agent activity — the next delta clears it. Without this,
-      // a long sub-agent run after the model has already written text shows no progress at all.
-      patchLast((m) => ({ ...m, status: "· " + name }));
+      // Tích luỹ từng bước vào m.steps để render panel "Tiến trình" (lịch sử đầy đủ, không bị delta
+      // kế tiếp xoá mất). Bỏ qua bước trùng liên tiếp. Xoá placeholder "…" ban đầu — ProcessLog lo
+      // phần hiển thị hoạt động real-time từ đây.
+      patchLast((m) => {
+        const steps = (m.steps || []).slice();
+        if (steps[steps.length - 1]?.name !== name) steps.push({ name, t: Date.now() });
+        return { ...m, steps, status: m.status === "…" ? "" : m.status };
+      });
     });
     es.addEventListener("result", (ev) => {
       const r = JSON.parse(ev.data);
@@ -443,10 +601,18 @@ export default function AgentConsole({ config }) {
     es.addEventListener("suggest", (ev) => {
       try { const arr = JSON.parse(ev.data); if (Array.isArray(arr)) setSuggests(arr); } catch {}
     });
-    es.addEventListener("end", () => { setBusy(false); es.close(); esRef.current = null; finalizeSound(); });
+    es.addEventListener("end", () => { setBusy(false); es.close(); esRef.current = null; finalizeSound(); patchLast((m) => (m.role === "ai" ? { ...m, endedAt: Date.now() } : m)); });
     es.onerror = () => {
+      if (!esRef.current) return; // đã đóng bởi end/stopStream → bỏ qua
+      esRef.current.close();
+      esRef.current = null;
+      // Chat: đừng đóng băng message. Run vẫn sống ở server → poll khôi phục rồi điền nốt đáp án
+      // (giữ log tiến trình). Job giữ hành vi cũ (báo lỗi, dừng).
+      if (!isJob && config.sessionsPath && !abortedRef.current) { reconnectAndReload(); return; }
       setBusy(false);
-      if (esRef.current) { esRef.current.close(); esRef.current = null; sawErrorRef.current = true; finalizeSound(); }
+      sawErrorRef.current = true;
+      finalizeSound();
+      patchLast((m) => (m.role === "ai" ? { ...m, endedAt: Date.now() } : m));
     };
   }
 
@@ -506,12 +672,15 @@ export default function AgentConsole({ config }) {
       q = `${typed}\n\nTệp đính kèm (đọc bằng tool Read):\n${lines}`.trim();
     }
     const display = attachments.length > 0 ? `${typed} 📎${attachments.length}`.trim() : typed;
-    const qs = new URLSearchParams({ msg: q, ...(config.params || {}) });
+    // runId: định danh lượt chạy → server đăng ký job-lock để (1) nút Dừng huỷ được kể cả sau khi
+    // socket drop, (2) client hỏi /api/chat/active xem run còn sống không khi khôi phục.
+    const runId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const qs = new URLSearchParams({ msg: q, runId, ...(config.params || {}) });
     if (sessionRef.current) qs.set("session", sessionRef.current);
     if (config.editToggle && edit) qs.set("edit", "1");
     setInput("");
     setAttachments([]);
-    start(display, config.apiPath + "?" + qs.toString(), "");
+    start(display, config.apiPath + "?" + qs.toString(), runId); // cancelKey = runId
   }
 
   function submitJob() {
@@ -707,6 +876,7 @@ export default function AgentConsole({ config }) {
                 key={i}
                 className={`w-full self-stretch break-words rounded-lg border border-line bg-panel px-3 py-2.5 text-[13px] leading-normal ${config.renderMarkdown !== false ? "" : "whitespace-pre-wrap"}`}
               >
+                <ProcessLog steps={m.steps} live={busy && i === messages.length - 1} endedAt={m.endedAt} />
                 {m.status ? <div className="text-xs text-dim">{m.status}</div> : null}
                 {config.renderMarkdown !== false ? (m.text ? <Markdown text={m.text} /> : null) : m.text}
                 {(m.errors || []).map((er, j) => (

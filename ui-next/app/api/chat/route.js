@@ -2,6 +2,7 @@
 // Handles the server-side /usage slash-command without spawning claude.
 import { buildChatArgv, claudeSSE, cleanSessionId, resolveProject, normalizeProject } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
+import { running } from "../../../lib/jobs.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ export async function GET(req) {
   const session = cleanSessionId(searchParams.get("session"));
   const canEdit = searchParams.get("edit") === "1";
   const project = normalizeProject(searchParams.get("project"));
+  // Client-generated id for this turn. Lets the run survive a dropped connection (tab hidden) yet
+  // still be cancellable (Dừng) + queryable (/api/chat/active) via the shared job-lock.
+  const runId = (searchParams.get("runId") || "").trim();
 
   if (!message) {
     return Response.json({ error: "empty message" }, { status: 400 });
@@ -28,6 +32,17 @@ export async function GET(req) {
 
   const proj = resolveProject(project);
   const argv = buildChatArgv(project, message, session, canEdit, proj.addDirs);
-  const stream = claudeSSE({ cwd: proj.cwd, argv, onSession: true });
+  const stream = claudeSSE({
+    cwd: proj.cwd,
+    argv,
+    onSession: true,
+    // Keep the run alive if the client tab is hidden/minimized (socket drops); it finishes and is
+    // saved to the session .jsonl so a reconnecting client can reload the answer. See lib/claude.js.
+    killOnDisconnect: false,
+    // Register in the shared job-lock under runId so the Dừng button (/api/cancel?repo=runId) and
+    // the /api/chat/active status check can find this run even after a disconnect.
+    onSpawn: runId ? (child) => running.set(runId, { child, label: "chat" }) : undefined,
+    onClose: runId ? () => { running.delete(runId); } : undefined,
+  });
   return new Response(stream, { headers: SSE_HEADERS });
 }

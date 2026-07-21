@@ -315,7 +315,11 @@ export function handleEvent(evt, emit, state) {
 //   normal exit) before the stream ends — callers can rely on it to release a job-lock.
 // timeoutMs: hard cap on run duration; a hung/runaway claude is SIGTERM'd (then SIGKILL) so it
 //   can't hold a per-repo lock forever. Omit/0 = no cap (e.g. interactive chat).
-export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs }) {
+// killOnDisconnect: when the HTTP consumer goes away (client tab hidden/minimized → socket dropped),
+//   the ReadableStream is cancelled. Default true → kill the child (jobs: an abandoned run is waste).
+//   Chat passes false → the run KEEPS GOING to completion and is saved to the session .jsonl, so a
+//   reconnecting client can reload the finished answer instead of seeing a frozen half-message.
+export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs, killOnDisconnect = true }) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
@@ -405,7 +409,10 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs })
       this._child = child;
     },
     cancel() {
-      if (this._child && this._child.exitCode === null) this._child.kill("SIGTERM");
+      // Client disconnected. Kill only if the run is bound to the connection (jobs). Chat runs
+      // (killOnDisconnect:false) survive so they finish + persist to the session .jsonl; the Dừng
+      // button still stops them explicitly via /api/cancel (job-lock keyed by runId).
+      if (killOnDisconnect && this._child && this._child.exitCode === null) this._child.kill("SIGTERM");
     },
   });
 }
