@@ -3,7 +3,7 @@
 import { spawn } from "child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { resolveProject, normalizeProject } from "./config.js";
+import { resolveProject, normalizeProject, ROOT } from "./config.js";
 
 // Absolute path to the screenshot helper (ui-next/scripts/snapshot.mjs). The chat agent runs in a
 // sibling repo's cwd, so it needs the full path to invoke the script via Bash.
@@ -73,6 +73,22 @@ const TABLE_INSTR =
   "HÃY dùng BẢNG Markdown (GFM: `| Cột | Cột |` + dòng `|---|---|`) cho dễ nhìn thay vì liệt kê dài. " +
   "Giữ bảng gọn, tiêu đề cột ngắn. Văn xuôi/giải thích thì viết bình thường, không cần bảng.";
 
+// REZIL team templates live in the ai-agent repo (ROOT), NOT in rezil-esms where chat's cwd sits.
+// Chat gets ROOT via --add-dir (see buildChatArgv) so the agent can Read these on demand; this line
+// tells it where they are + when to use them. Auto/feature flows inline the same files (lib/auto.js).
+function rezilTemplatesInstr() {
+  return (
+    "TEMPLATE TEAM: khi được yêu cầu TẠO PR / COMMIT / COMMENT JIRA / VIẾT MIGRATION, PHẢI theo đúng " +
+    "khuôn mẫu team đặt tại repo ai-agent (đọc bằng đường dẫn tuyệt đối vì nằm ngoài cwd):\n" +
+    `  • PR body      → ${ROOT}/templates/pr_template.md\n` +
+    `  • Commit msg   → ${ROOT}/templates/commit_message.md\n` +
+    `  • Jira comment → ${ROOT}/templates/jira_comment.md\n` +
+    `  • Migration    → ${ROOT}/templates/migration.md\n` +
+    `  • Quy trình    → ${ROOT}/prompts/{fix_bug,create_pr,update_jira,review_pr}.md\n` +
+    "Hãy Read đúng file cần dùng RỒI chỉ điền placeholder — GIỮ NGUYÊN cấu trúc template, không tự chế khuôn khác."
+  );
+}
+
 function chatSystemPrompt(project, canEdit) {
   if (project === "free") {
     // Unrestricted, all-projects mode. cwd = workspace root (~/IdeaProjects) with every repo in scope.
@@ -134,12 +150,14 @@ function chatSystemPrompt(project, canEdit) {
       "Chế độ SỬA CODE đang BẬT: bạn có thể đọc và CHỈNH SỬA file (Edit/Write) cùng chạy lệnh read-only/build/test (Bash) theo yêu cầu.",
       "Sau khi sửa, giải thích ngắn gọn những gì đã thay đổi.",
       "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
-      snapshotInstr("http://localhost:5173")
+      snapshotInstr("http://localhost:5173"),
+      rezilTemplatesInstr()
     );
   } else {
     base.push(
       "Bạn CÓ THỂ đọc code (Read/Grep/Glob), tra Jira và tìm web để trả lời.",
-      "Bạn KHÔNG được sửa/tạo/xoá file, không chạy lệnh shell, không git. Đây là chế độ hỏi-đáp."
+      "Bạn KHÔNG được sửa/tạo/xoá file, không chạy lệnh shell, không git. Đây là chế độ hỏi-đáp.",
+      rezilTemplatesInstr()
     );
   }
   base.push(TABLE_INSTR);
@@ -192,6 +210,9 @@ export function buildChatArgv(project, message, sessionId, canEdit, addDirs) {
     ];
   }
   const { allow, disallow } = chatTools(project, canEdit);
+  // rezil chat runs with cwd inside rezil-esms; the team templates/prompts live in this repo (ROOT),
+  // outside cwd. Expose ROOT so the agent can Read them (referenced in rezilTemplatesInstr()).
+  const dirs = project === "rezil" ? [...addDirs, ROOT] : addDirs;
   return [
     "-p", message,
     ...(canEdit ? ["--permission-mode", "auto"] : []),
@@ -199,7 +220,7 @@ export function buildChatArgv(project, message, sessionId, canEdit, addDirs) {
     "--include-partial-messages",
     "--verbose",
     "--append-system-prompt", chatSystemPrompt(project, canEdit),
-    ...addDirs.flatMap((d) => ["--add-dir", d]),
+    ...dirs.flatMap((d) => ["--add-dir", d]),
     "--allowedTools", ...allow,
     "--disallowedTools", ...disallow,
     ...(sessionId ? ["--resume", sessionId] : []),
