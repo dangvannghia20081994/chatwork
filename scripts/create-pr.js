@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // create-pr.js — push current branch and open a PR against the repo's base. NEVER merges.
-// Usage: node scripts/create-pr.js <REZIL-XXXX> <SCREEN-CODE> [repo] --summary="..." [--dry-run]
+// Usage: node scripts/create-pr.js <REZIL-XXXX> <SCREEN-CODE> [repo] --summary="..." [--phase="..."] [--dry-run]
 // Title: [<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>
-//   phase: develop -> PreUAT-MVP2-A ; feature/mvp2-b -> "Sprint NN" (fill NN by hand)
+//   phase: LẤY TỪ TICKET (tag `[...]` đầu summary), truyền qua --phase. Không có -> fallback UAT-MVP2-A.
 // Requires `gh` CLI authenticated. PR body seeded from templates/pr_template.md.
 
 const fs = require("fs");
@@ -14,10 +14,12 @@ function arg(flag) {
   return a ? a.split("=").slice(1).join("=") : undefined;
 }
 
-function phaseFor(base) {
-  if (base === "develop") return "PreUAT-MVP2-A";
-  if (base === "feature/mvp2-b") return "Sprint NN";
-  return base;
+// Phase comes from the TICKET (the `[...]` tag at the start of its summary), passed via --phase.
+// Normalize internal whitespace; fall back to UAT-MVP2-A when not provided/parseable.
+function normalizePhase(raw) {
+  if (!raw) return "UAT-MVP2-A";
+  const inner = raw.trim().replace(/^\[|\]$/g, "").replace(/\s+/g, "");
+  return inner || "UAT-MVP2-A";
 }
 
 function main() {
@@ -44,7 +46,8 @@ function main() {
 
     const screen = screenArg.toUpperCase();
     const summary = arg("summary") || "<summary>";
-    const title = `[${phaseFor(repo.baseBranch)}] ${screen} | ${key} - ${summary}`;
+    const phase = normalizePhase(arg("phase"));
+    const title = `[${phase}] ${screen} | ${key} - ${summary}`;
     const cmd = `gh pr create --repo ${repo.gh.org}/${repo.name} --base ${repo.baseBranch} --head ${branch} --title "${title}" --body-file "${bodyPath}"`;
     const out = run(cmd, { dryRun, cwd: repo.path });
 

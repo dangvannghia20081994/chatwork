@@ -1,8 +1,8 @@
 <!-- PR Title (dùng cho `gh pr create --title`, không thuộc body):
      [<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>
-       <phase>: theo base branch
-         - develop   -> [PreUAT-MVP2-A]
-         - feature/mvp2-b -> [Sprint NN]
+       <phase>: LẤY TỪ TICKET — tag `[...]` ở đầu summary ticket (chuẩn hoá bỏ khoảng trắng thừa).
+         VD summary `[PreUAT- MVP2-A] [Admin] EQUIP-003 ...` -> phase `PreUAT-MVP2-A`.
+         Nếu summary không có tag phase ở đầu -> để `UAT-MVP2-A`. KHÔNG suy phase từ base branch.
        <SCREEN-CODE>: mã màn hình. VD: EQUIP-003, ISSUE-001, MYPAGE-001
      VD: [PreUAT-MVP2-A] EQUIP-003 | REZIL-2297 - Update filter label and conditional 低圧回路 option
      (Commit message vẫn giữ ngắn: REZIL-XXXX - <summary>) -->

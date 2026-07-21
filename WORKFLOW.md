@@ -19,7 +19,7 @@
    ↳ If any of 6/7/8 fail: **stop, report, do NOT create PR**.
 9. **Commit** — `REZIL-XXXX - <summary>`.
 10. **Push** — `origin <branch>` (force-push nhánh của mình được nếu cần; **KHÔNG force-push `develop`/`main`**).
-11. **Create PR** — base `develop`; title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`; body = **đúng nguyên `templates/pr_template.md`**, chỉ điền placeholder (Ticket URL, AI Usage %, tick checklist) — KHÔNG thêm summary/change list/test plan/footer. Dùng `--body-file`. `scripts/create-pr.js`.
+11. **Create PR** — base `develop`; title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` (phase lấy từ tag `[...]` đầu summary ticket, chuẩn hoá bỏ space thừa; không lấy được → `UAT-MVP2-A`); body = **đúng nguyên `templates/pr_template.md`**, chỉ điền placeholder (Ticket URL, AI Usage %, tick checklist) — KHÔNG thêm summary/change list/test plan/footer. Dùng `--body-file`. `scripts/create-pr.js`.
 12. **Update Jira** — comment via `templates/jira_comment.md` (PR link + phạm vi ảnh hưởng).
 
 ## Human Gate
