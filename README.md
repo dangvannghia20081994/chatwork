@@ -112,7 +112,7 @@ Add `--dry-run` to any script to preview the commands without executing.
 | `TOOLS.md`            | Tools the agent may use                                                                 |
 | `MEMORY.md`           | Index of long-term knowledge in `memory/`                                               |
 | `config/`             | `jira.json`, `github.json`, `project.json`, `story.json`                                |
-| `prompts/`            | Task prompts: `fix_bug`, `feature_workflow`, `create_pr`, `update_jira`, `review_pr`    |
+| `prompts/`            | Task prompts: `fix_bug`, `feature_workflow`, `create_pr`, `update_jira`, `transition_assign`, `review_pr` |
 | `memory/`             | `architecture`, `coding_style`, `database`, `deployment`, `common_bugs`, `jira_history` |
 | `scripts/`            | `fix-ticket`, `create-pr`, `update-jira` (+ `_lib` helpers)                             |
 | `templates/`          | `pr_template`, `jira_comment`, `commit_message`                                         |

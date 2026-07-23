@@ -84,7 +84,7 @@ function rezilTemplatesInstr() {
     `  • Commit msg   → ${ROOT}/templates/commit_message.md\n` +
     `  • Jira comment → ${ROOT}/templates/jira_comment.md\n` +
     `  • Migration    → ${ROOT}/templates/migration.md\n` +
-    `  • Quy trình    → ${ROOT}/prompts/{fix_bug,create_pr,update_jira,review_pr}.md\n` +
+    `  • Quy trình    → ${ROOT}/prompts/{fix_bug,create_pr,update_jira,transition_assign,review_pr}.md\n` +
     "Hãy Read đúng file cần dùng RỒI chỉ điền placeholder — GIỮ NGUYÊN cấu trúc template, không tự chế khuôn khác."
   );
 }
