@@ -38,4 +38,5 @@
 
 ## Refs
 - `etc/database/MIGRATIONS.md` — migration policy
-- DB MCP: `mysql_207` (MVP1), `mysql_165` (PreUAT MVP2-B)
+- DB MCP: `mysql_207` — env QA/PreUAT `10.9.17.207`, schema `rezil_esms` + `rezil_esms_inspection` (nhãn
+  theo host, không theo phase Jira). Đây là MCP mysql DUY NHẤT đang cấu hình; `mysql_165` đã bỏ.
