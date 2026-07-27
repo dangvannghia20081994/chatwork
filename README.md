@@ -142,8 +142,8 @@ All four contain only public identifiers — no secrets.
 **Commit** — `REZIL-XXXX - <summary>` (imperative, English; no conventional-commits prefix).
 
 **PR title** — `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`
-- phase: `develop → [PreUAT-MVP2-A]`, `feature/mvp2-b → [Sprint NN]`
-- e.g. `[PreUAT-MVP2-A] ISSUE-001 | REZIL-2352 - Fix duplicate rows`
+- phase: `develop → [PreUAT-MVP2-B]`, `feature/mvp2-b → [Sprint NN]`
+- e.g. `[PreUAT-MVP2-B] ISSUE-001 | REZIL-2352 - Fix duplicate rows`
 
 **Quality gates (must pass before PR)**
 - Backend: `sbt scalafmtCheckAll "scalafix --check"`

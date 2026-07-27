@@ -4,8 +4,8 @@ import AgentConsole from "../_components/AgentConsole";
 
 // Same console as /chat, minus the ✏️ Sửa code toggle. Drives the github-ops agent (see /api/release).
 const EXAMPLES = [
-  "Chỉ lấy các ticket JIRA có status=Resolved thuộc filter=10656 (PreUAT-MVP2-A)",
-  "Chỉ lấy các ticket JIRA có status=Resolved thuộc filter=10695 (UAT-MVP2-A)",
+  "Chỉ lấy các ticket JIRA có status=Resolved thuộc filter=10777 (MVP2-B)",
+  "Chỉ lấy ticket Resolved + label dev1-ready thuộc filter=10777 (MVP2-B)",
   "Release DEV1 các ticket REZIL-2673 REZIL-2663 (lib + admin + mobile)",
   "Release STG các ticket REZIL-2673 REZIL-2663 (tag stg/v*, confirm trước khi push)",
   "Liệt kê commit in-scope chưa release của REZIL-2660 (chỉ xem, chưa làm gì)",

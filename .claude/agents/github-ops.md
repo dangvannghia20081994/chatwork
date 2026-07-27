@@ -50,7 +50,7 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
 - **Tạo / sửa / xoá** (confirm trước): `gh release create <tag> ...`, `gh release edit`, `gh release delete`. Xác nhận tag name + target branch + nội dung note với caller trước khi tạo.
 
 ### Jira (đọc để dựng danh sách; ghi CHỈ ở bước hậu-deploy DEV1/STG)
-- Tra ticket bằng JQL: `mcp__atlassian__searchJiraIssuesUsingJql` — vd lấy ticket đã resolved theo môi trường/fixVersion/sprint để dựng danh sách release (UAT-MVP2-A, v.v.). Đọc 1 ticket: `mcp__atlassian__getJiraIssue`; fetch link: `mcp__atlassian__fetch`.
+- Tra ticket bằng JQL: `mcp__atlassian__searchJiraIssuesUsingJql` — vd lấy ticket đã resolved theo môi trường/fixVersion/sprint để dựng danh sách release (UAT-MVP2-B, v.v.). Đọc 1 ticket: `mcp__atlassian__getJiraIssue`; fetch link: `mcp__atlassian__fetch`.
 - **Ghi Jira DUY NHẤT ở bước hậu-deploy DEV1/STG** (xem §Sau tag / §STG): sau khi CI môi trường đó các repo `success`, với DANH SÁCH TICKET của đợt release đó → transition sang **Resolved** + set label môi trường (xoá mọi label khác). Confirm caller trước khi ghi.
   - Label theo môi trường: DEV1 → `labels = ["dev1-deployed"]`; STG → `labels = ["staging-deployed"]`.
   - Transition: `getTransitionsForJiraIssue` lấy transition ID hợp lệ từ status hiện tại → `transitionJiraIssue`. Đã Resolved thì bỏ qua. Không có đường tới Resolved → báo caller, bỏ qua ticket đó.

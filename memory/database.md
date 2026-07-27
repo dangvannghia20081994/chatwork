@@ -38,4 +38,4 @@
 
 ## Refs
 - `etc/database/MIGRATIONS.md` — migration policy
-- DB MCP: `mysql_207` (MVP1), `mysql_165` (PreUAT MVP2-A)
+- DB MCP: `mysql_207` (MVP1), `mysql_165` (PreUAT MVP2-B)

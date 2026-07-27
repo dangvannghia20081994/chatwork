@@ -22,10 +22,14 @@ export const LIST_SQA = [
 ];
 export const LIST_COMTOR = ["HTV - NamNP"];
 
-// Filter Jira đã biết: tên env → filter id.
+// Env đang chạy: tên env → JQL lấy TOÀN BỘ ticket của env đó (JQL chứ không phải filter id trần, để
+// env nào chưa có filter Jira thì dùng thẳng `parent = <epic>`).
+// MVP2-B hiện CHỈ có một tập ticket: epic REZIL-2926 (ticket tag `[PreUAT-MVP2-B]` ở đầu summary),
+// phủ bởi filter 10777 ("UAT - MVP2-B"). Hai tên env cùng trỏ filter 10777 → user gõ "PreUAT" hay
+// "UAT" đều ra đúng data; khi Jira tách filter riêng cho UAT thì chỉ sửa 1 dòng ở đây.
 export const REPORT_ENVS = {
-  "PreUAT-MVP2-A": 10652,
-  "UAT-MVP2-A": 10695,
+  "PreUAT-MVP2-B": "filter=10777",
+  "UAT-MVP2-B": "filter=10777",
 };
 
 // Đường dẫn CLI (tính từ cwd = ROOT của agent, tức repo root — xem app/api/report/route.js).
@@ -69,7 +73,7 @@ function rosterPromptLines() {
 }
 
 export function reportSystemPrompt(nowStamp) {
-  const envLines = Object.entries(REPORT_ENVS).map(([name, id]) => `- ${name} → filter=${id}`);
+  const envLines = Object.entries(REPORT_ENVS).map(([name, jql]) => `- ${name} → JQL \`${jql}\``);
   return [
     "Bạn đang chạy trong Report Console của AI agent — phiên web UI, ĐA LƯỢT (multi-turn), CHỈ ĐỌC.",
     "Nhiệm vụ: người dùng gõ yêu cầu tự do bằng tiếng Việt → bạn (1) dựng JQL phù hợp, (2) LẤY DATA qua",
@@ -86,7 +90,7 @@ export function reportSystemPrompt(nowStamp) {
     "",
     "## JQL",
     `Project mặc định = REZIL. Mọi JQL mặc định nằm trong \`project = REZIL\` trừ khi người dùng nêu filter/JQL khác.`,
-    "Filter env đã biết (người dùng nhắc tên env → dùng đúng filter id):",
+    "Env đã biết (người dùng nhắc tên env → dùng ĐÚNG JQL bên dưới, không tự dựng JQL khác):",
     ...envLines,
     `Hôm nay = ${nowStamp} (giờ địa phương). Dùng mốc này cho 'hôm nay'/'tuần này'/quá hạn; KHÔNG tự sinh ngày khác.`,
     "Nếu {truncated:true} (kết quả bị cắt ở --max) → hẹp JQL lại hoặc dùng --count-only để đếm chính xác.",
@@ -100,7 +104,7 @@ export function reportSystemPrompt(nowStamp) {
     ...rosterPromptLines(),
     "",
     "## REPORT TỔNG QUAN 1 ENV (mặc định khi người dùng xin 'report <env>')",
-    "Cách làm gọn & CHÍNH XÁC: chạy CLI 1 lần với `--jql \"filter=<id>\"` lấy toàn bộ issue (fields:",
+    "Cách làm gọn & CHÍNH XÁC: chạy CLI 1 lần với `--jql \"<JQL của env>\"` lấy toàn bộ issue (fields:",
     "summary,status,assignee,issuetype,created), rồi TỰ phân loại & đếm từ mảng issues:",
     "- N = count tổng.",
     "- closed/pending Z = số issue status ∈ {Closed, PENDING} (không phân biệt hoa/thường).",

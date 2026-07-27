@@ -6,12 +6,12 @@ import AgentConsole from "../_components/AgentConsole";
 // a JQL, fetches Jira via the LOCAL REST CLI (scripts/jira-search.mjs — not MCP), then analyses the
 // compact JSON. READ-ONLY. See /api/report + lib/report.js.
 const EXAMPLES = [
-  "Report UAT-MVP2-A hôm nay",
-  "Report PreUAT-MVP2-A",
-  "Ticket Resolved thuộc UAT-MVP2-A, nhóm theo người",
+  "Report UAT-MVP2-B hôm nay",
+  "Report PreUAT-MVP2-B",
+  "Ticket Resolved thuộc UAT-MVP2-B, nhóm theo người",
   "Bug đang mở của REZIL, nhóm theo assignee",
-  "Ticket chưa có assignee trong filter=10695",
-  "Top 5 người giữ nhiều ticket 'còn' nhất ở UAT-MVP2-A",
+  "Ticket chưa có assignee trong filter=10777",
+  "Top 5 người giữ nhiều ticket 'còn' nhất ở UAT-MVP2-B",
   "Ticket tạo trong 7 ngày qua, theo issue type",
 ];
 
@@ -26,7 +26,7 @@ const config = {
   examples: EXAMPLES,
   emptyText:
     "Gõ yêu cầu báo cáo tự do bằng tiếng Việt. Claude tự dựng JQL, lấy data qua REST API (không dùng MCP) rồi phân tích/thống kê — không sửa gì trên Jira. Đa lượt: hỏi tiếp để tinh chỉnh (đổi env, nhóm theo epic, xem chi tiết…).",
-  placeholder: "Vd: Report UAT-MVP2-A hôm nay · hoặc: bug đang mở nhóm theo người",
+  placeholder: "Vd: Report UAT-MVP2-B hôm nay · hoặc: bug đang mở nhóm theo người",
   editToggle: false,
   nav: [{ href: "/", label: "⌂ Home" }],
 };
