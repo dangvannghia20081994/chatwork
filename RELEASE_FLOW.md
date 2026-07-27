@@ -17,9 +17,10 @@
   | rezil-esms-lib    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   | `0.3.x` | LIB — tag **TRƯỚC**; đợt hiện tại base `feature/mvp2-b` |
   | rezil-esms        | `hybrid-tech-rezil/rezil-esms`        | `develop`   | `0.3.x` | admin (gồm module `be-lambda`) |
   | rezil-esms-mobile | `hybrid-tech-rezil/rezil-esms-mobile` | `develop`   | `0.3.x` | mobile |
-  | rezil-esms-portal | `hybrid-tech-rezil/rezil-esms-portal` | `develop`   | `0.2.x` | dòng version RIÊNG; **CHƯA có pipeline dev1** → chỉ quản PR/CI, KHÔNG tag-deploy |
+  | rezil-esms-portal | `hybrid-tech-rezil/rezil-esms-portal` | `develop`   | `0.3.x` | cùng số version với 3 repo kia; **CHƯA có pipeline dev1** → chỉ quản PR/CI, KHÔNG tag-deploy |
 
-  - **version-sync group** = lib + admin + mobile → **DÙNG CHUNG số `X.Y.Z`**. portal tách riêng, KHÔNG ép theo.
+  - **version-sync group** = lib + admin + mobile + portal → **DÙNG CHUNG số `X.Y.Z`** (đồng bộ từ `0.3.0`, 2026-07-27).
+    portal chung số nhưng **KHÔNG tag-deploy** (chưa có pipeline) → mọi đợt release vẫn chỉ tag 3 repo lib → admin → mobile.
 
 - **Auth**: `gh` CLI đã login sẵn (account `htv-nghiadv1`). KHÔNG đụng `gh auth`, KHÔNG đụng `git config`.
 - **Xác định repo target**: caller nói tên repo → `--repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path.
@@ -96,7 +97,7 @@ Cut thẳng nhánh dated từ tip `origin/develop`, push nhánh, rồi tag (bỏ
 ## ■ TRƯỚC KHI TAG (BẮT BUỘC)
 
 So dòng đầu `CHANGELOG.md` của **lib/admin/mobile** (nhóm version-sync) phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong
-tag (portal có dòng version RIÊNG, KHÔNG ép theo). Lệch → DỪNG, đồng bộ CHANGELOG (mang từ nhánh chuẩn sang) rồi mới
+tag (portal cùng số nhưng không tag-deploy → chỉ bump trên `develop`). Lệch → DỪNG, đồng bộ CHANGELOG (mang từ nhánh chuẩn sang) rồi mới
 tag. **Subset KHÔNG bump version** (chỉ đổi date + append ticket dưới `### Changed`). Commit CHANGELOG theo style
 rezil: 1 dòng tiêu đề, không body, không Co-Authored-By.
 
