@@ -17,6 +17,8 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
   | rezil-esms-lib | `/home/nghiadv/IdeaProjects/rezil-esms-lib` | `hybrid-tech-rezil/rezil-esms-lib` | `develop` |
   | rezil-esms-mobile | `/home/nghiadv/IdeaProjects/rezil-esms-mobile` | `hybrid-tech-rezil/rezil-esms-mobile` | `develop` |
   | rezil-esms-portal | `/home/nghiadv/IdeaProjects/rezil-esms-portal` | `hybrid-tech-rezil/rezil-esms-portal` | `develop` |
+  - **version-sync group** = lib + admin + mobile + portal → **DÙNG CHUNG số `X.Y.Z`** (đồng bộ từ `0.3.0`, 2026-07-27).
+    portal chung số nhưng **KHÔNG tag-deploy** (chưa có pipeline) → mọi đợt release vẫn chỉ tag 3 repo lib → admin → mobile.
 - **Auth**: `gh` CLI đã login sẵn (account `htv-nghiadv1`, token keyring). KHÔNG đụng `gh auth`, KHÔNG đụng `git config`.
 - **Xác định repo target**: caller nói tên repo → dùng `gh ... --repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path tương ứng. Không rõ repo nào → hỏi caller, KHÔNG đoán.
 
@@ -69,8 +71,8 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
 
 ## Workflow chuẩn — Release / Deploy (DEV1 + STG)
 
-Áp dụng cho nhóm **version-sync**: `rezil-esms-lib` (lib), `rezil-esms` (admin), `rezil-esms-mobile` (mobile) — DÙNG CHUNG version (đợt hiện tại lib base nhánh `feature/mvp2-b`, version `0.3.x`).
-`rezil-esms-portal` (portal) là repo THỨ 4 nhưng **dòng version RIÊNG** (hiện `0.2.x`), consume lib (`be-api`+`be-lambda`) nên tag SAU lib; **CHƯA có workflow `*-dev1.yaml`/`*-stg.yaml`** → tạm chỉ quản lý PR/CI, **KHÔNG tag-deploy** cho tới khi portal có pipeline.
+Áp dụng cho nhóm **version-sync**: `rezil-esms-lib` (lib), `rezil-esms` (admin), `rezil-esms-mobile` (mobile), `rezil-esms-portal` (portal) — DÙNG CHUNG version `0.3.x`, base `develop`.
+`rezil-esms-portal` (portal) cùng dòng version `0.3.x` với 3 repo kia (đồng bộ từ `0.3.0`, 2026-07-27) và consume lib (`be-api`+`be-lambda`), nhưng **CHƯA có workflow `*-dev1.yaml`/`*-stg.yaml`** → chỉ quản lý PR/CI + bump version trên `develop`, **KHÔNG tag-deploy** cho tới khi portal có pipeline. Mỗi đợt release vẫn chỉ tag 3 repo: lib → admin → mobile.
 **Deploy kích bằng PUSH TAG, KHÔNG phải merge branch.** Tag `dev1/v<X.Y.Z>` → workflow `*-dev1.yaml`; tag `stg/v<X.Y.Z>` → workflow `*-stg.yaml` → build → deploy.
 **⚠️ STG chỉ được thực hiện SAU khi caller confirm rõ ràng** (dev1 cũng confirm trước mọi action ghi; stg thì bắt buộc thêm bước tóm tắt sẽ tag gì + hỏi trước khi push tag).
 **Mỗi action ghi (push nhánh/tag, `tag -f`, merge, trigger) → confirm caller trước**, làm xong báo run URL + conclusion.
@@ -88,7 +90,7 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
   **tăng từ version của lần release GẦN NHẤT của CHÍNH môi trường đó** (không nhìn sang môi trường kia, không bắt buộc
   khớp `develop`). VD: dev1 vừa ở `0.2.10` → dev1 tiếp theo `0.2.11`; stg đang ở `0.2.11` là dòng RIÊNG, không ảnh
   hưởng số của dev1 (dev1/v0.2.11 có thể khác nội dung stg/v0.2.11). Trong CÙNG 1 môi trường, nhóm version-sync
-  (lib/admin/mobile) vẫn DÙNG CHUNG số.
+  (lib/admin/mobile/portal) vẫn DÙNG CHUNG số.
 - **Bump version là THỦ CÔNG** (commit `chore: bump version to X.Y.Z` trên `develop`). CI **KHÔNG** tự bump — release `dev1/v0.2.4` xong KHÔNG tự sinh `0.2.5`.
   - **CHỈ bump version sau khi release STG** (KHÔNG bump sau DEV1): khi CI stg các repo pass, phải bump version lên trên `develop` — đợt STG chưa coi là hoàn tất nếu chưa bump. github-ops thực hiện commit bump này (checkout `develop`, cập nhật dòng đầu `CHANGELOG.md` sang `X.Y.Z` mới + các nơi khác repo dùng, commit `chore: bump version to X.Y.Z`, push `develop`) — commit thường, **KHÔNG force-push `develop`**; **CONFIRM caller trước** (nêu rõ version cũ→mới + repo). Ví dụ commit bump: `087c3e51904d2d9c04ea25d80829986f30b6585b`.
   - **KHI bump version phải SYNC luôn `### Changed` của version vừa release vào `develop`**: lúc release, list ticket dưới `### Changed` chỉ được append trên NHÁNH RELEASE (develop không có) → khi bump, mang nguyên block `### Changed` của version vừa release đó vào `CHANGELOG.md` trên `develop` (đặt dưới heading version đã release, TRÊN heading version mới bump) để develop giữ đủ lịch sử. Làm chung trong commit `chore: bump version to X.Y.Z`, không tách commit riêng.
@@ -104,12 +106,12 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
     publish), KHÔNG phải lỗi code — re-deploy/re-publish lib version đó trước rồi re-run build lambda/admin/mobile.
     (Sự cố REZIL-2709 2026-06-27: bump `0.2.5` xong lambda fail vì lib `0.2.5` chưa publish.)
 
-### DEV1 — SUBSET cherry-pick thủ công (ĐANG ÁP DỤNG: mvp2-b dang dở)
+### DEV1 — SUBSET cherry-pick thủ công (dùng KHI `develop` còn ticket NGOÀI scope dev1 — ĐỐI CHIẾU danh sách ticket caller cấp, KHÔNG giả định)
 `develop` còn ticket NGOÀI scope dev1 → KHÔNG cut thẳng nhánh release từ `develop`. Mỗi đợt:
 1. `git fetch --all --prune --tags` cả 4 repo.
 2. Base mỗi repo = **nhánh release dev1 MỚI NHẤT của chính nó**:
    `git -C <repo> branch -r | grep 'release/dev1' | sort -V | tail`. Các repo có thể lệch số — đừng giả định cùng số.
-3. Tìm commit IN-SCOPE trên `develop` chưa có trong base, theo DANH SÁCH TICKET caller cấp. `feature/mvp2`/`develop`
+3. Tìm commit IN-SCOPE trên `develop` chưa có trong base, theo DANH SÁCH TICKET caller cấp. `develop`
    đã rebase nhiều lần → xác định bằng `git cherry` / so SUBJECT + nội dung patch, **KHÔNG** dùng range-hash
    `tag..develop` (phồng 3–5×). Subject đã có trong base + patch trùng → BỎ (đã release dưới hash khác).
 4. LOẠI commit ngoài scope + reformat-only / chore / scalafmt.
@@ -117,11 +119,11 @@ Bạn là **github-ops** — agent quản lý GitHub qua `gh` CLI cho nhóm repo
    → resolve tay. Build-check (`sbt compile` / `npm run build`) trước khi push.
 6. Push nhánh release (CHƯA kích CI — an toàn): `git push -u origin HEAD`.
 
-### DEV1 — full (KHI `develop` đã đúng bằng scope, sau khi mvp2-b xong)
+### DEV1 — full (KHI `develop` đã đúng bằng scope dev1)
 Cut thẳng nhánh dated từ tip `origin/develop`, push nhánh, rồi tag (bỏ bước cherry-pick chọn lọc ở trên).
 
 ### TRƯỚC KHI TAG (BẮT BUỘC)
-So dòng đầu `CHANGELOG.md` của **lib/admin/mobile** (nhóm version-sync) phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong tag (portal có dòng version RIÊNG, KHÔNG ép theo). Lệch → DỪNG, đồng bộ
+So dòng đầu `CHANGELOG.md` của **lib/admin/mobile** (nhóm version-sync) phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong tag (portal cùng số nhưng không tag-deploy → chỉ bump trên `develop`). Lệch → DỪNG, đồng bộ
 CHANGELOG (mang từ nhánh chuẩn sang) rồi mới tag. **Subset KHÔNG bump version** (chỉ đổi date + append ticket dưới
 `### Changed`). Commit CHANGELOG theo style rezil: 1 dòng tiêu đề, không body, không Co-Authored-By.
 
