@@ -53,7 +53,7 @@ then **do NOT create a branch and do NOT edit anything**. Output a block startin
 
 ## Multi-repo
 A feature spanning LIB + BE may produce changes in **both** `rezil-esms` and `rezil-esms-lib`:
-- Create a branch and PR per affected repo (same `<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>` convention, base `feature/mvp2`).
+- Create a branch and PR per affected repo (same `<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>` convention, base `develop`).
 - Land the LIB PR first if BE depends on it; cross-link the PRs in their bodies and in the Jira comment.
 - If a change is single-repo, do single-repo. State the split as an Assumption when it is not obvious from BD.
 
@@ -65,7 +65,7 @@ A feature spanning LIB + BE may produce changes in **both** `rezil-esms` and `re
 - If any gate FAILS → stop, report, do **NOT** open the PR.
 
 ## PR
-- Base `feature/mvp2`; title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`.
+- Base `develop`; title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`.
 - Body = `templates/pr_template.md` with placeholders filled, plus a short **Changes / Tests / Risk / Assumptions** digest from the phase artifacts (this workflow's PR may carry the digest; the fix-bug workflow's strict template-only rule does not apply here).
 - Comment the Jira ticket with the PR link(s) (markdown link form) + scope.
 

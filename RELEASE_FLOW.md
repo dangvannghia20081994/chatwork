@@ -14,7 +14,7 @@
 
   | Repo              | GitHub                                | Main branch | Version | Ghi chú |
   |-------------------|---------------------------------------|-------------|---------|---------|
-  | rezil-esms-lib    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   | `0.3.x` | LIB — tag **TRƯỚC**; đợt hiện tại base `feature/mvp2-b` |
+  | rezil-esms-lib    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   | `0.3.x` | LIB — tag **TRƯỚC**; base `develop` |
   | rezil-esms        | `hybrid-tech-rezil/rezil-esms`        | `develop`   | `0.3.x` | admin (gồm module `be-lambda`) |
   | rezil-esms-mobile | `hybrid-tech-rezil/rezil-esms-mobile` | `develop`   | `0.3.x` | mobile |
   | rezil-esms-portal | `hybrid-tech-rezil/rezil-esms-portal` | `develop`   | `0.3.x` | cùng số version với 3 repo kia; **CHƯA có pipeline dev1** → chỉ quản PR/CI, KHÔNG tag-deploy |
@@ -75,14 +75,14 @@
     (`Error downloading jp.co.rezil:rezil-esms_3:X.Y.Z-SNAPSHOT … Not found`). Đây là **build-order** (lib chưa
     publish), KHÔNG phải lỗi code — re-publish lib version đó trước rồi re-run build. (Sự cố REZIL-2709 2026-06-27.)
 
-## ■ DEV1 — SUBSET cherry-pick thủ công (ĐANG ÁP DỤNG: mvp2-b dang dở)
+## ■ DEV1 — SUBSET cherry-pick thủ công (dùng KHI `develop` còn ticket NGOÀI scope dev1 — ĐỐI CHIẾU danh sách ticket caller cấp, KHÔNG giả định)
 
 `develop` còn ticket NGOÀI scope dev1 → KHÔNG cut thẳng nhánh release từ `develop`. Mỗi đợt:
 
 1. `git fetch --all --prune --tags` cả 4 repo.
 2. Base mỗi repo = **nhánh release dev1 MỚI NHẤT của chính nó**:
    `git -C <repo> branch -r | grep 'release/dev1' | sort -V | tail`. Các repo có thể lệch số — đừng giả định cùng số.
-3. Tìm commit IN-SCOPE trên `develop` chưa có trong base, theo DANH SÁCH TICKET caller cấp. `feature/mvp2`/`develop`
+3. Tìm commit IN-SCOPE trên `develop` chưa có trong base, theo DANH SÁCH TICKET caller cấp. `develop`
    đã rebase nhiều lần → xác định bằng `git cherry` / so SUBJECT + nội dung patch, **KHÔNG** dùng range-hash
    `tag..develop` (phồng 3–5×). Subject đã có trong base + patch trùng → BỎ (đã release dưới hash khác).
 4. LOẠI commit ngoài scope + reformat-only / chore / scalafmt.
@@ -90,7 +90,7 @@
    conflict → resolve tay. Build-check (`sbt compile` / `npm run build`) trước khi push.
 6. Push nhánh release (CHƯA kích CI — an toàn): `git push -u origin HEAD`.
 
-## ■ DEV1 — full (KHI `develop` đã đúng bằng scope, sau khi mvp2-b xong)
+## ■ DEV1 — full (KHI `develop` đã đúng bằng scope dev1)
 
 Cut thẳng nhánh dated từ tip `origin/develop`, push nhánh, rồi tag (bỏ bước cherry-pick chọn lọc ở trên).
 
