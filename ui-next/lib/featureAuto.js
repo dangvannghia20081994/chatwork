@@ -31,7 +31,7 @@ function configFacts() {
   return [
     "## Project config (derive the rest from the ticket)",
     `Repos:\n${repoLines}`,
-    `Default repo: ${gh.defaultRepo}. Base branch: feature/mvp2.`,
+    `Default repo: ${gh.defaultRepo}. Base branch: develop.`,
     `Issue type → branch type: ${map} (else ${jira.defaultBranchType}).`,
     "Screen code (e.g. ISSUE-001, EQUIP-003): take it from the ticket summary/fields.",
   ].join("\n");
@@ -95,7 +95,7 @@ export function assembleFeatureSystemPrompt() {
       "",
       "## MULTI-REPO",
       "A feature spanning LIB + BE may produce a branch + PR in BOTH `rezil-esms-lib` and `rezil-esms`.",
-      "Use the same branch convention <type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>, base feature/mvp2, per repo.",
+      "Use the same branch convention <type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>, base develop, per repo.",
       "Land the LIB PR first if BE depends on it; cross-link the PRs in their bodies and the Jira comment.",
       "Single-repo when the change is single-repo.",
       "",
@@ -105,7 +105,7 @@ export function assembleFeatureSystemPrompt() {
       "`./semgrep-rules/scan.sh`. If any gate FAILS: stop, report the failure, do NOT open the PR.",
       "",
       "## PR",
-      "Per affected repo: title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`, base feature/mvp2.",
+      "Per affected repo: title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`, base develop.",
       "PHASE: lấy TỪ TICKET — tag `[...]` ở ĐẦU summary ticket (vd `[PreUAT- MVP2-B] ...` → `PreUAT-MVP2-B`,",
       "chuẩn hoá bỏ khoảng trắng thừa). Nếu summary KHÔNG có tag phase → dùng `UAT-MVP2-B`. Không suy từ base branch.",
       "PR BODY RULE (strict): body MUST be EXACTLY templates/pr_template.md, only filling placeholders",
