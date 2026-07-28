@@ -142,7 +142,7 @@ All four contain only public identifiers — no secrets.
 **Commit** — `REZIL-XXXX - <summary>` (imperative, English; no conventional-commits prefix).
 
 **PR title** — `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`
-- phase: `develop → [PreUAT-MVP2-B]`, `feature/mvp2-b → [Sprint NN]`
+- phase: lấy từ tag `[...]` đầu summary ticket (vd `[PreUAT-MVP2-B]`); không có tag → `UAT-MVP2-B`
 - e.g. `[PreUAT-MVP2-B] ISSUE-001 | REZIL-2352 - Fix duplicate rows`
 
 **Quality gates (must pass before PR)**
