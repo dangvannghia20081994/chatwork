@@ -3,6 +3,7 @@
 import { buildChatArgv, claudeSSE, cleanSessionId, resolveProject, normalizeProject } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { running } from "../../../lib/jobs.js";
+import { notifyTelegram } from "../../../lib/telegram.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,14 @@ export async function GET(req) {
 
   const proj = resolveProject(project);
   const argv = buildChatArgv(project, message, session, canEdit, proj.addDirs);
+
+  // Accumulate the final answer/status for the Telegram completion ping fired on `end` — cheap
+  // no-op via notifyTelegram() when TELEGRAM_BOT_TOKEN/TELEGRAM_NOTIFY_CHAT_IDS aren't set.
+  let answer = "";
+  let gotResult = false;
+  let runError = false;
+  const NOTIFY_PREVIEW = 500;
+
   const stream = claudeSSE({
     cwd: proj.cwd,
     argv,
@@ -43,6 +52,18 @@ export async function GET(req) {
     // the /api/chat/active status check can find this run even after a disconnect.
     onSpawn: runId ? (child) => running.set(runId, { child, label: "chat" }) : undefined,
     onClose: runId ? () => { running.delete(runId); } : undefined,
+    onEvent: (event, data) => {
+      if (event === "delta") answer += data;
+      else if (event === "result") { gotResult = true; runError = !!data.isError; }
+      else if (event === "end") {
+        const status = runError ? "⚠️ Lỗi" : gotResult ? "✅ Xong" : "⏹ Đã dừng";
+        const trimmed = answer.trim();
+        const preview = trimmed.length > NOTIFY_PREVIEW ? trimmed.slice(0, NOTIFY_PREVIEW) + "…" : trimmed;
+        notifyTelegram(
+          `${status} · chat/${project}\n👤 ${message}\n\n${preview || "(không có nội dung)"}`
+        ).catch(() => {});
+      }
+    },
   });
   return new Response(stream, { headers: SSE_HEADERS });
 }

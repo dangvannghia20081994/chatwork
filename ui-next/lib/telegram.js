@@ -95,6 +95,24 @@ function sendTyping(token, chatId) {
   return tg(token, "sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => {});
 }
 
+// ---- outbound notify: fire-and-forget completion pings from OTHER routes (e.g. /api/chat) once a
+// console-agent run finishes. Independent of the polling bot above — only needs TELEGRAM_BOT_TOKEN +
+// TELEGRAM_NOTIFY_CHAT_IDS (comma-separated; get an id via the bot's /whoami, same as the allowlist).
+// No-op if either is unset, so it's safe to leave disabled.
+export async function notifyTelegram(text) {
+  const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+  const ids = (process.env.TELEGRAM_NOTIFY_CHAT_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!token || !ids.length) return;
+  await Promise.all(
+    ids.map((chatId) =>
+      sendMessage(token, chatId, text).catch((e) => console.error("[telegram] notify failed:", e.message))
+    )
+  );
+}
+
 // Map a raw claude tool name (as emitted by handleEvent) to a short Vietnamese progress line.
 function toolLabel(raw) {
   if (!raw) return "🔧 …";

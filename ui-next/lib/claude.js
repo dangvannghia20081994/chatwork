@@ -334,13 +334,17 @@ export function handleEvent(evt, emit, state) {
 // onSpawn(child): called right after spawn (e.g. register in a job-lock map).
 // onClose(code, child): called exactly once on any terminal path (spawn failure, error, or
 //   normal exit) before the stream ends — callers can rely on it to release a job-lock.
+// onEvent(event, data): observes EVERY emitted SSE event (delta/session/tool/result/end/...),
+//   including ones sent after the client has disconnected (chat's killOnDisconnect:false runs keep
+//   going in the background) — lets a caller accumulate the final answer/status for e.g. a Telegram
+//   completion notification without touching the SSE plumbing itself.
 // timeoutMs: hard cap on run duration; a hung/runaway claude is SIGTERM'd (then SIGKILL) so it
 //   can't hold a per-repo lock forever. Omit/0 = no cap (e.g. interactive chat).
 // killOnDisconnect: when the HTTP consumer goes away (client tab hidden/minimized → socket dropped),
 //   the ReadableStream is cancelled. Default true → kill the child (jobs: an abandoned run is waste).
 //   Chat passes false → the run KEEPS GOING to completion and is saved to the session .jsonl, so a
 //   reconnecting client can reload the finished answer instead of seeing a frozen half-message.
-export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs, killOnDisconnect = true }) {
+export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true }) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
@@ -349,6 +353,7 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, timeoutMs, k
       // write behind a closed flag + try/catch so a late emit is a no-op, never a crash.
       let streamClosed = false;
       const emit = (event, data) => {
+        if (onEvent) { try { onEvent(event, data); } catch {} }
         if (streamClosed) return;
         try {
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
