@@ -194,6 +194,17 @@ function chatTools(project, canEdit) {
   return { allow, disallow };
 }
 
+// Speed knobs for CHAT only (auto/feature/release/report flows keep the account defaults — they are
+// long multi-step jobs where thinking budget pays off). Without these, chat inherits settings.json
+// `model: opus[1m]` + the account's default effort, so a one-line question runs like a heavy task.
+//   • read-only (hỏi-đáp)  → sonnet + effort low: trả lời nhanh, không sửa gì nên rủi ro thấp.
+//   • edit mode / free     → giữ model mặc định (opus), chỉ hạ effort xuống medium.
+function chatSpeedFlags(canEdit) {
+  return canEdit
+    ? ["--effort", "medium"]
+    : ["--model", "sonnet", "--effort", "low"];
+}
+
 export function buildChatArgv(project, message, sessionId, canEdit, addDirs) {
   // "free" = unrestricted mode: bypass permissions entirely, no allowed/disallowed tool filters.
   // canEdit is irrelevant here — this mode is always fully capable across every project.
@@ -201,6 +212,7 @@ export function buildChatArgv(project, message, sessionId, canEdit, addDirs) {
     return [
       "-p", message,
       "--permission-mode", "bypassPermissions",
+      ...chatSpeedFlags(true),
       "--output-format", "stream-json",
       "--include-partial-messages",
       "--verbose",
@@ -216,6 +228,7 @@ export function buildChatArgv(project, message, sessionId, canEdit, addDirs) {
   return [
     "-p", message,
     ...(canEdit ? ["--permission-mode", "auto"] : []),
+    ...chatSpeedFlags(canEdit),
     "--output-format", "stream-json",
     "--include-partial-messages",
     "--verbose",
