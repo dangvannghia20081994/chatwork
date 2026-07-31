@@ -24,6 +24,28 @@ function stripSuggest(text) {
   return idx < 0 ? text : text.slice(0, idx).trimEnd();
 }
 
+// Dòng "user" do CLI tự sinh chứ không phải người gõ: thông báo agent nền chạy xong
+// (origin.kind = "task-notification"), meta line, tóm tắt compact… Nếu không lọc, khối XML nội bộ
+// sẽ hiện nguyên xi thành bong bóng chat khi mở lại phiên.
+function isSyntheticUser(ev) {
+  if (ev.isMeta || ev.isCompactSummary) return true;
+  const kind = ev.origin && ev.origin.kind;
+  return !!kind && kind !== "human";
+}
+
+// Các khối XML nội bộ của CLI (task-notification, output slash/bash command, system-reminder…).
+// Chặn theo nội dung để phiên cũ — ghi bởi bản CLI chưa có field `origin` — cũng sạch.
+const SYNTHETIC_PREFIXES = [
+  "<task-notification>",
+  "<system-reminder>",
+  "<local-command-caveat>",
+  "<local-command-stdout>",
+  "<command-",
+  "<bash-input>",
+  "<bash-stdout>",
+  "<bash-stderr>",
+];
+
 // Lấy text người dùng gõ từ 1 dòng "user". Bỏ tin tool_result và các meta lệnh nội bộ của CLI.
 function userPromptText(content) {
   let text = "";
@@ -35,7 +57,7 @@ function userPromptText(content) {
   }
   text = text.trim();
   if (!text) return null;
-  if (text.startsWith("<local-command-caveat>") || text.startsWith("<command-")) return null;
+  if (SYNTHETIC_PREFIXES.some((p) => text.startsWith(p))) return null;
   // Cắt phần "Tệp đính kèm (đọc bằng tool Read…)" mà client nối vào cuối prompt.
   const attIdx = text.indexOf("\n\nTệp đính kèm");
   if (attIdx > 0) text = text.slice(0, attIdx).trimEnd();
@@ -58,6 +80,7 @@ function parseFile(file, withLines) {
     try { ev = JSON.parse(t); } catch { continue; }
 
     if (ev.type === "user") {
+      if (isSyntheticUser(ev)) continue;
       const content = ev.message?.content;
       const prompt = userPromptText(content);
       if (prompt) {
@@ -74,8 +97,10 @@ function parseFile(file, withLines) {
         if (c.type === "text" && typeof c.text === "string") {
           const visible = stripSuggest(c.text);
           if (!visible) continue;
+          // Nhiều đoạn text rời (bị tool call chen giữa) gộp vào 1 bong bóng — phải chèn dòng
+          // trống, không thì 2 câu dính liền nhau ("…ạ.Đang cho…") và markdown vỡ.
           if (!curAi) { curAi = { role: "ai", text: visible }; msgs.push(curAi); }
-          else curAi.text += visible;
+          else curAi.text += "\n\n" + visible;
         }
       }
     }
