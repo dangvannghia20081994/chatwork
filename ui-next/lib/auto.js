@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 import { ROOT, loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY } from "./claude.js";
 
 function readRoot(rel) {
   return fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -75,14 +75,16 @@ export function assembleSystemPrompt() {
       "",
       "If there IS enough info, implement end-to-end, STOPPING at PR creation:",
       "1) read ticket, 2) pick repo + sync base develop, 3) create branch",
-      "<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE> (type mapped from issue type above),",
+      "<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE> (type mapped from issue type above) — `git switch -c`",
+      "NGAY sau khi sync, TRƯỚC khi sửa bất kỳ file nào (xem GIT — BRANCH & PUSH bên dưới),",
       "4) implement the minimal fix (Edit/Write).",
       "   MIGRATION: nếu ticket có schema/data change (CREATE/ALTER/DROP table/column/index, seed...),",
       "   tạo migration theo templates/migration.md — BẮT BUỘC sinh file bằng",
       "   `./etc/scripts/new-migration.sh <db> <folder> \"<desc>\"` (db=esms/inspection, folder=common",
       "   hoặc env-*), tên `V<YYYYMMDDHHMMSS>__<desc>.sql`. KHÔNG gõ tay version, KHÔNG sửa migration đã apply.",
       "5) quality gates (BE scalafmt/scalafix, FE npm run check),",
-      "6) security ./semgrep-rules/scan.sh, 7) commit `REZIL-XXXX - <summary>`, 8) push,",
+      "6) security ./semgrep-rules/scan.sh, 7) commit `REZIL-XXXX - <summary>`,",
+      "8) push bằng ĐÚNG lệnh `git push -u origin HEAD` (không bao giờ `git push` trống),",
       "9) create the PR (base develop, title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`).",
       "   PHASE: lấy TỪ TICKET — là tag `[...]` ở ĐẦU summary ticket (vd summary `[PreUAT- MVP2-B] ...`",
       "   → phase `PreUAT-MVP2-B`; chuẩn hoá: bỏ khoảng trắng thừa bên trong tag). Nếu summary KHÔNG có",
@@ -99,6 +101,9 @@ export function assembleSystemPrompt() {
       "    fill {{pr_link}} (full PR URL) and {{scope}} (screen code / impact), and DROP the # note",
       "    lines. The PR link MUST be a MARKDOWN link `[<url>](<url>)` (NOT a bare URL) so it renders",
       "    clickable in Jira via MCP→ADF. Comment only — do NOT transition the ticket status.",
+      "",
+      GIT_BRANCH_SAFETY,
+      "",
       "HARD LIMITS: NEVER merge a PR, NEVER deploy, NEVER touch secrets/CI, NEVER force-push `develop`/`main` (force-pushing your own feature/fix branch is fine when needed).",
       "If a quality gate or build FAILS: stop, report the failure, do NOT open the PR.",
       "Work directly in THIS single session — do NOT spawn subagents or use the Task/Agent tool.",

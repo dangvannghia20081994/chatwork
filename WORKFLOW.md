@@ -8,8 +8,9 @@
 ## Steps
 1. **Read Jira** — understand requirement; note the **issue type** (Bug / Task / RoC / ...). Stop & ask if ambiguous.
 2. **Sync base** — `git checkout develop && git pull --ff-only`.
-3. **Create branch** — `<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>`.
+3. **Create branch** — `git switch -c <type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>` **ngay sau khi sync, TRƯỚC khi sửa file đầu tiên**.
    `type` is auto-mapped from the Jira issue type (Bug→`bug`, RoC→`roc`, Task→`feature`, ... see `config/jira.json`). `scripts/fix-ticket.js REZIL-XXXX SCREEN-CODE --issue-type="Bug"`.
+   ⚠️ Không bao giờ sửa/commit khi HEAD còn ở `develop`. Trước mỗi commit chạy `git branch --show-current` để xác nhận.
 4. **Analyze code** — trace the relevant path: LIB (domain/validation/business rule/mapper in `rezil-esms-lib`) → BE (controller→service→repo) → FE (component→store→api). Domain/business rules live in LIB, not in controllers — if the root cause is a domain/validation rule, fix it in LIB.
 5. **Implement** — minimal change, reuse existing patterns, no unrelated refactor.
    ↳ **Schema/data change?** Tạo migration theo `templates/migration.md` — BẮT BUỘC sinh file bằng `./etc/scripts/new-migration.sh <db> <folder> "<desc>"` (tên `V<YYYYMMDDHHMMSS>__<desc>.sql`), chọn `db` = `esms`/`inspection`, `folder` = `common` (mặc định) hoặc `env-*`. KHÔNG gõ tay version, KHÔNG sửa migration đã apply.
@@ -18,7 +19,7 @@
 8. **Security** — `./semgrep-rules/scan.sh`.
    ↳ If any of 6/7/8 fail: **stop, report, do NOT create PR**.
 9. **Commit** — `REZIL-XXXX - <summary>`.
-10. **Push** — `origin <branch>` (force-push nhánh của mình được nếu cần; **KHÔNG force-push `develop`/`main`**).
+10. **Push** — **bắt buộc** `git push -u origin HEAD` (set upstream cho nhánh mới). **KHÔNG** chạy `git push` trống / `git push origin` — nhánh mới chưa có upstream nên git có thể đẩy nhầm sang `develop`. Sau khi push, verify `git rev-parse --abbrev-ref --symbolic-full-name @{u}` = `origin/<branch>`. (Force-push nhánh của mình được nếu cần; **KHÔNG force-push `develop`/`main`**.)
 11. **Create PR** — base `develop`; title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>` (phase lấy từ tag `[...]` đầu summary ticket, chuẩn hoá bỏ space thừa; không lấy được → `UAT-MVP2-B`); body = **đúng nguyên `templates/pr_template.md`**, chỉ điền placeholder (Ticket URL, AI Usage %, tick checklist) — KHÔNG thêm summary/change list/test plan/footer. Dùng `--body-file`. `scripts/create-pr.js`.
 12. **Update Jira** — comment via `templates/jira_comment.md` (PR link + phạm vi ảnh hưởng).
 

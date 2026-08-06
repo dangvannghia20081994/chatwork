@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { ROOT, loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY } from "./claude.js";
 
 function readRoot(rel) {
   return fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -96,6 +96,7 @@ export function assembleFeatureSystemPrompt() {
       "## MULTI-REPO",
       "A feature spanning LIB + BE may produce a branch + PR in BOTH `rezil-esms-lib` and `rezil-esms`.",
       "Use the same branch convention <type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>, base develop, per repo.",
+      "Trong MỖI repo: `git switch -c <branch>` NGAY sau khi sync base, TRƯỚC khi sửa file đầu tiên.",
       "Land the LIB PR first if BE depends on it; cross-link the PRs in their bodies and the Jira comment.",
       "Single-repo when the change is single-repo.",
       "",
@@ -115,6 +116,8 @@ export function assembleFeatureSystemPrompt() {
       "`gh pr create --body-file <the filled template file>` (NOT --body with hand-written text).",
       "Then comment the Jira ticket using EXACTLY templates/jira_comment.md: fill {{pr_link}} (full PR",
       "URL as MARKDOWN link `[<url>](<url>)`) and {{scope}}, DROP the # note lines, add nothing else.",
+      "",
+      GIT_BRANCH_SAFETY,
       "",
       "## HARD LIMITS",
       "NEVER merge a PR, NEVER deploy, NEVER touch secrets/CI, NEVER force-push `develop`/`main` (force-pushing your own feature branch is fine when needed).",

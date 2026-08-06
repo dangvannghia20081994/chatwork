@@ -52,6 +52,25 @@ export const DISALLOWED_TOOLS = [
   // system prompt is the brake forbidding force-push of `develop`/`main`.
 ];
 
+// Branch/push guardrail shared by EVERY edit-capable flow (auto REZIL/feature/story/film + chat).
+// Root cause it prevents: a new branch has no upstream, so a bare `git push` can resolve to the base
+// branch (push.default=upstream/tracking, or HEAD still sitting on develop) → commit lands on develop.
+// Fix = branch BEFORE editing, verify HEAD before commit, and always push with `-u origin HEAD`.
+export const GIT_BRANCH_SAFETY = [
+  "## GIT — BRANCH & PUSH (bắt buộc, ưu tiên cao)",
+  "1. TẠO BRANCH TRƯỚC KHI SỬA FILE: sync base xong thì `git switch -c <branch>` ngay. Tuyệt đối",
+  "   KHÔNG sửa/commit khi HEAD còn ở base (`develop`/`main`).",
+  "2. TRƯỚC MỖI `git commit`: chạy `git branch --show-current` và xác nhận KHÁC base. Nếu đang ở base",
+  "   → tạo branch rồi mới commit.",
+  "3. PUSH LẦN ĐẦU BẮT BUỘC SET UPSTREAM: `git push -u origin HEAD`. TUYỆT ĐỐI KHÔNG chạy `git push`",
+  "   trống hay `git push origin` — branch mới chưa có upstream, git có thể đẩy nhầm sang base.",
+  "4. SAU KHI PUSH: kiểm tra `git rev-parse --abbrev-ref --symbolic-full-name @{u}` phải trả về",
+  "   `origin/<branch>` (KHÔNG phải `origin/develop`). Sai → dừng và báo, không push tiếp.",
+  "5. LỠ COMMIT TRÊN BASE (chưa push): `git switch -c <branch>` để mang commit sang nhánh mới, rồi",
+  "   `git branch -f <base> origin/<base>` trả base về đúng remote. KHÔNG dùng `git reset --hard`.",
+  "6. LỠ PUSH LÊN BASE: DỪNG NGAY, báo lại cho người dùng. KHÔNG tự revert/force-push `develop`/`main`.",
+].join("\n");
+
 // Claude session ids are UUIDs. Only forward a well-formed one to `--resume`; anything else
 // (empty/junk) → "" so the run starts a fresh session instead of feeding garbage to the CLI.
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -98,6 +117,7 @@ function chatSystemPrompt(project, canEdit) {
       "Bạn được TOÀN QUYỀN: đọc + sửa/tạo/xoá file (Read/Edit/Write), chạy mọi lệnh (Bash), git, gọi Agent và mọi tool/MCP có sẵn. KHÔNG có hạn chế nào.",
       "Vì không có rào chắn, hãy cẩn trọng với thao tác phá huỷ (xoá, force-push, reset, drop DB) — chỉ làm khi yêu cầu rõ ràng. Sau khi thay đổi, giải thích ngắn gọn đã làm gì.",
       "Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm. Tên branch/commit/PR/code giữ tiếng Anh theo convention của từng repo.",
+      GIT_BRANCH_SAFETY,
       snapshotInstr(""),
       TABLE_INSTR,
       SUGGEST_INSTR,
@@ -112,6 +132,7 @@ function chatSystemPrompt(project, canEdit) {
       base.push(
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash), và dùng Agent để gọi agent layer của story.",
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
+        GIT_BRANCH_SAFETY,
         snapshotInstr("http://localhost:3000")
       );
     } else {
@@ -132,6 +153,7 @@ function chatSystemPrompt(project, canEdit) {
       base.push(
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash).",
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
+        GIT_BRANCH_SAFETY,
         snapshotInstr("http://localhost:4100")
       );
     } else {
@@ -150,6 +172,7 @@ function chatSystemPrompt(project, canEdit) {
       "Chế độ SỬA CODE đang BẬT: bạn có thể đọc và CHỈNH SỬA file (Edit/Write) cùng chạy lệnh read-only/build/test (Bash) theo yêu cầu.",
       "Sau khi sửa, giải thích ngắn gọn những gì đã thay đổi.",
       "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
+      GIT_BRANCH_SAFETY,
       snapshotInstr("http://localhost:5173"),
       rezilTemplatesInstr()
     );

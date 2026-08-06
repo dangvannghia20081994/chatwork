@@ -35,7 +35,7 @@ trail (the substitute for human phase-gates). Keep them **git-ignored** (add `.a
 14. **IT impl + run** — implement/run the selected IT (API contract, happy path, key error paths, permission). Record results. → `13-it-result.md`.
 15. **Build / Lint / Typecheck** — BE `sbt scalafmtCheckAll "scalafix --check"` + `sbt compile`; FE `npm run check` + `npm run build`; regen Aspida; `./semgrep-rules/scan.sh`. Any failure → stop, report, do NOT open PR. → `14-quality-check.md`.
 16. **Review diff** — scope, stray files, OpenAPI/BE/FE alignment, FE↔Figma, test coverage, security, breaking changes, hallucinated API. → `15-review-summary.md`.
-17. **PR / ticket update** — per affected repo: push branch `<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>`, base `develop`; open PR (title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`, body = `templates/pr_template.md` + Changes/Tests/Risk/Assumptions digest). Cross-link multi-repo PRs. Comment Jira with PR link(s) as markdown links + scope. → `16-pr.md`.
+17. **PR / ticket update** — per affected repo: push branch `<type>/YYYY-MM-REZIL-XXXX-<SCREEN-CODE>` bằng `git push -u origin HEAD` (KHÔNG `git push` trống — nhánh mới chưa có upstream, dễ đẩy nhầm lên `develop`), base `develop`; open PR (title `[<phase>] <SCREEN-CODE> | REZIL-XXXX - <summary>`, body = `templates/pr_template.md` + Changes/Tests/Risk/Assumptions digest). Cross-link multi-repo PRs. Comment Jira with PR link(s) as markdown links + scope. → `16-pr.md`.
 
 ## Multi-repo
 A LIB+BE feature produces a branch + PR in **both** `rezil-esms-lib` and `rezil-esms`. Land LIB first if BE

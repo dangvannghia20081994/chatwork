@@ -4,12 +4,12 @@
 
 - Read Jira
 - Read repository
-- Create branch
+- Create branch (`git switch -c <branch>` **before** the first edit — never edit/commit on `develop`)
 - Edit code
 - Run tests
 - Build
-- Commit
-- Push
+- Commit (verify `git branch --show-current` ≠ `develop`/`main` first)
+- Push — always `git push -u origin HEAD`; a bare `git push` on a branch with no upstream can land on `develop`
 - Force-push your own branch (feature/fix, `release/*`) or a tag when needed
 - Create PR
 - Update Jira

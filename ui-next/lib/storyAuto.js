@@ -1,7 +1,7 @@
 // Auto mode (Story): free-form task → PR to develop. No Jira. Prompt/tools ported verbatim
 // from ui/server.js. Story's own .claude/agents + .mcp.json auto-load via cwd, so Task is allowed.
 import { loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY } from "./claude.js";
 
 export function storyCfg() { return loadConfig("story"); }
 export function currentYYYYMM() { return new Date().toISOString().slice(0, 7); } // e.g. 2026-06
@@ -26,11 +26,13 @@ export function assembleStorySystemPrompt() {
     "Xuất khối bắt đầu bằng token CHÍNH XÁC `⛔ NEED-INFO:` kèm liệt kê thiếu gì, rồi DỪNG.",
     "",
     "Nếu đủ thông tin, làm trọn vẹn tới BƯỚC TẠO PR (KHÔNG merge):",
-    `1) sync base ${s.baseBranch}, 2) tạo branch <type>/${ym}-<desc-kebab> (type ∈ ${s.branchTypes.join("|")}, suy từ task),`,
+    `1) sync base ${s.baseBranch}, 2) tạo branch <type>/${ym}-<desc-kebab> (type ∈ ${s.branchTypes.join("|")}, suy từ task) bằng \`git switch -c\` NGAY, TRƯỚC khi sửa file,`,
     "3) implement thay đổi tối thiểu (có thể delegate cho agent layer phù hợp),",
     "4) chạy quality gate / lint / test / build của layer liên quan theo story CLAUDE.md — FAIL thì DỪNG, báo lỗi, KHÔNG mở PR,",
-    "5) commit (message TIẾNG VIỆT, ngắn, theo style `git log` hiện tại), 6) push branch,",
+    "5) commit (message TIẾNG VIỆT, ngắn, theo style `git log` hiện tại), 6) push bằng ĐÚNG `git push -u origin HEAD`,",
     `7) tạo PR base ${s.baseBranch} (title tiếng Việt ngắn gọn; body: tóm tắt thay đổi + cách test). Ưu tiên \`gh pr create\`.`,
+    "",
+    GIT_BRANCH_SAFETY,
     "",
     "## GIỚI HẠN CỨNG",
     "KHÔNG merge PR, KHÔNG deploy, KHÔNG dùng --no-verify, KHÔNG đụng secret/.env thật/CI, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần).",
