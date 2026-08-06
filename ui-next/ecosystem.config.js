@@ -48,18 +48,32 @@ if (CLAUDE_DIR === path.join(HOME, ".claude")) {
   );
 }
 
+// The UI spawns `claude` by name; pm2's PATH often lacks ~/.local/bin where it lives. Dedupe so the
+// prefix doesn't pile up một bản sao mỗi lần restart (env spread lại từ chính nó).
+const PATH = [`${HOME}/.local/bin`, ...(process.env.PATH || "").split(":")]
+  .filter((p, i, a) => p && a.indexOf(p) === i)
+  .join(":");
+
 const env = {
   ...process.env,
   NODE_ENV: process.env.NODE_ENV || "production",
   PORT,
   HOSTNAME: HOST,
-  // The UI spawns `claude` by name; pm2's PATH often lacks ~/.local/bin where it lives.
-  PATH: `${HOME}/.local/bin:${process.env.PATH || ""}`,
+  PATH,
 };
+
+// Xoá biến điều khiển RÒ TỪ PHIÊN CLAUDE CODE CHA. `pm2 start/restart --update-env` lấy env của
+// terminal gọi lệnh — start pm2 từ bên trong một phiên Claude Code là app thừa hưởng CLAUDECODE=1,
+// CLAUDE_CODE_SESSION_ID, CLAUDE_EFFORT... rồi truyền tiếp cho MỌI `claude -p` mà nó spawn: CLI
+// tưởng mình là phiên con của phiên cha, và CLAUDE_EFFORT đè effort mà app tự chọn (auto/feature
+// không truyền cờ --effort). App phải luôn spawn agent "sạch" nên xoá hết ở đây.
+for (const k of Object.keys(env)) {
+  if (/^(CLAUDECODE|CLAUDE_|AI_AGENT$)/.test(k)) delete env[k];
+}
+
+// Chỉ set lại CLAUDE_CONFIG_DIR khi thực sự chọn account khác (xem trên).
 if (CLAUDE_DIR && CLAUDE_DIR !== path.join(HOME, ".claude")) {
   env.CLAUDE_CONFIG_DIR = CLAUDE_DIR;
-} else {
-  delete env.CLAUDE_CONFIG_DIR;
 }
 
 module.exports = {
