@@ -19,10 +19,12 @@ function absRepoPath(p) {
   return path.isAbsolute(p) ? p : path.resolve(rezilRoot(), p);
 }
 
-// Claude config dir for the account this app actually spawns `claude` with. pm2 pins
-// CLAUDE_CONFIG_DIR=~/.claude-account2 (see ecosystem.config.js), so /usage, /cost and /context must
-// read THAT account's credentials/transcripts — not the default ~/.claude. Honors a comma-separated
-// CLAUDE_CONFIG_DIR by taking the first entry; falls back to ~/.claude when unset.
+// Claude config dir for the account this app actually spawns `claude` with, so /usage, /cost and
+// /context read THAT account's credentials/transcripts. pm2 sets CLAUDE_CONFIG_DIR from
+// CLAUDE_ACCOUNT in .env (see ecosystem.config.js): account2/account3 → that dir; default account →
+// the var stays UNSET (the CLI must read ~/.claude.json, not the ~/.claude/.claude.json stub) and
+// the ~/.claude fallback below is correct because transcripts live in ~/.claude/projects anyway.
+// Comma-separated CLAUDE_CONFIG_DIR → first entry, for runs started from a per-account terminal.
 export function claudeHome() {
   const env = (process.env.CLAUDE_CONFIG_DIR || "").split(",")[0].trim();
   return env || path.join(os.homedir(), ".claude");
