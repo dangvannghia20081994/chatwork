@@ -50,7 +50,7 @@ Truy cập: `https://<domain>/ai`.
 app/
   layout.jsx            # root layout + globals.css + no-FOUC theme script
   ThemeToggle.jsx       # client: toggle dark/light (localStorage)
-  page.jsx              # home: card tới mọi console (Auto/Feature/Release/Rebase/Report/Sprint/Chat…)
+  page.jsx              # home: card tới mọi console (Auto/Điều tra/Feature/Release/Rebase/Report/Sprint/Chat…)
   globals.css           # Tailwind v4 + theme tokens (light/dark)
   _components/AgentConsole.jsx # client: console DÙNG CHUNG cho mọi trang. mode "chat" (chat/release/
                                #   rebase/report) + mode "job" (auto/feature/story/film: composer +
@@ -63,6 +63,8 @@ app/
   release/  page.jsx → Release.jsx     # chat: drive github-ops (deploy/PR/tag) → /api/release
   rebase/   page.jsx → Rebase.jsx      # chat: drive git-rebaser (rebase/merge/force-push) → /api/rebase
   report/   page.jsx → Report.jsx      # chat: Jira report read-only (JQL→REST CLI) → /api/report
+  investigate/ page.jsx → Investigate.jsx # chat: điều tra ticket read-only (nguyên nhân gốc + đánh giá
+                                       #   DEV/SQA + phương án khắc phục) → /api/investigate
   sprint/   page.jsx                   # tool: upload xlsx burndown → giờ âm (Expect vs Actual)
   api/
     chat/route.js         # SSE chat (project-aware, slash-commands)
@@ -73,6 +75,7 @@ app/
     release/route.js      # SSE release (drive github-ops, multi-turn resume, no lock)
     rebase/route.js       # SSE rebase (drive git-rebaser, multi-turn resume)
     report/route.js       # SSE report (Jira read-only chat, multi-turn resume)
+    investigate/route.js  # SSE điều tra ticket (read-only: Jira + code + git log + SELECT QA)
     sprint/route.js       # POST xlsx → JSON giờ âm (dùng lib/sprint.js)
     sessions/route.js     # list/đọc phiên chat Claude CLI (.jsonl) theo project
     snapshot/[name]/route.js # serve runtime asset (ảnh snapshot web) — Next16 không serve public/ sau build
@@ -90,6 +93,8 @@ lib/
   release.js            # release prompt/argv (--agent github-ops, bypassPermissions, merge allowed)
   rebase.js             # rebase prompt/argv (--agent git-rebaser, multi-turn confirm-before-write)
   report.js             # report prompt/argv (Jira JQL → REST CLI, read-only, không dùng MCP)
+  investigate.js        # điều tra ticket: prompt/argv read-only + CAUSE_OPTIONS (bảng phân loại
+                        #   nguyên nhân cố định của team) — không Edit/Write, không git ghi, không ghi Jira
   jira.js               # Jira Cloud REST client server-side (report console dùng thay MCP)
   sprint.js             # burndown "giờ âm" — nguồn chung cho web + skill sprint-negative-hours
   slashCommands.js      # slash-command dùng chung (/usage…) — short-circuit trước khi spawn claude

@@ -3,14 +3,18 @@
 import AgentConsole from "../_components/AgentConsole";
 
 // Console điều tra ticket (read-only). Cùng khung chat với /report & /rebase; agent đọc ticket qua
-// MCP, trace code 4 repo rezil (grep + git log/blame), SELECT data QA — rồi trả nguyên nhân gốc,
-// bảng đánh giá DEV/SQA và các phương án khắc phục. Xem /api/investigate + lib/investigate.js.
+// MCP, trace code 4 repo rezil (grep + git log/blame), SELECT data QA — rồi trả ĐÚNG bảng 4 cột
+// (Nguyên nhân · DEV tự đánh giá · SQA đánh giá · Phương án khắc phục lần tới), không tường thuật.
+// Nhiều ticket trong 1 lượt → fan-out 1 subagent/ticket chạy song song. Xem /api/investigate +
+// lib/investigate.js.
 const EXAMPLES = [
   "REZIL-2352",
+  "REZIL-2352, REZIL-2400, REZIL-2411",
   "Điều tra REZIL-2352 — vì sao số liệu màn EQUIP-003 lệch?",
   "REZIL-2400: lỗi này do commit nào gây ra? (git log/blame)",
   "Check data ở QA xem ticket này có bản ghi hỏng không",
   "Cho mình bản dán Jira của kết luận vừa rồi",
+  "Bug cùng màn EQUIP-003 trước đây phân loại nguyên nhân thế nào?",
   "Còn phương án khắc phục nào ít rủi ro hơn không?",
 ];
 
@@ -24,8 +28,8 @@ const config = {
   renderMarkdown: true,
   examples: EXAMPLES,
   emptyText:
-    "Nhập REZIL-xxxx (hoặc mô tả lỗi). Claude đọc ticket + comment, trace code 4 repo rezil, soi git log/blame, SELECT data QA — rồi trả về: nguyên nhân gốc kèm bằng chứng file:line, bảng đánh giá (Nguyên nhân · DEV tự đánh giá · SQA đánh giá · Phương án khắc phục lần tới), và các phương án fix kèm rủi ro/effort. CHỈ ĐỌC: không sửa code, không tạo PR, không ghi Jira — muốn fix thật thì qua màn Auto.",
-  placeholder: "Vd: REZIL-2352 · hoặc: điều tra vì sao màn EQUIP-003 sai số liệu",
+    "Nhập REZIL-xxxx (nhiều ticket thì ngăn bằng dấu phẩy — mỗi ticket 1 subagent chạy SONG SONG, tối đa 5/đợt). Claude đọc ticket + comment, trace code 4 repo rezil, soi git log/blame, SELECT data QA — rồi trả về DUY NHẤT bảng 4 cột của sheet PM Quality Management: Nguyên nhân (1 trong 13 nhãn của team) · DEV tự đánh giá (kèm file:line) · SQA đánh giá · Phương án khắc phục lần tới (action cụ thể, cấm chung chung). Không giải thích gì thêm — cần giải thích / cách fix / bản dán Jira thì hỏi ở lượt sau. CHỈ ĐỌC: không sửa code, không tạo PR, không ghi Jira — fix thật thì qua màn Auto.",
+  placeholder: "Vd: REZIL-2352 · hoặc nhiều ticket: REZIL-2352, REZIL-2400",
   editToggle: false,
   nav: [{ href: "/auto", label: "⚙️ Auto" }, { href: "/", label: "⌂ Home" }],
 };
