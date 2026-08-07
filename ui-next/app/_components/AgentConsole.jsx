@@ -270,6 +270,10 @@ function relTime(ms) {
 export const LABEL = "mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted";
 export const FIELD_BASE = "w-full rounded-lg border border-fieldline bg-field px-3 text-ink outline-none transition-colors";
 
+// Trần chiều cao của ô nhập chat (textarea auto-grow): ~6 dòng ở line-height 20px, quá thì cuộn
+// trong ô thay vì đẩy khung chat lên — giữ chỗ cho nội dung hội thoại trên màn hình nhỏ.
+const INPUT_MAX_PX = 120;
+
 export default function AgentConsole({ config }) {
   const isJob = config.mode === "job";
   const a = ACCENT[config.accent] || ACCENT.blue;
@@ -293,6 +297,7 @@ export default function AgentConsole({ config }) {
   const sessionRef = useRef("");
   const esRef = useRef(null);
   const fileInputRef = useRef(null);
+  const inputRef = useRef(null); // textarea composer — auto-grow (xem growInput)
   const logRef = useRef(null);
   const messagesRef = useRef([]);
   const needInfoRef = useRef(false);
@@ -655,6 +660,25 @@ export default function AgentConsole({ config }) {
     setAttachments((prev) => prev.filter((x) => x.path !== path));
   }
 
+  // Composer là <textarea> auto-grow: cao 1 dòng khi rỗng, nở dần theo nội dung tới INPUT_MAX_PX rồi
+  // mới cuộn trong ô. Phải reset height về "auto" trước khi đo scrollHeight, nếu không ô chỉ nở ra
+  // chứ không bao giờ co lại. Chạy sau mỗi lần `input` đổi (gõ, dán, chèn ví dụ, xoá sau khi gửi).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, INPUT_MAX_PX) + "px";
+  }, [input]);
+
+  // Enter = gửi, Shift+Enter = xuống dòng. Bỏ qua khi IME đang compose (gõ tiếng Việt/Nhật bằng bộ gõ
+  // của trình duyệt) — Enter lúc đó là chốt từ, không phải gửi.
+  function onComposerKeyDown(e) {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    submitChat();
+  }
+
   function onPaste(e) {
     const files = Array.from(e.clipboardData?.files || []).filter(isUploadable);
     if (files.length && config.uploadPath) { e.preventDefault(); uploadFiles(files); }
@@ -985,7 +1009,7 @@ export default function AgentConsole({ config }) {
               ))}
             </div>
           ) : null}
-          <div className={`flex items-center gap-2 rounded-xl border border-fieldline bg-field px-2 py-1.5 transition-colors ${a.focus}`}>
+          <div className={`flex items-end gap-2 rounded-xl border border-fieldline bg-field px-2 py-1.5 transition-colors ${a.focus}`}>
             {config.uploadPath ? (
               <>
                 <input
@@ -1026,16 +1050,18 @@ export default function AgentConsole({ config }) {
                 <span className="sm:hidden">✏️</span>
               </label>
             ) : null}
-            <input
-              type="text"
+            <textarea
+              ref={inputRef}
+              rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onComposerKeyDown}
               onPaste={config.uploadPath ? onPaste : undefined}
               placeholder={busy ? "Đang chạy… nhấn ⏹ để dừng" : config.placeholder}
               disabled={busy}
               autoFocus
               autoComplete="off"
-              className="h-8 min-w-0 flex-1 bg-transparent px-2 text-ink outline-none placeholder:text-dim disabled:cursor-not-allowed disabled:opacity-60"
+              className="min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-1.5 text-ink leading-5 outline-none placeholder:text-dim disabled:cursor-not-allowed disabled:opacity-60"
             />
             {busy ? (
               <button
