@@ -21,7 +21,7 @@ const HOST = process.env.HOSTNAME || "127.0.0.1";
 
 // Chọn Claude account cho agent do UI spawn — đặt CLAUDE_ACCOUNT trong ui-next/.env:
 //   (trống) | default → account mặc định  → UNSET CLAUDE_CONFIG_DIR
-//   account2 / account3 → ~/.claude-account2 | ~/.claude-account3
+//   account3 → ~/.claude-account3   (⚠️ account2 ĐÃ CHẾT: org disable subscription → claude -p fail)
 //   /đường/dẫn/tuyệt/đối → dùng nguyên
 //
 // ⚠️ Account mặc định = UNSET, KHÔNG PHẢI `~/.claude`. Lý do: `CLAUDE_CONFIG_DIR` đổi luôn chỗ CLI
