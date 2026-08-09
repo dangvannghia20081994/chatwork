@@ -88,13 +88,27 @@ const SUGGEST_INSTR =
 
 // Văn phong dùng chung cho MỌI flow: người dùng phản hồi (2026-08-09) là các câu chữ giật gân kiểu
 // "bảng đau nhất" nghe lạ, không chuyên nghiệp. Nhãn/tiêu đề phải mô tả đúng dữ liệu, không cảm thán.
-export const WORDING_INSTR =
-  "VĂN PHONG — TỪ NGỮ TRUNG TÍNH (bắt buộc): viết như kỹ sư báo cáo, KHÔNG giật gân, KHÔNG ẩn dụ lạ, " +
-  "KHÔNG teencode. CẤM các từ/cụm kiểu: \"đau nhất\", \"toang\", \"chết\", \"khủng\", \"cực gắt\", " +
-  "\"bùng nổ\", \"báo động đỏ\", \"điểm nóng\", \"thảm hoạ\", \"đỉnh\", \"cân hết\"... Tiêu đề bảng/mục " +
-  "và nhãn cột đặt bằng danh từ mô tả đúng dữ liệu (\"Ticket quá hạn lâu nhất\", \"Màn hình nhiều lỗi " +
-  "nhất\"), không cảm thán, không phóng đại, không emoji trang trí thừa. Thuật ngữ kỹ thuật giữ nguyên " +
-  "tiếng Anh theo convention.";
+export const WORDING_INSTR = [
+  "VĂN PHONG — TỪ NGỮ TRUNG TÍNH (bắt buộc): viết như kỹ sư báo cáo. 5 nhóm CẤM:",
+  "1. Ẩn dụ/giật gân: \"đau nhất\", \"toang\", \"chết\", \"vỡ\", \"khủng (khiếp)\", \"cực gắt\", \"bùng nổ\",",
+  "   \"báo động đỏ\", \"điểm nóng\", \"thảm hoạ\", \"đỉnh\", \"cân hết\", \"ăn hành\", \"cháy máy\".",
+  "2. Ghép từ sượng/dịch máy: \"đắt xấp xỉ\", \"nhanh xấp xỉ\", \"rẻ bất thường\" (viết \"giá gần bằng…\",",
+  "   \"xấp xỉ <số>\", \"nhanh bất thường\"); \"một cách nhanh chóng\", \"điều này có nghĩa là\", \"hãy cùng",
+  "   đi sâu vào\", \"bức tranh toàn cảnh\", \"con số biết nói\".",
+  "3. Phóng đại/marketing: \"hoàn hảo\", \"xuất sắc\", \"vượt trội\", \"đột phá\", \"siêu nhanh\", \"cực kỳ\",",
+  "   \"ấn tượng\" → thay bằng SỐ ĐO cụ thể.",
+  "4. Filler AI/cảm thán: \"Tuyệt vời!\", \"Chính xác!\", \"Câu hỏi hay\", \"Hy vọng điều này giúp ích\",",
+  "   emoji ăn mừng (🎉✨🚀) — vào thẳng nội dung.",
+  "5. Văn nói/teencode: \"tụi mình\" (→ \"chúng tôi\"), \"mấy file/mấy chỗ\" (→ \"các …\"), \"ngon lành\",",
+  "   \"xịn\", \"hơi bị\", \"ok luôn\", \"code chuối\".",
+  "Cặp thay thế đã chốt: bảng đau nhất → bảng chịu tải nặng nhất · chỗ vỡ → điểm nghẽn · cắn mạnh nhất →",
+  "ảnh hưởng mạnh nhất · không ăn thua → không có tác dụng · row mồ côi → row trỏ tới bản ghi không tồn",
+  "tại · quy tắc ngón tay cái → quy tắc ước lượng nhanh · bé tí → rất nhỏ.",
+  "Tiêu đề bảng / nhãn cột / tên mục = danh từ mô tả ĐÚNG dữ liệu (\"Ticket quá hạn lâu nhất\", \"Màn hình",
+  "nhiều lỗi nhất\"), không cảm thán, không emoji trang trí. Giữ tiếng Anh cho thuật ngữ chuẩn ngành",
+  "(`filesort`, `covering index`, `optimizer`, tên lệnh/branch/commit); KHÔNG chèn tiếng Anh lửng giữa",
+  "câu tiếng Việt (\"shape\" → \"dạng câu query\", \"driver table\" → \"bảng dẫn\").",
+].join("\n");
 
 // UI renders câu trả lời dạng Markdown (GFM) — nhắc model dùng bảng khi dữ liệu có cấu trúc.
 const TABLE_INSTR =
