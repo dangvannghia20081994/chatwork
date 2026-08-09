@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 import { ROOT, loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY, WORDING_INSTR } from "./claude.js";
 
 function readRoot(rel) {
   return fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -109,6 +109,8 @@ export function assembleSystemPrompt() {
       "Work directly in THIS single session — do NOT spawn subagents or use the Task/Agent tool.",
       "This is non-interactive: do NOT ask the user questions. If scope is ambiguous, STATE your",
       "assumption explicitly and proceed.",
+      "",
+      WORDING_INSTR,
     ].join("\n"),
   ];
   return parts.join("\n\n---\n\n");

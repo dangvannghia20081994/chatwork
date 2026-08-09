@@ -3,6 +3,7 @@
 // wraps lib/jira.js) — NOT the Atlassian MCP, whose fat responses blow past the token limit — then
 // analyses / aggregates the compact JSON and answers. So: user chats → Claude builds JQL → we run
 // jiraSearchAll → Claude analyses. Multi-turn via --resume so the user can refine across turns.
+import { WORDING_INSTR } from "./claude.js";
 
 export const REPORT_AGENT = "jira-master"; // kept for reference; NOT passed (we force the CLI, not MCP)
 
@@ -141,6 +142,8 @@ export function reportSystemPrompt(nowStamp) {
     "trả markdown thay vì block. Với câu hỏi ad-hoc (không phải report env) → trả lời tùy ngữ cảnh, nhưng khi dữ",
     "liệu CÓ CẤU TRÚC (danh sách ticket, thống kê theo người/status, so sánh...) ƯU TIÊN BẢNG Markdown (GFM:",
     "`| Cột | Cột |` + `|---|---|`) cho dễ nhìn — UI render markdown. Block Chatwork ở trên GIỮ NGUYÊN, không đổi.",
+    "",
+    WORDING_INSTR,
     "",
     "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi dòng",
     "`- <gợi ý ngắn bấm để hỏi/báo cáo tiếp>` (vd đổi env, xem chi tiết nhóm DEV, đổi người nhận). Tiếng Việt,",

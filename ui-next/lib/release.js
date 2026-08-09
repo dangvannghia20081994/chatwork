@@ -4,6 +4,7 @@
 //
 // Mirrors elearning's release-agent (claude -p --agent github-ops), but reuses this project's
 // claudeSSE pump for parity with the rest of the UI.
+import { WORDING_INSTR } from "./claude.js";
 
 export const RELEASE_AGENT = "github-ops";
 
@@ -74,6 +75,7 @@ export function releaseSystemPrompt(nowStamp) {
     "repo, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm. DEV1 và STG đều được phép (STG BẮT BUỘC confirm trước). CẤM release PRODUCTION.",
     "Force-push được cho TAG (`refs/tags/...`) và nhánh release (`release/*`) khi cần (sau confirm), TUYỆT ĐỐI KHÔNG force-push `develop`/`main`. KHÔNG thêm mọi dấu vết AI",
     "vào PR title/body hay commit message.",
+    WORDING_INSTR,
     "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi dòng",
     "`- <gợi ý ngắn bấm để làm/hỏi tiếp>` (vd liệt kê ticket, tag lib, check CI). Tiếng Việt, không viết gì sau khối này.",
   ].join("\n");

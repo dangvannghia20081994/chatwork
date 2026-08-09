@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { ROOT, loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY, WORDING_INSTR } from "./claude.js";
 
 function readRoot(rel) {
   return fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -124,6 +124,8 @@ export function assembleFeatureSystemPrompt() {
       "You MAY use the Task tool to delegate per-phase work to keep context small.",
       "This is non-interactive: do NOT ask the user questions. If scope is ambiguous, STATE your",
       "Assumption explicitly and proceed (unless the INFO GATE triggers).",
+      "",
+      WORDING_INSTR,
     ].join("\n"),
   ];
   return parts.join("\n\n---\n\n");

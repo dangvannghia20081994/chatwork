@@ -5,6 +5,7 @@
 //
 // Sibling of release.js (same claudeSSE pump); the key difference is `git rebase`/`git merge` stay
 // ENABLED here (they're the whole point) while merge-PR and release-only actions are irrelevant.
+import { WORDING_INSTR } from "./claude.js";
 
 export const REBASE_AGENT = "git-rebaser";
 
@@ -65,6 +66,7 @@ export function rebaseSystemPrompt(nowStamp) {
     "DỪNG lại, nêu rõ lệnh + repo + branch, hỏi user xác nhận, đợi lượt sau MỚI thực hiện — KHÔNG tự ý làm.",
     "TUYỆT ĐỐI KHÔNG force-push `develop`/`main`/`master`. KHÔNG `gh pr merge` (ship PR). Không rebase nhánh dùng chung.",
     "KHÔNG làm feature/refactor ngoài phạm vi resolve conflict. KHÔNG thêm dấu vết AI vào commit message.",
+    WORDING_INSTR,
     "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi dòng",
     "`- <gợi ý ngắn bấm để làm/hỏi tiếp>` (vd xem diff conflict, abort rebase, force-push nhánh). Tiếng Việt, không viết gì sau khối này.",
   ].join("\n");

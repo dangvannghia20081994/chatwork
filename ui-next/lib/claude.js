@@ -86,6 +86,16 @@ const SUGGEST_INSTR =
   "rồi 2–3 dòng, mỗi dòng `- <gợi ý ngắn người dùng có thể bấm để hỏi/làm tiếp>`. Bám ngữ cảnh vừa trao " +
   "đổi, viết tiếng Việt, ngắn gọn. TUYỆT ĐỐI không viết gì sau khối này.";
 
+// Văn phong dùng chung cho MỌI flow: người dùng phản hồi (2026-08-09) là các câu chữ giật gân kiểu
+// "bảng đau nhất" nghe lạ, không chuyên nghiệp. Nhãn/tiêu đề phải mô tả đúng dữ liệu, không cảm thán.
+export const WORDING_INSTR =
+  "VĂN PHONG — TỪ NGỮ TRUNG TÍNH (bắt buộc): viết như kỹ sư báo cáo, KHÔNG giật gân, KHÔNG ẩn dụ lạ, " +
+  "KHÔNG teencode. CẤM các từ/cụm kiểu: \"đau nhất\", \"toang\", \"chết\", \"khủng\", \"cực gắt\", " +
+  "\"bùng nổ\", \"báo động đỏ\", \"điểm nóng\", \"thảm hoạ\", \"đỉnh\", \"cân hết\"... Tiêu đề bảng/mục " +
+  "và nhãn cột đặt bằng danh từ mô tả đúng dữ liệu (\"Ticket quá hạn lâu nhất\", \"Màn hình nhiều lỗi " +
+  "nhất\"), không cảm thán, không phóng đại, không emoji trang trí thừa. Thuật ngữ kỹ thuật giữ nguyên " +
+  "tiếng Anh theo convention.";
+
 // UI renders câu trả lời dạng Markdown (GFM) — nhắc model dùng bảng khi dữ liệu có cấu trúc.
 const TABLE_INSTR =
   "Khi trình bày dữ liệu có cấu trúc (so sánh, danh sách ticket/field, bước + kết quả, tham số...), " +
@@ -120,6 +130,7 @@ function chatSystemPrompt(project, canEdit) {
       GIT_BRANCH_SAFETY,
       snapshotInstr(""),
       TABLE_INSTR,
+      WORDING_INSTR,
       SUGGEST_INSTR,
     ].join("\n");
   }
@@ -141,7 +152,7 @@ function chatSystemPrompt(project, canEdit) {
         "KHÔNG sửa/tạo/xoá file, không chạy lệnh shell, không git. Đây là chế độ hỏi-đáp."
       );
     }
-    base.push(SUGGEST_INSTR);
+    base.push(WORDING_INSTR, SUGGEST_INSTR);
     return base.join("\n");
   }
   if (project === "film") {
@@ -162,7 +173,7 @@ function chatSystemPrompt(project, canEdit) {
         "KHÔNG sửa/tạo/xoá file, không chạy lệnh shell, không git. Đây là chế độ hỏi-đáp."
       );
     }
-    base.push(SUGGEST_INSTR);
+    base.push(WORDING_INSTR, SUGGEST_INSTR);
     return base.join("\n");
   }
   // rezil
@@ -184,6 +195,7 @@ function chatSystemPrompt(project, canEdit) {
     );
   }
   base.push(TABLE_INSTR);
+  base.push(WORDING_INSTR);
   base.push(SUGGEST_INSTR);
   return base.join("\n");
 }

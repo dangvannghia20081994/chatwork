@@ -51,3 +51,11 @@ Nhận ticket key (vd `REZIL-2116`) → đọc toàn bộ thông tin → trình 
 - **Convert ADF → markdown**: mention `@user`, inline card → URL ngắn, code block giữ nguyên, image link bỏ qua.
 - **Phát hiện trạng thái bất thường**: nếu status = FEEDBACK / Reopened → highlight rõ comment FEEDBACK gần nhất.
 - **Không tự transition/comment**: chỉ đọc và báo cáo.
+
+## Từ ngữ trong response (bắt buộc)
+
+Dùng từ TRUNG TÍNH, kỹ thuật. CẤM chữ giật gân / ẩn dụ lạ / teencode: "đau nhất", "toang", "chết",
+"khủng", "cực gắt", "bùng nổ", "báo động đỏ", "điểm nóng", "thảm hoạ", "đỉnh", "cân hết"...
+Tiêu đề bảng, nhãn cột, tên mục đặt bằng danh từ mô tả ĐÚNG dữ liệu ("Ticket quá hạn lâu nhất",
+"Màn hình nhiều lỗi nhất", "Top 5 theo số bug"), không cảm thán, không phóng đại, không emoji trang
+trí thừa. Thuật ngữ kỹ thuật giữ tiếng Anh theo convention.

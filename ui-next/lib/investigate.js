@@ -17,6 +17,7 @@
 import fs from "fs";
 import path from "path";
 import { ROOT, loadConfig } from "./config.js";
+import { WORDING_INSTR } from "./claude.js";
 
 function readRoot(rel) {
   try {
@@ -311,6 +312,8 @@ export function investigateSystemPrompt(nowStamp) {
     "",
     "### memory/common_bugs.md",
     readRoot("memory/common_bugs.md").trim(),
+    "",
+    WORDING_INSTR,
     "",
     "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi",
     "dòng `- <gợi ý ngắn bấm để hỏi tiếp>` (vd: xem kỹ commit nghi vấn, check data ở QA, xin bản dán Jira).",

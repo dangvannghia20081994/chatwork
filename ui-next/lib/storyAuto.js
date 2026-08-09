@@ -1,7 +1,7 @@
 // Auto mode (Story): free-form task → PR to develop. No Jira. Prompt/tools ported verbatim
 // from ui/server.js. Story's own .claude/agents + .mcp.json auto-load via cwd, so Task is allowed.
 import { loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY, WORDING_INSTR } from "./claude.js";
 
 export function storyCfg() { return loadConfig("story"); }
 export function currentYYYYMM() { return new Date().toISOString().slice(0, 7); } // e.g. 2026-06
@@ -38,6 +38,8 @@ export function assembleStorySystemPrompt() {
     "KHÔNG merge PR, KHÔNG deploy, KHÔNG dùng --no-verify, KHÔNG đụng secret/.env thật/CI, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần).",
     "Không tự refactor ngoài scope. Buộc sửa shared lib → đánh giá risk + nêu rõ (theo story CLAUDE.md).",
     "Phi tương tác: KHÔNG hỏi lại user; scope mơ hồ thì NÊU GIẢ ĐỊNH rồi làm tiếp (trừ khi rơi vào INFO GATE).",
+    "",
+    WORDING_INSTR,
   ].join("\n");
 }
 
