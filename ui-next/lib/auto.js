@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 import { ROOT, loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY, WORDING_INSTR } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY, NO_DEGRADE_SAFETY, WORDING_INSTR } from "./claude.js";
 
 function readRoot(rel) {
   return fs.readFileSync(path.join(ROOT, rel), "utf8");
@@ -103,6 +103,8 @@ export function assembleSystemPrompt() {
       "    clickable in Jira via MCP→ADF. Comment only — do NOT transition the ticket status.",
       "",
       GIT_BRANCH_SAFETY,
+      "",
+      NO_DEGRADE_SAFETY,
       "",
       "HARD LIMITS: NEVER merge a PR, NEVER deploy, NEVER touch secrets/CI, NEVER force-push `develop`/`main` (force-pushing your own feature/fix branch is fine when needed).",
       "If a quality gate or build FAILS: stop, report the failure, do NOT open the PR.",

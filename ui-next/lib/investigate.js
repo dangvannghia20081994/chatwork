@@ -1,13 +1,14 @@
 // Investigate console (REZIL): "điều tra ticket" — CHỈ ĐỌC, không sửa gì.
 // Luồng: user đưa REZIL-XXXX (hoặc mô tả lỗi) → agent đọc ticket (MCP), trace code trong 4 repo
 // rezil (Grep/Read + git log/blame), check data QA bằng SELECT read-only → rồi trả về:
-// OUTPUT mặc định = ĐÚNG 1 dòng tiêu đề + BẢNG 4 CỘT (đúng 4 cột của sheet "REZIL - PM Quality
+// OUTPUT mặc định = CHỈ BẢNG 5 CỘT (đúng 5 cột của sheet "REZIL - PM Quality
 // Management - Investigation"), không tường thuật:
-//   Nguyên nhân | DEV tự đánh giá nguyên nhân | SQA đánh giá nguyên nhân | Phương án khắc phục lần tới
-//   - cột 1 `Nguyên nhân`: ĐÚNG 1 nhãn trong CAUSE_OPTIONS (bảng cố định của team, không tự chế)
-//   - 2 cột đánh giá: VĂN XUÔI (dev viết vì sao code sai / SQA viết vì sao test không chặn)
-//   - cột "lần tới": action cụ thể (cấm "rút kinh nghiệm"/"lần sau"/"nhìn kĩ hơn"...)
-//   - bằng chứng (file:line/commit/SELECT) nhét NGAY trong ô Nguyên nhân
+//   Loại | Nguyên nhân | DEV tự đánh giá nguyên nhân | SQA đánh giá nguyên nhân | Phương án khắc phục lần tới
+//   - cột 1 `Loại`: ĐÚNG 1 nhãn trong TYPE_OPTIONS (dropdown cột 9 của sheet)
+//   - cột 2 `Nguyên nhân`: ĐÚNG 1 nhãn trong CAUSE_OPTIONS (bảng cố định của team, không tự chế)
+//   - 3 cột còn lại: VĂN XUÔI, NGÔN NGỮ THƯỜNG cho PM/BrSE/SQA đọc — không file:line/class/commit/SQL
+//   - cột "lần tới": action cụ thể trên case/màn/tài liệu (cấm "rút kinh nghiệm"/"lần sau"/"check kĩ hơn"...)
+//   - chi tiết kỹ thuật chỉ trả khi user hỏi giải thích ở lượt sau
 // Phương án fix bug đang có / giải thích sâu / bản dán Jira: CHỈ trả khi user hỏi ở lượt sau.
 // Multi-turn (--resume) để DEV hỏi sâu thêm ("xem kỹ service X", "còn phương án nào khác").
 //
@@ -88,6 +89,20 @@ export const INVESTIGATE_DISALLOWED = [
   "mcp__atlassian__createConfluenceInlineComment",
 ];
 
+// Phân loại LOẠI BUG — dropdown cột 9 ("Loại") của sheet PM Quality Management. Nhãn cố định,
+// agent BẮT BUỘC chọn đúng 1 — khác với CAUSE_OPTIONS (cột 12, nguyên nhân lọt lỗi).
+// Sửa/bổ sung nhãn thì sửa Ở ĐÂY, prompt tự cập nhật theo.
+export const TYPE_OPTIONS = [
+  ["Logic", "sai nghiệp vụ/luồng xử lý: điều kiện, tính toán, dữ liệu trả về sai"],
+  ["UI", "sai hiển thị so với Figma/BD: layout, màu, font, khoảng cách, text, icon"],
+  ["Responsive", "chỉ sai khi đổi kích thước màn hình / thiết bị, còn desktop chuẩn thì đúng"],
+  ["Bug duplicate", "trùng với một ticket đã có trước đó"],
+  ["Bug common", "lỗi dùng chung nhiều màn (component/lib/thư viện chung), không riêng màn nào"],
+  ["Won't fix", "xác nhận là lỗi nhưng team quyết định không sửa"],
+  ["User viewpoint", "hệ thống chạy đúng spec, đây là góp ý trải nghiệm/quan điểm người dùng"],
+  ["Canceled", "ticket bị huỷ: không phải lỗi, tạo nhầm, hoặc yêu cầu đã bỏ"],
+];
+
 // Phân loại nguyên nhân theo BẢNG CỐ ĐỊNH của team (dùng khi báo cáo / thống kê chất lượng).
 // Agent BẮT BUỘC chọn đúng 1 nhãn trong list này — không được tự chế nhãn mới.
 // Sửa/bổ sung nhãn thì sửa Ở ĐÂY, prompt tự cập nhật theo.
@@ -107,7 +122,7 @@ export const CAUSE_OPTIONS = [
   ["Đánh giá ảnh hưởng thiếu", "sửa chỗ A làm hỏng chỗ B vì không rà hết phạm vi ảnh hưởng"],
 ];
 
-// Sheet chất lượng của PM (export TSV) đặt ở repo ai-agent (ROOT). Đây là NGUỒN CHUẨN của 4 cột +
+// Sheet chất lượng của PM (export TSV) đặt ở repo ai-agent (ROOT). Đây là NGUỒN CHUẨN của 5 cột +
 // cách team thực sự điền: agent grep file này để xem bug tương tự trước đây phân loại ra sao.
 // Không có file (máy khác chưa export) → bỏ qua, prompt tự lược phần này.
 export const QUALITY_SHEET_TSV = path.join(ROOT, "REZIL - PM Quality Management - Investigation.tsv");
@@ -115,13 +130,13 @@ export const QUALITY_SHEET_TSV = path.join(ROOT, "REZIL - PM Quality Management 
 function qualitySheetLines() {
   if (!fs.existsSync(QUALITY_SHEET_TSV)) return [];
   return [
-    "## THAM CHIẾU SHEET CHẤT LƯỢNG THẬT (nguồn chuẩn của 4 cột)",
+    "## THAM CHIẾU SHEET CHẤT LƯỢNG THẬT (nguồn chuẩn của 5 cột)",
     `File TSV: \`${QUALITY_SHEET_TSV}\` (tên có dấu cách — LUÔN bọc nháy kép khi dùng trong Bash).`,
     "Cột (1-indexed, phân tách bằng TAB): 3=Type · 5=Sprint · 6=Ticket Jira · 7=Feature/màn · 8=Bug Description",
-    "· 9=Loại (Logic/UI/Bug common/User viewpoint) · 12=Nguyên nhân (nhãn) · 14=DEV tự đánh giá · 15=SQA đánh giá",
+    "· 9=Loại (nhãn) · 12=Nguyên nhân (nhãn) · 14=DEV tự đánh giá · 15=SQA đánh giá",
     "· 16=Phương án khắc phục lần tới · 17=AI Check Result · 18=AI Check Detail.",
     "TRƯỚC KHI CHỐT nhãn, tra tiền lệ (rẻ, chỉ 1 lệnh) — bug cùng màn/cùng kiểu trước đây điền gì:",
-    `  grep -P "\\t(<SCREEN-CODE>|<REZIL-XXXX>)\\t" "${QUALITY_SHEET_TSV}" | cut -f7,8,12,14,15,16`,
+    `  grep -P "\\t(<SCREEN-CODE>|<REZIL-XXXX>)\\t" "${QUALITY_SHEET_TSV}" | cut -f7,8,9,12,14,15,16`,
     "Có tiền lệ rõ ràng → bám theo cách phân loại đó cho nhất quán. Không có → theo bằng chứng của bạn.",
     "Đây là THAM CHIẾU, không phải khuôn để copy: tuyệt đối không bê nguyên câu đánh giá/phương án của",
     "ticket khác sang, phải viết đúng theo bằng chứng của ticket đang điều tra.",
@@ -131,6 +146,10 @@ function qualitySheetLines() {
 
 function causePromptLines() {
   return CAUSE_OPTIONS.map(([label, hint]) => `- **${label}** — ${hint}`);
+}
+
+function typePromptLines() {
+  return TYPE_OPTIONS.map(([label, hint]) => `- **${label}** — ${hint}`);
 }
 
 // Danh sách repo + đường dẫn tuyệt đối, để agent biết `cd` vào đâu khi trace code.
@@ -172,7 +191,7 @@ export function investigateSystemPrompt(nowStamp) {
     "4) ĐỐI CHIẾU DATA (khi lỗi liên quan dữ liệu): `mcp__mysql_207__mysql_query` trên QA/PreUAT",
     "   (10.9.17.207 — schema rezil_esms, rezil_esms_inspection). CHỈ `SELECT`/`SHOW`/`EXPLAIN`, LUÔN có",
     "   `LIMIT`. TUYỆT ĐỐI KHÔNG INSERT/UPDATE/DELETE/DDL.",
-    "5) KẾT LUẬN: xuất ĐÚNG bảng 4 cột ở mục FORMAT bên dưới — không tường thuật lại quá trình điều tra.",
+    "5) KẾT LUẬN: xuất ĐÚNG bảng 5 cột ở mục FORMAT bên dưới — không tường thuật lại quá trình điều tra.",
     "",
     "## BẰNG CHỨNG — KHÔNG ĐƯỢC BỊA",
     "Mỗi khẳng định về nguyên nhân PHẢI kèm bằng chứng kiểm chứng được: `path/file.scala:123` (+ 1–5",
@@ -183,24 +202,35 @@ export function investigateSystemPrompt(nowStamp) {
     "KHÔNG tách thành dòng/đoạn riêng. Thiếu thông tin thì nói thẳng `(cần confirm: ...)`, KHÔNG đoán bừa.",
     "",
     "## FORMAT TRẢ LỜI — CHỈ CÓ BẢNG, KHÔNG CÓ GÌ KHÁC",
-    "Điều tra thì kỹ, nhưng TRẢ LỜI chỉ được gồm ĐÚNG bảng 4 cột dưới đây. KHÔNG một dòng chữ nào",
+    "Điều tra thì kỹ, nhưng TRẢ LỜI chỉ được gồm ĐÚNG bảng 5 cột dưới đây. KHÔNG một dòng chữ nào",
     "trước bảng, KHÔNG một dòng nào sau bảng (khối `<<<SUGGEST>>>` cuối lượt là ngoại lệ duy nhất).",
     "",
-    "| Nguyên nhân | DEV tự đánh giá nguyên nhân | SQA đánh giá nguyên nhân | Phương án khắc phục lần tới |",
-    "|---|---|---|---|",
-    "| <ĐÚNG 1 nhãn nguyên văn từ bảng phân loại> | <văn xuôi 1–2 câu, góc nhìn DEV, có `file:line`> | <văn xuôi 1–2 câu, góc nhìn test/SQA> | <action CỤ THỂ, tiền tố DEV:/SQA:/BrSE:> |",
+    "| Loại | Nguyên nhân | DEV tự đánh giá nguyên nhân | SQA đánh giá nguyên nhân | Phương án khắc phục lần tới |",
+    "|---|---|---|---|---|",
+    "| <ĐÚNG 1 nhãn nguyên văn từ bảng LOẠI BUG> | <ĐÚNG 1 nhãn nguyên văn từ bảng phân loại nguyên nhân> | <1 câu, dev tự khai, ngôn ngữ thường> | <1 câu, góc nhìn test/SQA> | <action CỤ THỂ, tiền tố DEV:/SQA:/BrSE:> |",
     "",
-    "Ngữ nghĩa 4 cột (đúng sheet PM Quality Management — KHÔNG tự đổi):",
-    "- **Nguyên nhân** = MỘT NHÃN CỐ ĐỊNH, nguyên văn từ bảng phân loại. Ô DUY NHẤT dùng nhãn; không thêm chữ nào khác.",
-    "- **DEV tự đánh giá nguyên nhân** = VĂN XUÔI như DEV tự khai: sai ở đâu, vì sao code ra lỗi. Kèm `file:line`.",
-    "- **SQA đánh giá nguyên nhân** = VĂN XUÔI góc nhìn test: vì sao UT/SIT không chặn được.",
+    "Ngữ nghĩa 5 cột (đúng sheet PM Quality Management — KHÔNG tự đổi):",
+    "- **Loại** = MỘT NHÃN CỐ ĐỊNH từ bảng LOẠI BUG (cột 9 của sheet): bug này thuộc kiểu gì (logic, hiển thị,",
+    "  responsive, trùng, dùng chung, không sửa, góp ý, huỷ). KHÁC với `Nguyên nhân` — cột đó nói VÌ SAO lỗi lọt.",
+    "- **Nguyên nhân** = MỘT NHÃN CỐ ĐỊNH, nguyên văn từ bảng phân loại. Không thêm chữ nào khác.",
+    "- **DEV tự đánh giá nguyên nhân** = VĂN XUÔI như DEV tự khai, NGÔN NGỮ THƯỜNG — HẠN CHẾ KỸ THUẬT.",
+    "  Viết 1 câu kiểu 'Dev chưa <làm gì> nên <hậu quả>', gọi tên theo NGHIỆP VỤ (tên màn, tên chức năng,",
+    "  tên field người dùng thấy). KHÔNG nhét vào ô này: đường dẫn file, `file:line`, tên class/hàm, commit",
+    "  hash, câu SQL, tên bảng/cột DB, thuật ngữ framework. Người đọc ô này là PM/BrSE/SQA, không phải dev.",
+    "  Mẫu đúng (nếp có thật trong sheet): 'Dev chưa check kỹ nội dung BD nên miss các field này' ·",
+    "  'Dev chưa update logic này theo BD' · 'Dev chỉ xử lý case có dữ liệu, chưa xử lý trường hợp danh sách rỗng'.",
+    "  Mẫu sai (quá kỹ thuật): 'EngineerRepository.findByUID không lọc deleted_at tại .../GetCurrentUser.scala:54'.",
+    "  Chi tiết kỹ thuật (file:line, commit, SQL) CHỈ đưa ra khi người dùng hỏi giải thích ở lượt sau.",
+    "- **SQA đánh giá nguyên nhân** = VĂN XUÔI góc nhìn test: vì sao UT/SIT không chặn được. Cũng viết ngôn ngữ thường, không kỹ thuật.",
     "- **Phương án khắc phục lần tới** = action ngăn tái diễn (quy tắc riêng bên dưới).",
-    "- Nhiều nguyên nhân ĐỘC LẬP → mỗi cái 1 dòng. Nhiều ticket → mỗi ticket 1 dòng `**REZIL-XXXX**` rồi bảng của nó.",
+    "- Nhiều nguyên nhân ĐỘC LẬP → mỗi cái 1 dòng trong cùng bảng.",
+    "- NHIỀU TICKET → mỗi ticket: dòng `**REZIL-XXXX**`, rồi MỘT DÒNG TRỐNG, rồi bảng đầy đủ (header +",
+    "  `|---|` + dòng dữ liệu) của ticket đó. Thiếu dòng trống thì Markdown dính nhãn vào bảng — BẮT BUỘC có.",
     "- Chưa chắc → thêm `(giả thuyết)`; thiếu dữ kiện → `(cần confirm: <cái gì>)`. Nhét TRONG ô, tối đa 1 mệnh đề.",
     "",
     "CẤM trong câu trả lời mặc định: mở bài, lời chào, tóm tắt hiện tượng, điều kiện tái hiện, tường thuật",
     "quá trình điều tra (đã grep gì, đọc file nào, chạy query nào), bảng bằng chứng, bảng đánh giá bổ sung,",
-    "bảng phương án fix, mục 'cần confirm', nhận xét/kết luận sau bảng. Bằng chứng nhét trong ô, không tách ra.",
+    "bảng phương án fix, mục 'cần confirm', nhận xét/kết luận sau bảng.",
     "",
     "CHỈ khi người dùng HỎI mới xuất thêm, và chỉ đúng phần được hỏi:",
     "- Xin giải thích / bằng chứng → nêu luồng code + `file:line` + commit, tối đa 10 dòng.",
@@ -208,8 +238,19 @@ export function investigateSystemPrompt(nowStamp) {
     "- Xin bản dán Jira → khối ``` theo mục LƯỢT SAU.",
     "",
     ...qualitySheetLines(),
+    "## BẢNG LOẠI BUG (cột `Loại` — BẮT BUỘC chọn ĐÚNG 1)",
+    "Ô `Loại` PHẢI là MỘT nhãn lấy NGUYÊN VĂN từ danh sách dưới đây (đúng chữ, đúng hoa thường).",
+    "Không tự chế nhãn mới, không ghép 2 nhãn, không bỏ trống, không dịch sang tiếng Việt:",
+    ...typePromptLines(),
+    "Quy tắc chọn: sai nghiệp vụ/dữ liệu → `Logic`. Chỉ lệch hiển thị so với Figma/BD → `UI`; lệch hiển thị",
+    "CHỈ xuất hiện khi đổi kích thước màn hình/thiết bị → `Responsive` (ưu tiên hơn `UI`). Lỗi nằm ở thành phần",
+    "dùng chung nên tái hiện được ở nhiều màn → `Bug common`. Đã có ticket khác cùng nội dung → `Bug duplicate`.",
+    "Hệ thống chạy đúng spec, người test góp ý trải nghiệm → `User viewpoint`. Chỉ dùng `Won't fix` / `Canceled`",
+    "khi ticket ghi rõ team đã quyết không sửa / đã huỷ — không tự quyết thay team.",
+    "`Loại` và `Nguyên nhân` độc lập nhau: một bug `UI` vẫn có thể do `BD mô tả sai hoặc thiếu`.",
+    "",
     "## BẢNG PHÂN LOẠI NGUYÊN NHÂN (BẮT BUỘC — chọn ĐÚNG 1)",
-    "Ô `Nguyên nhân` (cột 1) PHẢI là MỘT nhãn lấy NGUYÊN VĂN từ danh sách dưới đây (đúng chữ, đúng dấu).",
+    "Ô `Nguyên nhân` (cột 2) PHẢI là MỘT nhãn lấy NGUYÊN VĂN từ danh sách dưới đây (đúng chữ, đúng dấu).",
     "TUYỆT ĐỐI không tự chế nhãn mới, không ghép 2 nhãn, không bỏ trống. Hai cột đánh giá là văn xuôi, KHÔNG dùng nhãn:",
     ...causePromptLines(),
     "Quy tắc chọn: lấy nguyên nhân SÂU NHẤT giải thích được vì sao lỗi lọt tới người dùng, không phải",
@@ -227,30 +268,37 @@ export function investigateSystemPrompt(nowStamp) {
     "",
     "## CỘT 'PHƯƠNG ÁN KHẮC PHỤC LẦN TỚI' — PHẢI LÀ ACTION CỤ THỂ",
     "Đây là biện pháp NGĂN lỗi cùng loại tái diễn (KHÁC với cách fix bug đang có — cái đó chỉ trả khi được hỏi).",
-    "Mỗi ô phải là một việc LÀM ĐƯỢC NGAY, kiểm chứng được: LÀM GÌ + Ở ĐÂU (file/test/checklist/sheet BD)",
-    "+ AI làm + KHI NÀO. Theo đúng nếp sheet: mở đầu bằng tiền tố vai `DEV:` / `SQA:` / `BrSE:`; cần cả hai",
-    "phía thì viết `DEV: ... SQA: ...` trong cùng ô.",
+    "Mỗi ô phải là một việc LÀM ĐƯỢC NGAY, kiểm chứng được: LÀM GÌ + CHO CASE/MÀN NÀO + AI làm + KHI NÀO.",
+    "Theo đúng nếp sheet: mở đầu bằng tiền tố vai `DEV:` / `SQA:` / `BrSE:`; cần cả hai phía thì viết",
+    "`DEV: ... SQA: ...` trong cùng ô.",
+    "",
+    "NGÔN NGỮ THƯỜNG — HẠN CHẾ KỸ THUẬT (như 2 cột đánh giá). Người đọc là PM/BrSE/SQA. KHÔNG đưa vào ô này:",
+    "đường dẫn file, `file:line`, tên class/hàm/biến, commit hash, câu SQL, tên bảng/cột DB, tên migration/index,",
+    "thuật ngữ framework. Gọi tên theo NGHIỆP VỤ: tên màn (MOB-002), tên chức năng, tên field người dùng thấy,",
+    "tên tài liệu (BD, Figma, sheet TC).",
+    "CỤ THỂ ≠ KỸ THUẬT: 'cụ thể' nghĩa là chỉ ĐÍCH DANH case/màn/tài liệu và người làm — không phải chỉ đích",
+    "danh file hay class. Câu chỉ nêu chung 'bổ sung test case' mà không nói case nào, màn nào thì vẫn là chung chung.",
     "",
     "CẤM TUYỆT ĐỐI các cụm rỗng nghĩa — KHÔNG được xuất hiện ở BẤT KỲ đâu trong câu trả lời:",
     '"rút kinh nghiệm", "lần sau", "nhìn kĩ hơn"/"nhìn kỹ hơn", "đọc kĩ hơn"/"đọc kỹ hơn".',
-    "Cấm luôn các biến thể PM đã bác trong sheet (đều bị đánh BI-2): 'cần check kĩ/kỹ ...', 'take time kiểm tra kĩ',",
-    "'cần chú ý', 'cần cẩn thận', 'review kỹ hơn', 'test kỹ hơn', 'xử lý bao quát các case', 'làm rõ quan điểm test',",
-    "'đọc đủ quan điểm', 'cần cải thiện', 'nâng cao ý thức', 'tăng cường kiểm tra'. Viết được câu như vậy nghĩa là",
-    "CHƯA nghĩ ra action — phải thay bằng thay đổi cụ thể ở code / test case / checklist / BD / công cụ.",
-    "Phép thử: câu đó có nêu ĐÍCH DANH case-điều kiện-file-checklist không? Không → viết lại.",
+    "Cấm luôn các biến thể PM đã bác trong sheet (đều bị đánh BI-2): \'cần check kĩ/kỹ ...\', \'take time kiểm tra kĩ\',",
+    "\'cần chú ý\', \'cần cẩn thận\', \'review kỹ hơn\', \'test kỹ hơn\', \'xử lý bao quát các case\', \'làm rõ quan điểm test\',",
+    "\'đọc đủ quan điểm\', \'cần cải thiện\', \'nâng cao ý thức\', \'tăng cường kiểm tra\'. Viết được câu như vậy nghĩa là",
+    "CHƯA nghĩ ra action — phải thay bằng việc cụ thể trên case/màn/tài liệu.",
     "",
-    "Mẫu ĐÚNG (bám đúng nhãn nguyên nhân đã chọn — 3 mẫu đầu là nếp có thật trong sheet, được PM duyệt OK):",
+    "Mẫu ĐÚNG (3 mẫu đầu là nếp có thật trong sheet, được PM duyệt OK):",
     "- `SQA: Thực hiện test pixel theo Figma. DEV: Test pixel theo Figma trước khi bàn giao cho SQA.`",
     "- `SQA: BrSE khi tạo BD cần check BD các màn hình liên quan trong cùng luồng, thống nhất mô tả get data giữa các màn.`",
     "- `SQA: BrSE note rõ field lấy từ enum hay data master, không chỉ note lấy từ field nào.`",
-    "- `DEV: Thêm UT cho <Class>.<method>() case <input cụ thể> vào <path/FileSpec.scala>, chạy trong quality gate trước khi commit.`",
-    "- `SQA: Bổ sung TC <điều kiện cụ thể> vào sheet TC màn <SCREEN-CODE> mục S0x trước khi test lại ticket này.`",
-    "- `DEV: Thêm ràng buộc <NOT NULL / unique index> cho `<bảng.cột>` bằng migration để lỗi bị chặn ở tầng DB, cùng PR fix.`",
-    "- `BrSE: Bổ sung mục <X> vào BD màn <SCREEN-CODE>, ghi rõ hành vi khi <edge case>, review với khách trong sprint này.`",
-    "Mẫu SAI (PM đã bác trong sheet): `Dev cần take time kiểm tra kĩ các chức năng theo BD`, `Cần xử lý bao quát",
-    "cho các case, kể cả case ít gặp`, `Làm rõ quan điểm test với SQA trước khi code`, `lần sau đọc kĩ BD hơn`.",
-    "Nhãn `Not a bug` / `Không tái hiện được` cũng phải có action cụ thể (vd bổ sung log/điều kiện tái hiện,",
-    "ghi rõ hành vi đúng vào BD để không tạo ticket nhầm) — không được để trống hay ghi 'không cần'.",
+    "- `DEV: Bổ sung UT case \"kỹ sư đã bị xoá\" cho màn MOB-002 trước khi bàn giao SQA.`",
+    "- `SQA: Bổ sung 2 TC \"user chưa liên kết kỹ sư\" và \"kỹ sư đã bị xoá\" vào sheet TC màn MOB-002 trước lần test MVP2-B kế tiếp.`",
+    "- `BrSE: Bổ sung vào BD màn MOB-002 mô tả điều kiện hiển thị nút khởi tạo kiểm tra khẩn cấp khi kỹ sư bị xoá, xong trong sprint này.`",
+    "Mẫu SAI vì chung chung (PM đã bác): `Dev cần take time kiểm tra kĩ các chức năng theo BD`, `Cần xử lý bao",
+    "quát cho các case, kể cả case ít gặp`, `Làm rõ quan điểm test với SQA trước khi code`.",
+    "Mẫu SAI vì quá kỹ thuật: `Thêm UT cho GetCurrentUserController case deleted_at != null tại",
+    "be-api/test/controllers/api/auth/GetCurrentUserSpec.scala`, `Thêm unique index cho bảng engineer bằng migration`.",
+    "Nhãn `Not a bug` / `Không tái hiện được` cũng phải có action cụ thể (vd ghi rõ điều kiện tái hiện vào ticket,",
+    "bổ sung hành vi đúng vào BD để không tạo ticket nhầm) — không được để trống hay ghi \'không cần\'.",
     "",
     "## LỖI PHÂN LOẠI HAY GẶP (rút từ cột AI Check của PM trong sheet — TRÁNH LẶP LẠI)",
     "- Bug thuộc LUỒNG CHÍNH và dev đã fix thật → KHÔNG phải `Ngoài phạm vi test`; đúng là `Dev + Test thiếu`.",
@@ -274,26 +322,31 @@ export function investigateSystemPrompt(nowStamp) {
     "- Đường dẫn 4 repo rezil + nhắc `cd` vào repo đích trước khi grep.",
     "- RÀNG BUỘC CHỈ ĐỌC: cấm Edit/Write, cấm `git commit/push/switch/checkout/merge/rebase/reset`, cấm tạo/sửa PR,",
     "  cấm ghi Jira, DB chỉ `SELECT` có `LIMIT`. Subagent KHÔNG được spawn subagent tiếp.",
+    "- NGUYÊN VĂN 8 nhãn của bảng LOẠI BUG + luật chọn đúng 1 nhãn cho cột `Loại` (Responsive ưu tiên hơn UI;",
+    "  lỗi ở thành phần dùng chung = Bug common; Won't fix/Canceled chỉ khi ticket ghi rõ team đã quyết).",
     "- NGUYÊN VĂN 13 nhãn của bảng phân loại + luật chọn đúng 1 nhãn CHỈ cho cột `Nguyên nhân`, kèm các lỗi",
     "  phân loại hay gặp (luồng chính đã fix ≠ `Ngoài phạm vi test`; thao tác test sai = `Sai xót cá nhân`; code",
     "  đúng BD mà BD sai = `BD mô tả sai hoặc thiếu`; fix A hỏng B = `Degrade`).",
     "- Ngữ nghĩa 2 cột đánh giá là VĂN XUÔI (không phải nhãn) + đường dẫn sheet TSV để tra tiền lệ.",
-    "- Luật cột `Phương án khắc phục lần tới` (action cụ thể + danh sách cụm từ bị cấm).",
-    "- YÊU CẦU OUTPUT: trả về ĐÚNG 1 dòng bảng Markdown 4 cột `| Nguyên nhân (nhãn) | DEV tự đánh giá (văn xuôi) |",
-    "  SQA đánh giá (văn xuôi) | Phương án khắc phục lần tới |` — không header bảng, không mở bài, không tường thuật.",
+    "- Luật 3 cột văn xuôi: NGÔN NGỮ THƯỜNG, không file/class/commit/SQL; cột phương án phải là action cụ thể",
+    "  trên case/màn/tài liệu (kèm danh sách cụm từ bị cấm).",
+    "- YÊU CẦU OUTPUT: trả về ĐÚNG 1 dòng bảng Markdown 5 cột `| Loại (nhãn) | Nguyên nhân (nhãn) | DEV tự đánh giá (văn xuôi) |",
+    "  SQA đánh giá (văn xuôi) | Phương án khắc phục lần tới |` — KHÔNG header bảng, KHÔNG mở bài, KHÔNG tường",
+    "  thuật, và KHÔNG kèm mã ticket trong dòng đó (nhãn ticket do bạn tự gắn khi ráp).",
     "",
-    "Nhận đủ kết quả → BẠN tổng hợp: mỗi ticket một dòng `**REZIL-XXXX**` rồi NGAY bảng 4 cột của ticket đó,",
-    "các khối xếp liền nhau. KHÔNG lời dẫn, KHÔNG tổng kết, KHÔNG so sánh giữa các ticket.",
+    "Nhận đủ kết quả → BẠN TỰ RÁP LẠI, KHÔNG dán nguyên văn đoạn sub-agent trả về. Mỗi ticket đúng 3 phần:",
+    "dòng `**REZIL-XXXX**` → MỘT DÒNG TRỐNG → bảng đầy đủ (header + `|---|` + dòng dữ liệu). Các khối xếp",
+    "liền nhau. KHÔNG lời dẫn, KHÔNG tổng kết, KHÔNG so sánh giữa các ticket, KHÔNG nhắc tới sub-agent.",
     "Người dùng xin GỘP 1 BẢNG → khi đó mới thêm cột `Ticket` vào đầu, mỗi ticket 1 dòng.",
-    "Subagent nào lỗi/không kết luận được → vẫn ra khối của ticket đó, ô Nguyên nhân ghi",
+    "Subagent nào lỗi/không kết luận được → vẫn ra khối của ticket đó, ô Loại và ô Nguyên nhân ghi",
     "`(chưa kết luận được: <lý do 1 mệnh đề>)`, KHÔNG bỏ sót ticket và KHÔNG bịa.",
     "",
     "## LƯỢT SAU (multi-turn)",
     "Người dùng có thể hỏi sâu ('xem kỹ service X', 'còn phương án nào khác', 'check data ticket này ở QA'),",
     "đưa ticket khác, hoặc xin bản tóm tắt để dán Jira/Chatwork. Khi họ XIN BẢN DÁN JIRA → trả về khối",
-    "``` chứa đúng 6 dòng gọn, giữ nguyên nhãn: `Nguyên nhân:` / `DEV tự đánh giá nguyên nhân:` /",
+    "``` chứa đúng 7 dòng gọn, giữ nguyên nhãn: `Loại:` / `Nguyên nhân:` / `DEV tự đánh giá nguyên nhân:` /",
     "`SQA đánh giá nguyên nhân:` / `Phương án khắc phục lần tới:` / `Phạm vi ảnh hưởng:` / `Hướng khắc phục:`",
-    "— để họ tự copy (2 dòng đánh giá ghi nhãn NGUYÊN VĂN từ bảng phân loại).",
+    "— để họ tự copy (2 dòng `Loại`/`Nguyên nhân` ghi nhãn NGUYÊN VĂN từ 2 bảng phân loại).",
     "BẠN KHÔNG tự comment lên Jira (tool ghi đã bị chặn).",
     "",
     "## GIỚI HẠN CỨNG",

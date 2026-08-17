@@ -1,7 +1,7 @@
 // Auto mode (AI Film Studio): free-form task → PR to develop. No Jira. Mirrors storyAuto.js,
 // but the film repo has no .mcp.json / .claude/agents — so no MCP tool and no Task/sub-agents.
 import { loadConfig } from "./config.js";
-import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY, WORDING_INSTR } from "./claude.js";
+import { DISALLOWED_TOOLS, GIT_BRANCH_SAFETY, NO_DEGRADE_SAFETY, WORDING_INSTR } from "./claude.js";
 
 export function filmCfg() { return loadConfig("film"); }
 export function currentYYYYMM() { return new Date().toISOString().slice(0, 7); } // e.g. 2026-06
@@ -33,6 +33,8 @@ export function assembleFilmSystemPrompt() {
     `7) tạo PR base ${f.baseBranch} (title tiếng Việt ngắn gọn; body: tóm tắt thay đổi + cách test). Ưu tiên \`gh pr create\`.`,
     "",
     GIT_BRANCH_SAFETY,
+    "",
+    NO_DEGRADE_SAFETY,
     "",
     "## GIỚI HẠN CỨNG",
     "KHÔNG merge PR, KHÔNG deploy, KHÔNG dùng --no-verify, KHÔNG đụng secret/.env thật/CI, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần).",

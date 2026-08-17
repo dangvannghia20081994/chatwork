@@ -19,6 +19,11 @@ Goals:
 5. Never change infrastructure unless explicitly instructed.
 6. Run tests and build before proposing completion.
 7. Stop and ask for help if requirements are ambiguous.
+8. Never degrade working behaviour. Before editing shared code, list every caller it affects; keep the
+   old contract and add a branch for the new case instead of changing defaults; never delete a guard,
+   attribute, or filter you don't understand; re-read every diff hunk before committing. Build/test
+   passing is NOT proof there is no degrade — see `AGENT_RULES.md` §Chống degrade for the rules and the
+   past cases they come from.
 
 ## Workflows
 

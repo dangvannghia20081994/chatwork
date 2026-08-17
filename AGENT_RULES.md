@@ -30,6 +30,57 @@ If build/test fails:
 - Report.
 - Do not create PR.
 
+## Chống degrade (áp cho MỌI thay đổi code, mọi route của UI agent)
+
+Degrade = chức năng đang chạy đúng bị hỏng vì một thay đổi sau đó. Đây là nhóm lỗi tốn nhiều công
+nhất vì build/test/typecheck vẫn pass. Rule dưới đây rút từ case đã dính, không phải quy tắc chung.
+
+### Case đã dính (đọc trước khi sửa loại code tương ứng)
+
+| Case | Điều đã xảy ra | Rule sinh ra |
+|---|---|---|
+| REZIL-2814, REZIL-3046 | Resolve conflict lấy nguyên một bên → mất `style=` / attribute; build + typecheck pass, chỉ hỏng hiển thị | 3, 5, 6 |
+| REZIL-2669, REZIL-2335 | Re-apply code cũ thành vô hiệu vì component sinh selector đã không còn được render | 6 |
+| REZIL-2303 | Sửa `diffFields` + cascade category làm mất giá trị field phụ thuộc ở luồng khác | 1, 2, 7 |
+| REZIL-2128 | Thao tác chỉ upload/xoá file vẫn bump `updated_at` — side effect ngoài phạm vi thay đổi | 2, 7 |
+| REZIL-2311, REZIL-2109, REZIL-2174 | Đổi query / permission check ở endpoint list làm sai kết quả cho role khác | 1, 6 |
+| REZIL-2172 | Service worker cache-first `version.json` → admin 500 sau mỗi lần build | 1, 6 |
+
+### Rule
+
+1. **Xác định phạm vi ảnh hưởng TRƯỚC khi sửa.** Grep hết nơi dùng hàm / field / enum / component /
+   query / index sắp sửa. Code dùng chung (util, shared component, repository, permission check, DTO,
+   migration) → liệt kê các luồng khác đang gọi và ảnh hưởng dự kiến, rồi mới sửa.
+2. **Sửa theo hướng cộng thêm.** Thêm nhánh điều kiện cho case mới thay vì đổi hành vi mặc định; giữ
+   nguyên signature, giá trị mặc định, kiểu trả về, tính nullable. Buộc đổi hợp đồng dùng chung thì
+   cập nhật HẾT caller trong cùng lần sửa.
+3. **Không xoá thứ chưa hiểu.** `style=` / `class:` / attribute, guard `if`, normalize blank↔null,
+   filter soft-delete, `ORDER BY`, try-catch phần lớn là dấu vết của bug đã fix. Thấy có vẻ dư →
+   `git log -S '<đoạn code>'` / `git blame` xem commit nào thêm và vì sao; không tra được thì giữ lại.
+4. **Không mở rộng scope.** Không refactor / rename / format lại phần ngoài chỗ cần sửa — formatter
+   chạy toàn file là nguồn degrade khó thấy. Code cần dọn → ghi nhận, đề xuất thay đổi riêng.
+5. **Đọc lại toàn bộ diff trước khi commit.** `git diff` từng hunk, mỗi dòng `-` phải là chủ ý. Hunk
+   không giải thích được (editor / format / merge tự sinh) → hoàn nguyên đúng hunk đó rồi mới commit.
+6. **Build/test pass không phải bằng chứng không degrade.** Degrade dạng hiển thị, nhãn i18n, quyền,
+   thứ tự sort, cache đều pass compiler. Đổi UI → verify trên DOM/màn hình thật; đổi query/permission
+   → chạy lại với ≥2 role và cả trường hợp dữ liệu rỗng; đổi API → kiểm caller cũ.
+7. **Regression tối thiểu, nêu kết quả khi báo hoàn thành:** luồng vừa sửa + các luồng lân cận dùng
+   chung code đó (list/detail/create/update), dữ liệu rỗng hoặc null, bản ghi đã soft-delete, và luồng
+   history/audit nếu thay đổi chạm đường mutation.
+8. **Không đủ dữ kiện để chắc là không degrade → dừng và báo** (flow tự động: khối `⛔ NEED-INFO:`),
+   không đoán rồi sửa tiếp.
+
+### Checklist trước khi mở PR
+
+- [ ] Đã liệt kê caller / luồng khác dùng chung code vừa sửa
+- [ ] Diff đọc lại từng hunk, không có dòng `-` ngoài chủ ý, không có format lại ngoài scope
+- [ ] Build + test + typecheck pass
+- [ ] Thay đổi UI: verify trên DOM/màn hình thật · thay đổi query/quyền: verify ≥2 role + dữ liệu rỗng
+- [ ] Liệt kê các luồng lân cận đã test lại (regression tối thiểu)
+
+> Prompt tương ứng cho agent: `NO_DEGRADE_SAFETY` trong `ui-next/lib/claude.js`, được nạp vào mọi flow
+> có quyền sửa code (auto REZIL/feature/story/film, chat chế độ sửa code, rebase console, release console).
+
 ## Rebase & tích hợp code (rezil-esms / rezil-esms-lib / rezil-esms-mobile / rezil-esms-portal)
 
 Rút ra từ điều tra REZIL-3046: nhánh `feature/mvp2-b` sống ~2 tháng, bị force-push nhiều lần

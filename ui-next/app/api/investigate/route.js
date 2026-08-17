@@ -44,6 +44,9 @@ export async function GET(req) {
   }
 
   const argv = buildInvestigateArgv(message, session, nowStamp(), [...proj.addDirs, ROOT]);
-  const stream = claudeSSE({ cwd: proj.cwd, argv, onSession: true });
+  // hideSubagentText: khi chạy nhiều ticket, mỗi ticket là 1 sub-agent trả về đúng 1 dòng bảng.
+  // Không đổ output thô đó ra chat — agent chính tự ráp thành bảng hoàn chỉnh; đổ ra thì vừa trùng,
+  // vừa dính nhãn ticket vào cuối đoạn text của sub-agent.
+  const stream = claudeSSE({ cwd: proj.cwd, argv, onSession: true, hideSubagentText: true });
   return new Response(stream, { headers: SSE_HEADERS });
 }

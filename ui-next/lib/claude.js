@@ -71,6 +71,41 @@ export const GIT_BRANCH_SAFETY = [
   "6. LỠ PUSH LÊN BASE: DỪNG NGAY, báo lại cho người dùng. KHÔNG tự revert/force-push `develop`/`main`.",
 ].join("\n");
 
+// Anti-degrade guardrail shared by EVERY code-changing flow (auto REZIL/feature/story/film, chat ở
+// chế độ sửa code, rebase console, release console). Yêu cầu người dùng 2026-08-13: sửa code ở BẤT KỲ
+// route nào cũng phải soát kỹ để không làm hỏng chức năng đang chạy đúng. Từng luật dưới đây lấy từ
+// case đã dính, KHÔNG phải quy tắc chung chung — chi tiết trong AGENT_RULES.md §Chống degrade.
+export const NO_DEGRADE_SAFETY = [
+  "## CHỐNG DEGRADE — KHÔNG LÀM HỎNG CHỨC NĂNG ĐANG CHẠY ĐÚNG (bắt buộc, ưu tiên cao)",
+  "1. XÁC ĐỊNH PHẠM VI ẢNH HƯỞNG TRƯỚC KHI SỬA: grep hết nơi dùng hàm/field/enum/component/query/index",
+  "   sắp sửa. Nếu là code DÙNG CHUNG (util, shared component, repository, permission check, DTO,",
+  "   migration) → nêu rõ các luồng khác đang gọi nó và ảnh hưởng dự kiến, RỒI mới sửa.",
+  "2. SỬA THEO HƯỚNG CỘNG THÊM: thêm nhánh điều kiện cho case mới thay vì đổi hành vi mặc định. Giữ",
+  "   nguyên signature, giá trị mặc định, kiểu trả về, tính nullable. Buộc đổi hợp đồng dùng chung thì",
+  "   phải cập nhật HẾT caller trong cùng lần sửa, không để caller cũ chạy trên hợp đồng mới.",
+  "3. KHÔNG XOÁ THỨ CHƯA HIỂU: `style=`/`class:`/attribute, guard `if`, normalize blank↔null, filter",
+  "   soft-delete, `ORDER BY`, try-catch phần lớn là dấu vết của bug đã fix trước đó. Thấy có vẻ dư →",
+  "   `git log -S '<đoạn code>'` / `git blame` xem commit nào thêm và vì sao; không tra được thì GIỮ LẠI.",
+  "4. KHÔNG MỞ RỘNG SCOPE: không refactor/rename/format lại phần ngoài chỗ cần sửa (formatter chạy toàn",
+  "   file là nguồn degrade khó thấy). Thấy code cần dọn → ghi nhận và đề xuất thay đổi riêng.",
+  "5. ĐỌC LẠI TOÀN BỘ DIFF TRƯỚC KHI COMMIT: `git diff` từng hunk, MỖI dòng `-` phải là chủ ý. Có hunk",
+  "   không giải thích được (editor/format/merge tự sinh) → hoàn nguyên đúng hunk đó rồi mới commit.",
+  "6. BUILD/TEST PASS KHÔNG PHẢI BẰNG CHỨNG KHÔNG DEGRADE. Degrade dạng hiển thị, nhãn i18n, quyền, thứ",
+  "   tự sort, cache đều pass compiler và typecheck. Đổi UI → verify trên DOM/màn hình thật; đổi",
+  "   query/permission → chạy lại với ≥2 role và cả trường hợp dữ liệu rỗng; đổi API → kiểm caller cũ.",
+  "7. REGRESSION TỐI THIỂU, báo kết quả khi kết luận hoàn thành: luồng vừa sửa + các luồng lân cận dùng",
+  "   chung code đó (list/detail/create/update), dữ liệu rỗng hoặc null, bản ghi đã soft-delete, và",
+  "   luồng history/audit nếu thay đổi chạm vào đường mutation.",
+  "8. KHÔNG ĐỦ DỮ KIỆN để chắc là không degrade → DỪNG và báo rõ điểm chưa chắc (flow tự động: dùng khối",
+  "   `⛔ NEED-INFO:`), KHÔNG đoán rồi sửa tiếp.",
+  "Case đã dính, dùng làm mẫu để soi: resolve conflict lấy nguyên một bên làm mất `style=`/attribute,",
+  "build vẫn pass (REZIL-2814, REZIL-3046) · re-apply code cũ thành vô hiệu vì component sinh selector",
+  "không còn được render (REZIL-2669, REZIL-2335) · sửa `diffFields` + cascade category làm mất giá trị",
+  "field phụ thuộc ở luồng khác (REZIL-2303) · thao tác chỉ upload/xoá file vẫn bump `updated_at`",
+  "(REZIL-2128) · đổi query/permission ở endpoint list làm sai kết quả cho role khác (REZIL-2311,",
+  "REZIL-2109, REZIL-2174) · service worker cache-first `version.json` gây admin 500 sau build (REZIL-2172).",
+].join("\n");
+
 // Claude session ids are UUIDs. Only forward a well-formed one to `--resume`; anything else
 // (empty/junk) → "" so the run starts a fresh session instead of feeding garbage to the CLI.
 const SESSION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -142,6 +177,7 @@ function chatSystemPrompt(project, canEdit) {
       "Vì không có rào chắn, hãy cẩn trọng với thao tác phá huỷ (xoá, force-push, reset, drop DB) — chỉ làm khi yêu cầu rõ ràng. Sau khi thay đổi, giải thích ngắn gọn đã làm gì.",
       "Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm. Tên branch/commit/PR/code giữ tiếng Anh theo convention của từng repo.",
       GIT_BRANCH_SAFETY,
+      NO_DEGRADE_SAFETY,
       snapshotInstr(""),
       TABLE_INSTR,
       WORDING_INSTR,
@@ -158,6 +194,7 @@ function chatSystemPrompt(project, canEdit) {
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash), và dùng Agent để gọi agent layer của story.",
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
         GIT_BRANCH_SAFETY,
+        NO_DEGRADE_SAFETY,
         snapshotInstr("http://localhost:3000")
       );
     } else {
@@ -179,6 +216,7 @@ function chatSystemPrompt(project, canEdit) {
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash).",
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
         GIT_BRANCH_SAFETY,
+        NO_DEGRADE_SAFETY,
         snapshotInstr("http://localhost:4100")
       );
     } else {
@@ -198,6 +236,7 @@ function chatSystemPrompt(project, canEdit) {
       "Sau khi sửa, giải thích ngắn gọn những gì đã thay đổi.",
       "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
       GIT_BRANCH_SAFETY,
+      NO_DEGRADE_SAFETY,
       snapshotInstr("http://localhost:5173"),
       rezilTemplatesInstr()
     );
@@ -372,6 +411,7 @@ export function handleEvent(evt, emit, state) {
       // carries `agentType` ONLY for Agent-tool results (regular Read/Bash/etc. results don't),
       // so this guard surfaces the agent's reply without dumping ordinary tool output into chat.
       const r = evt.tool_use_result;
+      if (state.hideSubagentText) break; // console tự tổng hợp — xem hideSubagentText ở claudeSSE
       if (r && r.agentType && Array.isArray(r.content)) {
         const txt = r.content
           .filter((c) => c && c.type === "text")
@@ -406,7 +446,11 @@ export function handleEvent(evt, emit, state) {
 //   the ReadableStream is cancelled. Default true → kill the child (jobs: an abandoned run is waste).
 //   Chat passes false → the run KEEPS GOING to completion and is saved to the session .jsonl, so a
 //   reconnecting client can reload the finished answer instead of seeing a frozen half-message.
-export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true }) {
+// hideSubagentText: bỏ qua phần text mà một sub-agent trả về (mặc định là ĐỔ ra chat để người dùng
+// thấy nó làm gì). Console nào TỰ TỔNG HỢP lại kết quả sub-agent (vd /investigate gộp thành bảng)
+// phải bật cờ này — nếu không, output thô của sub-agent hiện ngay trước phần tổng hợp, vừa trùng
+// lặp vừa dính vào nội dung phía sau.
+export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true, hideSubagentText = false }) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
@@ -443,7 +487,7 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, onEvent, tim
       }
       if (onSpawn) { try { onSpawn(child); } catch {} }
 
-      const state = { streamed: new Set(), curMsg: null };
+      const state = { streamed: new Set(), curMsg: null, hideSubagentText };
       let sentSession = false, finished = false, buf = "";
       const hb = setInterval(() => {
         try { controller.enqueue(encoder.encode(":hb\n\n")); } catch {}
