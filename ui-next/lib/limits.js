@@ -5,12 +5,12 @@
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { claudeHome } from "./config.js";
+import { claudeHome, accountHome, listAccounts } from "./config.js";
 
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
-function readCreds() {
-  const p = path.join(claudeHome(), ".credentials.json");
+function readCreds(home = claudeHome()) {
+  const p = path.join(home, ".credentials.json");
   const d = JSON.parse(fs.readFileSync(p, "utf8"));
   const o = d.claudeAiOauth || {};
   return { token: o.accessToken || "", tier: o.rateLimitTier || "", expiresAt: o.expiresAt || 0 };
@@ -27,7 +27,7 @@ function readCreds() {
 // token — in here. Costs ~15s, only on the expired-token path.
 const PING_ARGV = ["-p", "ok", "--model", "haiku", "--max-turns", "1", "--output-format", "text"];
 
-function refreshCredsViaCli() {
+function refreshCredsViaCli(home = claudeHome()) {
   return new Promise((resolve) => {
     let done = false;
     const fin = () => {
@@ -39,7 +39,7 @@ function refreshCredsViaCli() {
     let child;
     try {
       child = spawn("claude", PING_ARGV, {
-        env: { ...process.env, CLAUDE_CONFIG_DIR: claudeHome() },
+        env: { ...process.env, CLAUDE_CONFIG_DIR: home },
         stdio: "ignore",
       });
     } catch (e) {
@@ -184,4 +184,72 @@ export async function buildLimitsReport() {
     L.push(`  Extra usage: bật${ex.utilization != null ? ` (${Math.round(ex.utilization)}%)` : ""}`);
   }
   return L.join("\n");
+}
+
+// ─── Quota theo từng account (cho auto-switch khi hết quota) ────────────────────────────────────
+// Chỉ 2 hạn mức được coi là "chặn cả account": phiên 5h và tuần chung. Hạn mức riêng theo model
+// (seven_day_opus/sonnet) cạn KHÔNG chặn account — vẫn chạy được model còn lại.
+const BINDING_ROWS = ["five_hour", "seven_day"];
+const USAGE_CACHE_MS = 60000;
+const usageCache = new Map(); // acct → { at, ok, headroom, tier, error }
+
+function headroomFrom(data) {
+  let worst = 0;
+  for (const key of BINDING_ROWS) {
+    const v = data[key];
+    if (v && typeof v.utilization === "number") worst = Math.max(worst, v.utilization);
+  }
+  return Math.max(0, 100 - worst);
+}
+
+// Quota còn lại của 1 account, cache 60s. KHÔNG spawn claude để refresh token trong đường request
+// (mất ~15s) trừ khi allowRefresh — token hết hạn thì coi như không biết (ok:false) và bỏ qua
+// account đó, chứ không làm chậm chat.
+export async function accountUsage(acct, { allowRefresh = false } = {}) {
+  const hit = usageCache.get(acct);
+  if (hit && Date.now() - hit.at < USAGE_CACHE_MS) return hit;
+
+  const home = accountHome(acct);
+  const put = (v) => {
+    const rec = { acct, at: Date.now(), ...v };
+    usageCache.set(acct, rec);
+    return rec;
+  };
+
+  let creds;
+  try {
+    creds = readCreds(home);
+  } catch (e) {
+    return put({ ok: false, headroom: 0, error: "không đọc được credentials: " + e.message });
+  }
+  if (!creds.token) return put({ ok: false, headroom: 0, error: "chưa đăng nhập" });
+  if (creds.expiresAt && creds.expiresAt - Date.now() < 60000) {
+    if (!allowRefresh) return put({ ok: false, headroom: 0, error: "token hết hạn" });
+    await refreshCredsViaCli(home);
+    try { creds = readCreds(home); } catch { /* giữ creds cũ */ }
+  }
+
+  try {
+    const res = await fetchUsage(creds.token);
+    if (!res.ok) return put({ ok: false, headroom: 0, error: `HTTP ${res.status}` });
+    const data = await res.json();
+    return put({ ok: true, headroom: headroomFrom(data), tier: creds.tier });
+  } catch (e) {
+    return put({ ok: false, headroom: 0, error: e.message });
+  }
+}
+
+// Một run vừa báo hết quota → ghi nhận ngay, khỏi phải chờ API xác nhận lượt sau.
+export function markAccountExhausted(acct) {
+  usageCache.set(acct, { acct, at: Date.now(), ok: true, headroom: 0, error: "run báo hết quota" });
+}
+
+// Account còn dư nhiều nhất (đã trừ `exclude`), hoặc null nếu không có account nào còn dư đáng kể.
+export async function pickAccountWithQuota({ exclude = [], minHeadroom = 3 } = {}) {
+  const cands = listAccounts().filter((a) => !exclude.includes(a));
+  const rows = await Promise.all(cands.map((a) => accountUsage(a)));
+  const usable = rows.filter((r) => r.ok && r.headroom >= minHeadroom);
+  if (!usable.length) return null;
+  usable.sort((a, b) => b.headroom - a.headroom);
+  return usable[0];
 }

@@ -30,6 +30,47 @@ export function claudeHome() {
   return env || path.join(os.homedir(), ".claude");
 }
 
+// ─── Nhiều account Claude trên cùng máy ────────────────────────────────────────────────────────
+// Mỗi account là 1 CLAUDE_CONFIG_DIR riêng (credentials + transcripts riêng). Dùng để chạy tiếp
+// một phiên chat bằng account khác khi account đang dùng hết quota (xem lib/sessions.js
+// ensureSessionInAccount + app/api/chat/route.js).
+//
+// ⚠️ Account mặc định (acct1) KHÔNG được set CLAUDE_CONFIG_DIR=~/.claude: biến đó đổi luôn chỗ CLI
+// đọc file config thành $CLAUDE_CONFIG_DIR/.claude.json, mà config THẬT của account mặc định nằm ở
+// ~/.claude.json → set vào sẽ đọc file stub và mất hết MCP server. Vì vậy accountEnv() XOÁ biến
+// thay vì set, đúng như ecosystem.config.js đang làm.
+// Thêm account mới = thêm 1 dòng ở đây (dir = CLAUDE_CONFIG_DIR của account đó).
+// acct2 (~/.claude-account2) đã bỏ — account chết, không dùng nữa (2026-08-17).
+export const ACCOUNTS = {
+  acct1: { label: "acct1", dir: path.join(os.homedir(), ".claude"), isDefault: true },
+  acct3: { label: "acct3", dir: path.join(os.homedir(), ".claude-account3") },
+};
+
+// Các account thực sự có trên máy này (đã đăng nhập → có .credentials.json).
+export function listAccounts() {
+  return Object.keys(ACCOUNTS).filter((k) => fs.existsSync(path.join(ACCOUNTS[k].dir, ".credentials.json")));
+}
+
+export function accountHome(key) {
+  return (ACCOUNTS[key] || ACCOUNTS.acct1).dir;
+}
+
+// Account mà process này đang chạy dưới (theo CLAUDE_CONFIG_DIR pm2 đặt). Không khớp dir nào → acct1.
+export function currentAccountKey() {
+  const home = claudeHome();
+  return Object.keys(ACCOUNTS).find((k) => ACCOUNTS[k].dir === home) || "acct1";
+}
+
+// Env để spawn `claude` dưới 1 account cụ thể. Trả về object mới, không sửa process.env.
+export function accountEnv(key) {
+  const a = ACCOUNTS[key];
+  if (!a) return { ...process.env };
+  const env = { ...process.env };
+  if (a.isDefault) delete env.CLAUDE_CONFIG_DIR;
+  else env.CLAUDE_CONFIG_DIR = a.dir;
+  return env;
+}
+
 export function loadConfig(name) {
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "config", `${name}.json`), "utf8"));
   // Expand repo paths against REZIL_ROOT so every consumer sees absolute paths while config/*.json

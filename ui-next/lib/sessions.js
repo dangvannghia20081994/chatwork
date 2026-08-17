@@ -4,14 +4,23 @@
 // nhận `project` và tự resolve cwd qua resolveProject. Node runtime, chỉ dùng ở server (fs).
 import fs from "node:fs";
 import path from "node:path";
-import { claudeHome, resolveProject, normalizeProject } from "./config.js";
+import { claudeHome, resolveProject, normalizeProject, accountHome, listAccounts } from "./config.js";
 
-// Thư mục .jsonl của 1 project. Claude mã hoá CWD bằng cách thay mọi ký tự [/.] → '-'
+// Tên thư mục phiên do Claude mã hoá từ CWD: thay mọi ký tự [/.] → '-'
 // (vd /home/nghiadv/IdeaProjects/rezil-esms → -home-nghiadv-IdeaProjects-rezil-esms).
-function projectDir(project) {
+function encCwd(project) {
   const { cwd } = resolveProject(normalizeProject(project));
-  const enc = cwd.replace(/[/.]/g, "-");
-  return path.join(claudeHome(), "projects", enc);
+  return cwd.replace(/[/.]/g, "-");
+}
+
+// Thư mục .jsonl của 1 project trong 1 CLAUDE_CONFIG_DIR bất kỳ.
+function projectDirIn(home, project) {
+  return path.join(home, "projects", encCwd(project));
+}
+
+// Thư mục .jsonl của 1 project ở account mà process đang chạy (hành vi cũ, giữ nguyên).
+function projectDir(project) {
+  return projectDirIn(claudeHome(), project);
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -111,30 +120,99 @@ function parseFile(file, withLines) {
 }
 
 // Liệt kê phiên của 1 project, mới → cũ. Bỏ phiên rỗng (không có lượt hỏi nào).
+// Gộp mọi account trên máy: một phiên đã chạy tiếp bằng account khác (do hết quota) vẫn phải nằm
+// trong danh sách, và lấy đúng bản mtime mới nhất. Cùng id ở 2 account → giữ bản mới hơn.
 export function listSessions(project) {
-  const dir = projectDir(project);
-  let files;
-  try { files = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")); } catch { return []; }
-  const out = [];
-  for (const f of files) {
-    const id = f.replace(/\.jsonl$/, "");
-    if (!UUID_RE.test(id)) continue;
-    const full = path.join(dir, f);
-    try {
-      const { mtimeMs } = fs.statSync(full);
-      const { title, turns } = parseFile(full, false);
-      if (turns === 0) continue;
-      out.push({ id, title, mtime: Math.round(mtimeMs), turns });
-    } catch { /* bỏ file lỗi */ }
+  const dirs = listAccounts().map((acct) => ({ acct, dir: projectDirIn(accountHome(acct), project) }));
+  // Account đang chạy phải có mặt kể cả khi listAccounts() không thấy .credentials.json của nó.
+  if (!dirs.some((d) => d.dir === projectDir(project))) {
+    dirs.push({ acct: "current", dir: projectDir(project) });
   }
-  out.sort((a, b) => b.mtime - a.mtime);
-  return out;
+  const best = new Map(); // id → { id, title, mtime, turns, acct }
+  for (const { acct, dir } of dirs) {
+    let files;
+    try { files = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")); } catch { continue; }
+    for (const f of files) {
+      const id = f.replace(/\.jsonl$/, "");
+      if (!UUID_RE.test(id)) continue;
+      const full = path.join(dir, f);
+      try {
+        const { mtimeMs } = fs.statSync(full);
+        const mtime = Math.round(mtimeMs);
+        const prev = best.get(id);
+        if (prev && prev.mtime >= mtime) continue;
+        const { title, turns } = parseFile(full, false);
+        if (turns === 0) continue;
+        best.set(id, { id, title, mtime, turns, acct });
+      } catch { /* bỏ file lỗi */ }
+    }
+  }
+  return [...best.values()].sort((a, b) => b.mtime - a.mtime);
+}
+
+// ─── Phiên nằm rải ở nhiều account ─────────────────────────────────────────────────────────────
+// Sau một lần chuyển account (hết quota), lượt mới của phiên được ghi vào .jsonl của account MỚI,
+// còn account cũ giữ bản cũ hơn. Nên "bản đúng" của một phiên = bản mtime mới nhất trong các
+// account, chứ không phải bản ở account đang chạy.
+
+// Mọi bản sao của 1 phiên trên máy, mới → cũ.
+// Nếu thư mục projects/ của 2 account được symlink vào nhau (dùng chung transcript, không copy) thì
+// cùng một file hiện ra ở nhiều account → gộp lại theo realpath để không đếm trùng.
+export function sessionCopies(project, id) {
+  if (!UUID_RE.test(id)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const acct of listAccounts()) {
+    const file = path.join(projectDirIn(accountHome(acct), project), `${id}.jsonl`);
+    try {
+      const { mtimeMs } = fs.statSync(file);
+      const real = fs.realpathSync(file);
+      if (seen.has(real)) continue;
+      seen.add(real);
+      out.push({ acct, file, real, dir: path.dirname(file), mtime: Math.round(mtimeMs) });
+    } catch { /* account này không có phiên đó */ }
+  }
+  return out.sort((a, b) => b.mtime - a.mtime);
+}
+
+// Đảm bảo account `acct` có bản MỚI NHẤT của phiên → resume bằng account đó là chạy tiếp đúng chỗ.
+// Copy cả thư mục <id>/ (tool-results tràn ra file) nếu có. Trả về:
+//   { ok, action: "already-newest" | "copied" | "missing", from }
+export function ensureSessionInAccount(project, id, acct) {
+  if (!UUID_RE.test(id)) return { ok: false, action: "missing" };
+  const copies = sessionCopies(project, id);
+  if (!copies.length) return { ok: false, action: "missing" };
+  const newest = copies[0];
+  if (newest.acct === acct) return { ok: true, action: "already-newest", from: acct };
+
+  const dstDir = projectDirIn(accountHome(acct), project);
+  const dstFile = path.join(dstDir, `${id}.jsonl`);
+  // Hai account dùng chung thư mục qua symlink → cùng một file, không có gì phải copy (và tự copy
+  // lên chính mình vừa vô nghĩa vừa làm mtime nhảy, khiến logic "bản mới nhất" nhiễu).
+  try {
+    if (fs.realpathSync(dstFile) === newest.real) return { ok: true, action: "already-newest", from: acct };
+  } catch { /* đích chưa có file → copy như thường */ }
+  try {
+    fs.mkdirSync(dstDir, { recursive: true });
+    fs.copyFileSync(newest.file, dstFile);
+    const extras = path.join(newest.dir, id);
+    if (fs.existsSync(extras)) {
+      fs.cpSync(extras, path.join(dstDir, id), { recursive: true, force: true });
+    }
+    return { ok: true, action: "copied", from: newest.acct };
+  } catch (e) {
+    console.warn("[sessions] copy phiên", id, "sang", acct, "lỗi:", e.message);
+    return { ok: false, action: "missing", from: newest.acct };
+  }
 }
 
 // Đọc hội thoại 1 phiên → mảng {role, text} để render lại. Cap để tránh trả quá nặng.
+// Đọc bản mtime mới nhất trong các account: phiên đã từng chạy tiếp ở account khác thì console
+// vẫn hiện đủ lượt, không mất phần làm ở account đó.
 export function readSessionMessages(project, id, cap = 400) {
   if (!UUID_RE.test(id)) return null;
-  const file = path.join(projectDir(project), `${id}.jsonl`);
+  const newest = sessionCopies(project, id)[0];
+  const file = newest ? newest.file : path.join(projectDir(project), `${id}.jsonl`);
   if (!fs.existsSync(file)) return null;
   const { msgs } = parseFile(file, true);
   return msgs.slice(-cap).map((m) => ({ ...m, status: "", errors: [] }));

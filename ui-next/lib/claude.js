@@ -450,7 +450,11 @@ export function handleEvent(evt, emit, state) {
 // thấy nó làm gì). Console nào TỰ TỔNG HỢP lại kết quả sub-agent (vd /investigate gộp thành bảng)
 // phải bật cờ này — nếu không, output thô của sub-agent hiện ngay trước phần tổng hợp, vừa trùng
 // lặp vừa dính vào nội dung phía sau.
-export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true, hideSubagentText = false }) {
+// env: env cho tiến trình claude. Bỏ trống = process.env (mọi flow cũ giữ nguyên account của pm2).
+//   Chat truyền env của account khác khi account đang dùng hết quota — xem lib/config.js accountEnv().
+// notice: 1 dòng thông báo hiện ngay đầu lượt (dùng event error_msg vì UI đã render sẵn), vd
+//   "acct1 hết quota — đã chuyển sang acct3".
+export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true, hideSubagentText = false }) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
@@ -466,6 +470,7 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, onEvent, tim
         } catch { streamClosed = true; }
       };
       try { controller.enqueue(encoder.encode(":ok\n\n")); } catch { streamClosed = true; }
+      if (notice) emit("error_msg", notice);
 
       let child;
       let closedCb = false;
@@ -477,7 +482,7 @@ export function claudeSSE({ cwd, argv, onSession, onSpawn, onClose, onEvent, tim
       };
 
       try {
-        child = spawn("claude", argv, { cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+        child = spawn("claude", argv, { cwd, env: env || process.env, stdio: ["ignore", "pipe", "pipe"] });
       } catch (e) {
         emit("error_msg", "Failed to launch claude: " + e.message);
         doClose(null);
