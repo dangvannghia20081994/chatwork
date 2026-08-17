@@ -4,3 +4,6 @@ node_modules
 
 # Uploaded attachments from the report/chat consoles (images / PDF / converted Excel)
 .ai-uploads/
+
+# Local Claude Code settings (machine-specific permissions)
+.claude/settings.local.json
