@@ -80,7 +80,8 @@ ai-agent/
 │   ├── _lib.js
 │   ├── fix-ticket.js
 │   ├── create-pr.js
-│   └── update-jira.js
+│   ├── update-jira.js
+│   └── share-projects.sh  # 2 account Claude dùng chung thư mục phiên (symlink) — cho auto-switch khi hết quota
 │
 ├── templates/
 │   ├── pr_template.md
