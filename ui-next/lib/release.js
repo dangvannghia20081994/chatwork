@@ -72,7 +72,7 @@ export function releaseSystemPrompt(nowStamp) {
     "commit thường KHÔNG force-push `develop`, confirm trước. Commit bump này PHẢI sync luôn block `### Changed` của",
     "version vừa release vào CHANGELOG develop (develop chưa có vì lúc release chỉ append trên nhánh release) — chung 1 commit, không tách riêng;",
     "(c) tạo tab deploy `dd/mm` trên Google Sheet Deployment (copy tab `Template`) rồi điền thông tin đợt deploy +",
-    "danh sách ticket — theo §Sheet deploy trong github-ops.md (spreadsheet `1ADSGwRCwLI2_Jn26WMYkMnFjQueudUN6PqipErtUimc`,",
+    "danh sách ticket — theo §Google Sheet Deployment trong github-ops.md (spreadsheet `1ADSGwRCwLI2_Jn26WMYkMnFjQueudUN6PqipErtUimc`,",
     "MCP `mcp__gsheets-rezil__*`). Tên tab `dd/mm` lấy từ phần ngày của mốc thời gian ở trên, KHÔNG tự sinh ngày;",
     "tab đã tồn tại thì dùng lại, KHÔNG sửa tab `Template` và KHÔNG sửa tab của đợt cũ. Xong thì báo link tab cho user.",
     "ĐƯỢC sửa code khi release cần (resolve conflict cherry-pick, fix build nhỏ, sync CHANGELOG/version) —",
