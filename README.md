@@ -114,7 +114,7 @@ Add `--dry-run` to any script to preview the commands without executing.
 | `config/`             | `jira.json`, `github.json`, `project.json`, `story.json`                                |
 | `prompts/`            | Task prompts: `fix_bug`, `feature_workflow`, `create_pr`, `update_jira`, `transition_assign`, `review_pr` |
 | `memory/`             | `architecture`, `coding_style`, `database`, `deployment`, `common_bugs`, `jira_history` |
-| `scripts/`            | `fix-ticket`, `create-pr`, `update-jira` (+ `_lib` helpers)                             |
+| `scripts/`            | `fix-ticket`, `create-pr`, `update-jira` (+ `_lib` helpers), `share-projects.sh`         |
 | `templates/`          | `pr_template`, `jira_comment`, `commit_message`                                         |
 | `ui-next/`            | Next.js web UI (auto mode + chat) — see [§8](#8-web-ui-auto-mode)                       |
 
@@ -166,6 +166,7 @@ Phạm vi ảnh hưởng: <SCREEN-CODE>
 | `fix-ticket.js`  | Sync base + create the work branch                                  | `<REZIL-XXXX> <SCREEN-CODE> [repo] --issue-type="Bug" [--type=] [--dry-run]` |
 | `create-pr.js`   | Push branch + open PR (base `develop`, body from template)          | `<REZIL-XXXX> <SCREEN-CODE> [repo] --summary="..." [--dry-run]`              |
 | `update-jira.js` | Render the Jira comment to post (applied via Atlassian integration) | `<REZIL-XXXX> comment --pr=<url> --scope=<SCREEN-CODE>`                      |
+| `share-projects.sh` | Share Claude session dirs between two accounts via symlink (see §9) | `./scripts/share-projects.sh` (dry-run) · `... go` (apply)                |
 
 Scripts read `config/*.json`, shell out to `git`/`gh`, and enforce the guardrails (never force-push `develop`/`main`, refuse to PR from the base branch). Jira **writes** are performed by the agent via the Atlassian integration, not by the script.
 
@@ -248,6 +249,7 @@ Vietnamese. Type `/usage` to see token usage + estimated cost. Multi-turn (sessi
   Same hard limits apply — never merge, never deploy, never force-push `develop`/`main`. Leave it off for plain Q&A.
 - ⚠️ With the toggle on, the chat edits the **default repo's working tree** on its current branch
   (no auto branch/commit) — use it for quick iterative changes, not the full ticket workflow (use Auto for that).
+- **Runs out of quota? The chat keeps going on another account** — same session, no clicks. See §9.
 
 ### Release (`/release`)
 A multi-turn console that drives the **`github-ops`** agent (gh CLI) to run the release flow for the
@@ -264,3 +266,47 @@ rezil repos — promote a DEV1 PR, create releases/tags, watch CI. Just describe
   `gh auth`/`git config`, `rm`/`sudo`, and code edits (`Edit`/`Write`). See `lib/release.js`.
 - ⚠️ Acts on **real GitHub repos**. Review each confirm prompt before approving.
 
+
+---
+
+## 9. Multiple Claude accounts (quota fallback)
+
+Several Claude accounts can live on one box — each is its own `CLAUDE_CONFIG_DIR` holding separate
+credentials **and** separate session transcripts. Registered in `ui-next/lib/config.js`:
+
+| Key | Config dir | Note |
+|-----|------------|------|
+| `acct1` | `~/.claude` | default account — `CLAUDE_CONFIG_DIR` must stay **UNSET** (the real config is `~/.claude.json`, not `~/.claude/.claude.json`) |
+| `acct3` | `~/.claude-account3` | |
+
+Adding one is a single entry in `ACCOUNTS`.
+
+### Share session dirs (do this once per cwd)
+
+A session is `<CLAUDE_CONFIG_DIR>/projects/<cwd-with-/-and-.-replaced-by->/<session-id>.jsonl`, so an
+account can only resume a session whose file it can see. `scripts/share-projects.sh` makes the main
+account own the real directories and points the other account at them with symlinks:
+
+```bash
+./scripts/share-projects.sh        # dry-run: prints what it would do
+./scripts/share-projects.sh go     # apply
+```
+
+Idempotent — re-run it after working in a new cwd to add the missing symlink. Sessions that only the
+alt account had are moved over (never overwritten); a real `memory/` dir is moved, a redundant
+`memory` symlink is dropped. Override the pair with `CLAUDE_MAIN_DIR` / `CLAUDE_ALT_DIR`.
+
+**Never symlink `.credentials.json`** — that file *is* the account identity. `todos/` and
+`file-history/` (`/rewind`) stay per-account by design.
+
+### Automatic fallback in `/chat`
+
+When the pm2 account runs out of quota, the chat console runs the next turn on the account with the
+most quota left, on the **same session**, and prints one line (`⚠️ acct1 hết quota … chuyển sang acct3`).
+Fail-open: if quota can't be read or the transcript can't be synced, it stays on the current account.
+Only `/chat` does this — job consoles still use the pm2 account. Details in `ui-next/README.md`.
+
+### Manual handoff from a terminal
+
+`~/claude-backups/handoff-session.sh -x 1 3` copies the newest session of the current project to
+account 3 and opens it there (`-n` dry-run, `-f` overwrite). Not needed for dirs already symlinked.

@@ -98,15 +98,52 @@ lib/
   jira.js               # Jira Cloud REST client server-side (report console dùng thay MCP)
   sprint.js             # burndown "giờ âm" — nguồn chung cho web + skill sprint-negative-hours
   slashCommands.js      # slash-command dùng chung (/usage…) — short-circuit trước khi spawn claude
-  sessions.js           # đọc phiên chat Claude CLI (.jsonl) theo project
+  sessions.js           # đọc phiên chat Claude CLI (.jsonl); gộp nhiều account, copy phiên giữa account
+  accountSwitch.js      # chooseAccount(): chat tự đổi account Claude khi account đang dùng hết quota
   upload.js             # lưu file upload vào .ai-uploads/ trong cwd (chat/report Read được)
   telegram.js           # Telegram long-polling bot (kênh chat thứ 2, dùng lại plumbing lib/claude.js)
   notifySound.js        # beep Web Audio khi run xong/lỗi (AgentConsole)
-  limits.js             # buildLimitsReport() — live rate-limit /usage (Anthropic OAuth)
+  limits.js             # live rate-limit /usage (Anthropic OAuth) + quota theo từng account
   usage.js              # buildUsageReport() — offline ~/.claude/projects parse
   jobs.js               # running Map (job-lock) + cancel
 ecosystem.config.js     # pm2: ai-agent-ui-next (chỉ Next app; ngrok do ~/IdeaProjects/gateway lo)
 ```
+
+## Nhiều account Claude — chat tự đổi khi hết quota
+
+pm2 chạy app dưới MỘT account (`CLAUDE_ACCOUNT` trong `.env` → `ecosystem.config.js` set
+`CLAUDE_CONFIG_DIR`; để trống = account mặc định và biến này phải UNSET). Khi account đó cạn hạn mức,
+console `/chat` tự chạy lượt tiếp theo bằng account còn quota, **vẫn trên cùng phiên**, và in 1 dòng
+đầu lượt:
+
+```
+⚠️ acct1 hết quota (còn 0%) — chuyển sang acct3 (còn 5%).
+```
+
+Cơ chế:
+
+| Bước | Ở đâu |
+|---|---|
+| Khai báo account (dir + account mặc định) | `lib/config.js` → `ACCOUNTS`, `accountEnv`, `currentAccountKey` |
+| Đọc quota còn lại từng account (cache 60s) | `lib/limits.js` → `accountUsage`, `pickAccountWithQuota` |
+| Chọn account + đồng bộ transcript trước khi resume | `lib/accountSwitch.js` → `chooseAccount` |
+| Spawn `claude` bằng account đã chọn | `lib/claude.js` → `claudeSSE({ env, notice })` |
+| Đánh dấu account cạn khi run báo hết hạn mức | `app/api/chat/route.js` → `markAccountExhausted` |
+
+Phiên nằm ở `<CLAUDE_CONFIG_DIR>/projects/<cwd-mã-hoá>/<session-id>.jsonl`, nên account mới phải
+thấy được file đó. Hai cách, dùng song song được:
+
+- **Dùng chung qua symlink (khuyến nghị)** — `../scripts/share-projects.sh go`: account chính giữ file
+  thật, account phụ là symlink. Không copy, không thể phân kỳ. Mỗi cwd mới cần chạy lại 1 lần.
+- **Copy tự động** — project chưa symlink thì `ensureSessionInAccount` copy bản mới nhất sang account
+  sắp chạy (cả 2 chiều, kể cả khi account cũ reset quota và chạy tiếp ở đó).
+
+Fail-open: không đọc được quota (token hết hạn, API lỗi) hoặc copy phiên thất bại → giữ account cũ
+đúng như trước, chỉ kèm cảnh báo. Pre-check không bao giờ spawn `claude` để refresh token (mất ~15s).
+
+Giới hạn: chỉ áp cho `/chat`. Các console job (`/auto`, `/feature`, `/release`, `/rebase`, `/report`,
+`/investigate`) vẫn chạy bằng account của pm2; `todos/` và `file-history/` (`/rewind`) vẫn riêng theo
+account nên không mang theo khi đổi.
 
 ## Trạng thái: migration xong ✅
 
