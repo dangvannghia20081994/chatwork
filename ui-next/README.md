@@ -125,7 +125,7 @@ Cơ chế:
 | Bước | Ở đâu |
 |---|---|
 | Khai báo account (dir + account mặc định) | `lib/config.js` → `ACCOUNTS`, `accountEnv`, `currentAccountKey` |
-| Đọc quota còn lại từng account (cache 60s) | `lib/limits.js` → `accountUsage`, `pickAccountWithQuota` |
+| Đọc quota còn lại từng account (cache 60s) | `lib/limits.js` → `accountUsage`, `surveyAccounts`, `pickAccountWithQuota` |
 | Chọn account + đồng bộ transcript trước khi resume | `lib/accountSwitch.js` → `chooseAccount` |
 | Spawn `claude` bằng account đã chọn | `lib/claude.js` → `claudeSSE({ env, notice })` |
 | Đánh dấu account cạn khi run báo hết hạn mức | `app/api/chat/route.js` → `markAccountExhausted` |
@@ -139,7 +139,24 @@ thấy được file đó. Hai cách, dùng song song được:
   sắp chạy (cả 2 chiều, kể cả khi account cũ reset quota và chạy tiếp ở đó).
 
 Fail-open: không đọc được quota (token hết hạn, API lỗi) hoặc copy phiên thất bại → giữ account cũ
-đúng như trước, chỉ kèm cảnh báo. Pre-check không bao giờ spawn `claude` để refresh token (mất ~15s).
+đúng như trước, chỉ kèm cảnh báo.
+
+Refresh token: token OAuth mỗi account chỉ được CLI làm mới khi có một lượt `claude` thật chạy dưới
+account đó, nên account ít dùng hay bị quá hạn token. Quy tắc:
+
+- **Account của pm2 còn quota** → pre-check không spawn `claude` (đỡ ~15s/lượt); account nào token quá
+  hạn thì coi như "không kiểm tra được" và bỏ qua.
+- **Account của pm2 đã cạn** → `surveyAccounts({ allowRefresh: true })` refresh token cho ứng viên quá
+  hạn trước khi hỏi quota (`claude -p ok --model haiku`, ~15s/account, tối đa 60s rồi kill). Lượt đó
+  đằng nào cũng hỏng nếu không đổi account, nên chờ vẫn hơn bỏ sót account còn dư.
+
+Khi không đổi được, dòng cảnh báo nói rõ lý do từng account bị loại — phân biệt "hết quota" (chờ
+reset) với "không kiểm tra được: token hết hạn / HTTP 401" (cần `CLAUDE_CONFIG_DIR=<dir> claude auth
+login`):
+
+```
+⚠️ acct1 đã hết quota, không dùng được account nào khác (acct3 hết quota (còn 1%)) — lượt này vẫn chạy bằng acct1.
+```
 
 Giới hạn: chỉ áp cho `/chat`. Các console job (`/auto`, `/feature`, `/release`, `/rebase`, `/report`,
 `/investigate`) vẫn chạy bằng account của pm2; `todos/` và `file-history/` (`/rewind`) vẫn riêng theo

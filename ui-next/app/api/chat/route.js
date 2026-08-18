@@ -6,7 +6,7 @@ import { running } from "../../../lib/jobs.js";
 import { notifyTelegram } from "../../../lib/telegram.js";
 import { accountEnv, currentAccountKey } from "../../../lib/config.js";
 import { markAccountExhausted } from "../../../lib/limits.js";
-import { chooseAccount, LIMIT_RE } from "../../../lib/accountSwitch.js";
+import { chooseAccount, LIMIT_RE, isLimitBlocked, isLimitResult } from "../../../lib/accountSwitch.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,11 +65,15 @@ export async function GET(req) {
     onClose: runId ? () => { running.delete(runId); } : undefined,
     onEvent: (event, data) => {
       if (event === "delta") answer += data;
+      // CLI báo bị chặn hạn mức ngay khi request bị từ chối (trước cả event result) → đánh dấu sớm.
+      else if (event === "rate_limit") {
+        if (isLimitBlocked(data)) markAccountExhausted(runAcct);
+      }
       else if (event === "result") {
         gotResult = true;
         runError = !!data.isError;
         // Run bị chặn vì hết hạn mức → đánh dấu account cạn ngay, lượt sau tự đổi account.
-        if (runError && LIMIT_RE.test(JSON.stringify(data))) markAccountExhausted(runAcct);
+        if (isLimitResult(data)) markAccountExhausted(runAcct);
       } else if (
         event === "error_msg" &&
         typeof data === "string" &&

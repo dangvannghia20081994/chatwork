@@ -8,7 +8,7 @@
 // Nguyên tắc fail-open: mọi trường hợp không chắc (token hết hạn, API usage lỗi, copy phiên thất
 // bại) đều giữ nguyên account cũ — hành vi y như trước khi có tính năng này, chỉ kèm 1 dòng cảnh báo.
 import { currentAccountKey } from "./config.js";
-import { accountUsage, pickAccountWithQuota } from "./limits.js";
+import { accountUsage, surveyAccounts } from "./limits.js";
 import { ensureSessionInAccount, sessionCopies } from "./sessions.js";
 
 // Quota còn dưới mức này (%) thì coi như account đã hết.
@@ -16,7 +16,36 @@ export const MIN_HEADROOM = 3;
 
 // Dấu hiệu một run bị chặn vì hết hạn mức (dùng để đánh dấu account cạn ngay, khỏi chờ API xác nhận
 // ở lượt sau). Khớp trên text lỗi của CLI/API, KHÔNG khớp trên dòng notice của chính ta.
-export const LIMIT_RE = /(usage|rate)\s*limit|limit reached|429/i;
+// Mỗi bản CLI viết một kiểu — 2.1.235 trả "You've hit your session limit · resets 5:50pm" (hạn mức
+// 5h) / "weekly limit" (hạn mức tuần), không có chữ "usage limit" như bản cũ. Vì vậy: (1) regex phủ
+// cả session/weekly, (2) đường tin cậy chính là tín hiệu CẤU TRÚC — event rate_limit_event và
+// api_error_status=429 (xem isLimitResult + app/api/chat/route.js), text chỉ là lớp dự phòng.
+export const LIMIT_RE = /(usage|rate|session|weekly|5-hour|five hour)\s*limit|limit reached|429/i;
+
+// Event `rate_limit` (từ rate_limit_event của CLI) có báo account bị CHẶN không? "allowed_warning"
+// chỉ là cảnh báo sắp hết — vẫn chạy được, không được coi là cạn.
+export function isLimitBlocked(info) {
+  return !!info && (info.status === "rejected" || info.overageStatus === "rejected");
+}
+
+// Event `result` có phải hỏng vì hết hạn mức không (429 hoặc text lỗi khớp LIMIT_RE).
+export function isLimitResult(data) {
+  if (!data || !data.isError) return false;
+  return data.apiErrorStatus === 429 || LIMIT_RE.test(data.resultText || "");
+}
+
+// Lý do từng account ứng viên bị loại — để dòng cảnh báo phân biệt "hết quota" (chờ reset) với
+// "không kiểm tra được" (token hết hạn, API lỗi — cần đăng nhập/refresh), hai chuyện xử lý khác hẳn.
+export function describeSkipped(rows) {
+  if (!rows.length) return "máy chỉ khai báo 1 account";
+  return rows
+    .map((r) =>
+      r.ok
+        ? `${r.acct} hết quota (còn ${Math.round(r.headroom)}%)`
+        : `${r.acct} không kiểm tra được: ${r.error || "lỗi không rõ"}`
+    )
+    .join("; ");
+}
 
 // → { acct, notice? }. notice là 1 dòng hiện đầu lượt trong chat (nếu có gì đáng nói).
 export async function chooseAccount(project, session) {
@@ -53,11 +82,17 @@ export async function chooseAccount(project, session) {
     return { acct: current };
   }
 
-  const alt = await pickAccountWithQuota({ exclude: [current], minHeadroom: MIN_HEADROOM });
+  // Account của pm2 đã cạn → lượt này hỏng chắc nếu không đổi, nên cho phép refresh token (~15s cho
+  // mỗi account quá hạn): thà chờ còn hơn bỏ sót account còn dư chỉ vì token chưa được CLI làm mới.
+  const { best: alt, rows } = await surveyAccounts({
+    exclude: [current],
+    minHeadroom: MIN_HEADROOM,
+    allowRefresh: true,
+  });
   if (!alt) {
     return {
       acct: current,
-      notice: `⚠️ ${current} đã hết quota và không có account nào khác còn dư — lượt này vẫn chạy bằng ${current}.`,
+      notice: `⚠️ ${current} đã hết quota, không dùng được account nào khác (${describeSkipped(rows)}) — lượt này vẫn chạy bằng ${current}.`,
     };
   }
 

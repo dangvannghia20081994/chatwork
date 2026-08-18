@@ -207,7 +207,10 @@ function headroomFrom(data) {
 // account đó, chứ không làm chậm chat.
 export async function accountUsage(acct, { allowRefresh = false } = {}) {
   const hit = usageCache.get(acct);
-  if (hit && Date.now() - hit.at < USAGE_CACHE_MS) return hit;
+  // Bản cache hỏng (token hết hạn, API lỗi) KHÔNG được dùng lại khi caller cho phép refresh — nếu
+  // không, lần gọi có allowRefresh sẽ nhận luôn kết quả hỏng cũ và không bao giờ chạy refresh.
+  const stale = hit && allowRefresh && !hit.ok;
+  if (hit && !stale && Date.now() - hit.at < USAGE_CACHE_MS) return hit;
 
   const home = accountHome(acct);
   const put = (v) => {
@@ -244,12 +247,19 @@ export function markAccountExhausted(acct) {
   usageCache.set(acct, { acct, at: Date.now(), ok: true, headroom: 0, error: "run báo hết quota" });
 }
 
-// Account còn dư nhiều nhất (đã trừ `exclude`), hoặc null nếu không có account nào còn dư đáng kể.
-export async function pickAccountWithQuota({ exclude = [], minHeadroom = 3 } = {}) {
+// Khảo sát các account ứng viên → { best, rows }. best là account còn dư nhiều nhất (null nếu không
+// có); rows là kết quả của TỪNG ứng viên, kể cả account bị loại, để caller nói rõ lý do bỏ qua.
+// allowRefresh=true thì account nào token quá hạn sẽ được refresh qua CLI (chậm ~15s/account) — chỉ
+// bật khi account hiện tại đã cạn quota, lúc đó thà chờ còn hơn để cả lượt chat đứng.
+export async function surveyAccounts({ exclude = [], minHeadroom = 3, allowRefresh = false } = {}) {
   const cands = listAccounts().filter((a) => !exclude.includes(a));
-  const rows = await Promise.all(cands.map((a) => accountUsage(a)));
+  const rows = await Promise.all(cands.map((a) => accountUsage(a, { allowRefresh })));
   const usable = rows.filter((r) => r.ok && r.headroom >= minHeadroom);
-  if (!usable.length) return null;
   usable.sort((a, b) => b.headroom - a.headroom);
-  return usable[0];
+  return { best: usable[0] || null, rows };
+}
+
+// Account còn dư nhiều nhất (đã trừ `exclude`), hoặc null nếu không có account nào còn dư đáng kể.
+export async function pickAccountWithQuota(opts = {}) {
+  return (await surveyAccounts(opts)).best;
 }

@@ -422,8 +422,20 @@ export function handleEvent(evt, emit, state) {
       }
       break;
     }
+    // Hạn mức: CLI phát event riêng NGAY khi server chặn/cảnh báo, kèm rateLimitType + status.
+    // Đây là tín hiệu đáng tin nhất để biết account đã cạn (text lỗi thì mỗi bản CLI viết một kiểu),
+    // nên chuyển thẳng lên caller — chat dùng nó để đổi account (app/api/chat/route.js).
+    case "rate_limit_event":
+      emit("rate_limit", evt.rate_limit_info || {});
+      break;
     case "result":
-      emit("result", { subtype: evt.subtype, isError: !!evt.is_error });
+      // apiErrorStatus/resultText đi kèm để caller nhận diện 429 theo CẤU TRÚC, không phải bắt chuỗi.
+      emit("result", {
+        subtype: evt.subtype,
+        isError: !!evt.is_error,
+        apiErrorStatus: evt.api_error_status,
+        resultText: evt.result != null ? String(evt.result) : "",
+      });
       if (evt.is_error && evt.result) emit("error_msg", String(evt.result));
       break;
     default:
