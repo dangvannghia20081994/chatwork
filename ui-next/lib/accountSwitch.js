@@ -24,8 +24,14 @@ export const LIMIT_RE = /(usage|rate|session|weekly|5-hour|five hour)\s*limit|li
 
 // Event `rate_limit` (từ rate_limit_event của CLI) có báo account bị CHẶN không? "allowed_warning"
 // chỉ là cảnh báo sắp hết — vẫn chạy được, không được coi là cạn.
+//
+// CHỈ `status` mới nói account có bị chặn hay không. `overageStatus` nói về extra usage (mua thêm
+// hạn mức khi cạn): org tắt tính năng này thì MỌI run bình thường đều kèm
+// `overageStatus: "rejected", overageDisabledReason: "org_level_disabled"` — coi đó là hết quota sẽ
+// đánh dấu nhầm account đang còn dư. Đã xảy ra 2026-08-19: acct1 còn ~55% vẫn bị báo "còn 0%" và
+// chat tự nhảy sang acct2.
 export function isLimitBlocked(info) {
-  return !!info && (info.status === "rejected" || info.overageStatus === "rejected");
+  return !!info && info.status === "rejected";
 }
 
 // Event `result` có phải hỏng vì hết hạn mức không (429 hoặc text lỗi khớp LIMIT_RE).

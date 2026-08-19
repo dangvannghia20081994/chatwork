@@ -269,7 +269,10 @@ export async function accountUsage(acct, { allowRefresh = false } = {}) {
 }
 
 // Một run vừa báo hết quota → ghi nhận ngay, khỏi phải chờ API xác nhận lượt sau.
-export function markAccountExhausted(acct) {
+// `reason` chỉ để log: dấu hiệu nào đã kích hoạt (rate_limit_event / result 429 / text lỗi). Nhận
+// nhầm ở đây làm chat đổi account dù còn quota, mà log cũ không ghi gì nên không truy được nguồn.
+export function markAccountExhausted(acct, reason = "") {
+  console.warn(`[limits] đánh dấu ${acct} hết quota${reason ? " — " + reason : ""}`);
   usageCache.set(acct, { acct, at: Date.now(), ok: true, headroom: 0, error: "run báo hết quota" });
 }
 

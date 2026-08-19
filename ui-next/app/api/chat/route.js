@@ -67,20 +67,20 @@ export async function GET(req) {
       if (event === "delta") answer += data;
       // CLI báo bị chặn hạn mức ngay khi request bị từ chối (trước cả event result) → đánh dấu sớm.
       else if (event === "rate_limit") {
-        if (isLimitBlocked(data)) markAccountExhausted(runAcct);
+        if (isLimitBlocked(data)) markAccountExhausted(runAcct, `rate_limit_event status=${data.status} type=${data.rateLimitType}`);
       }
       else if (event === "result") {
         gotResult = true;
         runError = !!data.isError;
         // Run bị chặn vì hết hạn mức → đánh dấu account cạn ngay, lượt sau tự đổi account.
-        if (isLimitResult(data)) markAccountExhausted(runAcct);
+        if (isLimitResult(data)) markAccountExhausted(runAcct, `result api_error_status=${data.apiErrorStatus} text=${String(data.resultText || "").slice(0, 120)}`);
       } else if (
         event === "error_msg" &&
         typeof data === "string" &&
         data !== chosen.notice && // đừng soi dòng notice do CHÍNH ta vừa phát ra ở đầu lượt
         LIMIT_RE.test(data)
       ) {
-        markAccountExhausted(runAcct);
+        markAccountExhausted(runAcct, `error_msg khớp LIMIT_RE: ${data.slice(0, 120)}`);
       }
       else if (event === "end") {
         const status = runError ? "⚠️ Lỗi" : gotResult ? "✅ Xong" : "⏹ Đã dừng";
