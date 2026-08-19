@@ -13,7 +13,27 @@ function readCreds(home = claudeHome()) {
   const p = path.join(home, ".credentials.json");
   const d = JSON.parse(fs.readFileSync(p, "utf8"));
   const o = d.claudeAiOauth || {};
-  return { token: o.accessToken || "", tier: o.rateLimitTier || "", expiresAt: o.expiresAt || 0 };
+  return {
+    token: o.accessToken || "",
+    tier: o.rateLimitTier || "",
+    expiresAt: o.expiresAt || 0,
+    // Refresh token: CLI dùng nó để cấp accessToken mới. Hết hạn (hoặc bị xoá sau một lần refresh
+    // hỏng) → account coi như đăng xuất, chạy claude sẽ chết với "OAuth session expired and could
+    // not be refreshed" chứ không tự phục hồi được.
+    refreshToken: o.refreshToken || "",
+    refreshTokenExpiresAt: o.refreshTokenExpiresAt || 0,
+  };
+}
+
+// Account có chắc chắn KHÔNG dùng được không (khác với "không đo được quota"): mất accessToken, hoặc
+// accessToken hết hạn mà refresh token cũng mất/hết hạn. Trả về lý do (string) hoặc "" nếu vẫn dùng
+// được. Chỉ dựa trên dữ liệu tại chỗ — không đoán theo lỗi mạng.
+function unusableReason(c) {
+  const now = Date.now();
+  const refreshDead = !c.refreshToken || (c.refreshTokenExpiresAt && c.refreshTokenExpiresAt <= now);
+  if (!c.token) return refreshDead ? "mất cả access token lẫn refresh token" : "mất access token";
+  if (c.expiresAt && c.expiresAt <= now && refreshDead) return "token hết hạn và refresh token cũng hết hạn";
+  return "";
 }
 
 // The stored accessToken expires every few hours; only the CLI refreshes it (nobody runs `claude`
@@ -223,13 +243,19 @@ export async function accountUsage(acct, { allowRefresh = false } = {}) {
   try {
     creds = readCreds(home);
   } catch (e) {
-    return put({ ok: false, headroom: 0, error: "không đọc được credentials: " + e.message });
+    return put({ ok: false, unusable: true, headroom: 0, error: "không đọc được credentials: " + e.message });
   }
-  if (!creds.token) return put({ ok: false, headroom: 0, error: "chưa đăng nhập" });
+  // unusable = chắc chắn hỏng đăng nhập (phải `claude auth login` lại), khác hẳn "không đo được
+  // quota" — caller dùng cờ này để KHÔNG fail-open về account đang chết. Xem accountSwitch.js.
+  let dead = unusableReason(creds);
+  if (!creds.token) return put({ ok: false, unusable: true, headroom: 0, error: dead || "chưa đăng nhập" });
   if (creds.expiresAt && creds.expiresAt - Date.now() < 60000) {
+    if (dead) return put({ ok: false, unusable: true, headroom: 0, error: dead });
     if (!allowRefresh) return put({ ok: false, headroom: 0, error: "token hết hạn" });
     await refreshCredsViaCli(home);
     try { creds = readCreds(home); } catch { /* giữ creds cũ */ }
+    dead = unusableReason(creds);
+    if (dead) return put({ ok: false, unusable: true, headroom: 0, error: dead });
   }
 
   try {

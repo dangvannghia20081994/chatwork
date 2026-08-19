@@ -52,10 +52,16 @@ export async function chooseAccount(project, session) {
   const current = currentAccountKey();
   const cur = await accountUsage(current);
 
+  // cur.unusable = account của pm2 mất đăng nhập (token + refresh token đều hết hạn/bị xoá). Đây là
+  // NGOẠI LỆ của nguyên tắc fail-open: giữ nguyên account lúc này thì lượt nào cũng chết với
+  // "OAuth session expired and could not be refreshed", đổi account là lựa chọn duy nhất còn chạy.
+  // Lỗi mạng / API 5xx vẫn fail-open như cũ (ok:false nhưng unusable:false).
+  const curDead = !!cur.unusable;
+
   // Account của pm2 còn quota → chạy bằng nó. NHƯNG phiên có thể đã chạy tiếp ở account khác trong
   // đợt hết quota trước (lượt mới chỉ được ghi vào .jsonl của account đó), nên phải đồng bộ bản mới
   // nhất về đây TRƯỚC khi resume — nếu không, lượt này resume bản cũ và mất hết phần đã làm ở kia.
-  if (!cur.ok || cur.headroom >= MIN_HEADROOM) {
+  if (!curDead && (!cur.ok || cur.headroom >= MIN_HEADROOM)) {
     if (!session) return { acct: current };
     const back = ensureSessionInAccount(project, session, current);
     if (back.ok) {
@@ -82,17 +88,22 @@ export async function chooseAccount(project, session) {
     return { acct: current };
   }
 
-  // Account của pm2 đã cạn → lượt này hỏng chắc nếu không đổi, nên cho phép refresh token (~15s cho
-  // mỗi account quá hạn): thà chờ còn hơn bỏ sót account còn dư chỉ vì token chưa được CLI làm mới.
+  // Account của pm2 đã cạn (hoặc mất đăng nhập) → lượt này hỏng chắc nếu không đổi, nên cho phép
+  // refresh token (~15s cho mỗi account quá hạn): thà chờ còn hơn bỏ sót account còn dư chỉ vì
+  // token chưa được CLI làm mới.
+  const curState = curDead ? `mất đăng nhập: ${cur.error}` : `hết quota (còn ${Math.round(cur.headroom)}%)`;
   const { best: alt, rows } = await surveyAccounts({
     exclude: [current],
     minHeadroom: MIN_HEADROOM,
     allowRefresh: true,
   });
   if (!alt) {
+    const tail = curDead
+      ? `lượt này vẫn chạy bằng ${current} và nhiều khả năng lỗi xác thực — chạy \`claude auth login\` cho ${current}.`
+      : `lượt này vẫn chạy bằng ${current}.`;
     return {
       acct: current,
-      notice: `⚠️ ${current} đã hết quota, không dùng được account nào khác (${describeSkipped(rows)}) — lượt này vẫn chạy bằng ${current}.`,
+      notice: `⚠️ ${current} ${curState}, không dùng được account nào khác (${describeSkipped(rows)}) — ${tail}`,
     };
   }
 
@@ -101,13 +112,13 @@ export async function chooseAccount(project, session) {
   if (!moved.ok) {
     return {
       acct: current,
-      notice: `⚠️ ${current} hết quota nhưng không copy được phiên sang ${alt.acct} — vẫn chạy bằng ${current}.`,
+      notice: `⚠️ ${current} ${curState} nhưng không copy được phiên sang ${alt.acct} — vẫn chạy bằng ${current}.`,
     };
   }
 
   const copied = moved.action === "copied" ? `, đã copy phiên từ ${moved.from}` : "";
   return {
     acct: alt.acct,
-    notice: `⚠️ ${current} hết quota (còn ${Math.round(cur.headroom)}%) — chuyển sang ${alt.acct} (còn ${Math.round(alt.headroom)}%)${copied}.`,
+    notice: `⚠️ ${current} ${curState} — chuyển sang ${alt.acct} (còn ${Math.round(alt.headroom)}%)${copied}.`,
   };
 }
