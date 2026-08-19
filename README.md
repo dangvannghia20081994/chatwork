@@ -277,6 +277,7 @@ credentials **and** separate session transcripts. Registered in `ui-next/lib/con
 | Key | Config dir | Note |
 |-----|------------|------|
 | `acct1` | `~/.claude` | default account — `CLAUDE_CONFIG_DIR` must stay **UNSET** (the real config is `~/.claude.json`, not `~/.claude/.claude.json`) |
+| `acct2` | `~/.claude-account2` | re-enabled 2026-08-19 (was disabled 2026-08-17 while the org subscription was off) |
 | `acct3` | `~/.claude-account3` | |
 
 Adding one is a single entry in `ACCOUNTS`.
@@ -290,6 +291,9 @@ account own the real directories and points the other account at them with symli
 ```bash
 ./scripts/share-projects.sh        # dry-run: prints what it would do
 ./scripts/share-projects.sh go     # apply
+
+# One run per secondary account (CLAUDE_ALT_DIR defaults to ~/.claude-account3):
+CLAUDE_ALT_DIR=~/.claude-account2 ./scripts/share-projects.sh go
 ```
 
 Idempotent — re-run it after working in a new cwd to add the missing symlink. Sessions that only the

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cho 2 account Claude dùng CHUNG thư mục phiên (transcript): account chính giữ file thật, account
+# Cho nhiều account Claude dùng CHUNG thư mục phiên (transcript): account chính giữ file thật, account
 # phụ chỉ là symlink. Nhờ vậy account nào hết quota thì account kia chạy tiếp ĐÚNG phiên đó, không
 # phải copy gì — xem ui-next/lib/accountSwitch.js (console tự đổi account khi hết quota).
 #
@@ -12,20 +12,22 @@
 #
 # Đổi account qua biến môi trường:
 #   CLAUDE_MAIN_DIR (mặc định ~/.claude) · CLAUDE_ALT_DIR (mặc định ~/.claude-account3)
+# Có nhiều account phụ thì chạy MỖI account một lần, ví dụ:
+#   CLAUDE_ALT_DIR=~/.claude-account2 ./scripts/share-projects.sh go
 set -uo pipefail
 
-A1="${CLAUDE_MAIN_DIR:-$HOME/.claude}/projects"
-A3="${CLAUDE_ALT_DIR:-$HOME/.claude-account3}/projects"
+MAIN="${CLAUDE_MAIN_DIR:-$HOME/.claude}/projects"
+ALT="${CLAUDE_ALT_DIR:-$HOME/.claude-account3}/projects"
 GO=0; [ "${1:-}" = "go" ] && GO=1
 run() { if [ "$GO" -eq 1 ]; then "$@" || echo "    LỖI: $*"; else echo "    [dry] $*"; fi; }
 
 moved_sessions=0; linked=0; skipped=0; mem_moved=0; mem_dropped=0
 
-encs=$(ls -1 "$A1" "$A3" 2>/dev/null | grep -v '^$' | grep -v ':$' | sort -u)
+encs=$(ls -1 "$MAIN" "$ALT" 2>/dev/null | grep -v '^$' | grep -v ':$' | sort -u)
 for enc in $encs; do
-  src="$A3/$enc"; dst="$A1/$enc"
+  src="$ALT/$enc"; dst="$MAIN/$enc"
 
-  # acct3 đã là symlink → xong từ trước
+  # account phụ đã là symlink → xong từ trước
   if [ -L "$src" ]; then skipped=$((skipped+1)); continue; fi
 
   [ -d "$dst" ] || run mkdir -p "$dst"
@@ -37,7 +39,7 @@ for enc in $encs; do
       run rm -f "$src/memory"; mem_dropped=$((mem_dropped+1))
     elif [ -d "$src/memory" ]; then
       if [ -e "$dst/memory" ]; then
-        echo "    memory: acct1 đã có → copy không ghi đè"
+        echo "    memory: account chính đã có → copy không ghi đè"
         run cp -rn "$src/memory/." "$dst/memory/"
         run rm -rf "$src/memory"
       else
@@ -51,7 +53,7 @@ for enc in $encs; do
       [ -e "$item" ] || continue
       base=$(basename "$item")
       if [ -e "$dst/$base" ]; then
-        echo "    TRÙNG (giữ nguyên bên acct3, không move): $base"
+        echo "    TRÙNG (giữ nguyên bên account phụ, không move): $base"
         continue
       fi
       run mv "$item" "$dst/$base"
@@ -59,7 +61,7 @@ for enc in $encs; do
     done
     [ "$n" -gt 0 ] && echo "    đã move $n phiên"
     moved_sessions=$((moved_sessions+n))
-    # 3) thay thư mục acct3 bằng symlink (chỉ khi đã rỗng)
+    # 3) thay thư mục account phụ bằng symlink (chỉ khi đã rỗng)
     if [ "$GO" -eq 1 ]; then
       if rmdir "$src" 2>/dev/null; then
         ln -s "$dst" "$src" && linked=$((linked+1))
@@ -71,8 +73,8 @@ for enc in $encs; do
       linked=$((linked+1))
     fi
   else
-    # acct3 chưa có gì cho ENC này → chỉ cần symlink
-    echo "  $enc  (acct3 chưa có → chỉ tạo symlink)"
+    # account phụ chưa có gì cho ENC này → chỉ cần symlink
+    echo "  $enc  (account phụ chưa có → chỉ tạo symlink)"
     run ln -s "$dst" "$src"
     linked=$((linked+1))
   fi
@@ -80,7 +82,7 @@ done
 
 echo
 echo "Tổng kết$([ "$GO" -eq 1 ] || echo ' (DRY RUN)'):"
-echo "  phiên move sang acct1 : $moved_sessions"
-echo "  symlink tạo           : $linked"
-echo "  đã là symlink từ trước: $skipped"
-echo "  memory thật move      : $mem_moved | memory symlink dư xoá: $mem_dropped"
+echo "  phiên move sang account chính: $moved_sessions"
+echo "  symlink tạo                  : $linked"
+echo "  đã là symlink từ trước       : $skipped"
+echo "  memory thật move             : $mem_moved | memory symlink dư xoá: $mem_dropped"

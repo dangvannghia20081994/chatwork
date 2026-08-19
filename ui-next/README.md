@@ -134,7 +134,9 @@ Phiên nằm ở `<CLAUDE_CONFIG_DIR>/projects/<cwd-mã-hoá>/<session-id>.jsonl
 thấy được file đó. Hai cách, dùng song song được:
 
 - **Dùng chung qua symlink (khuyến nghị)** — `../scripts/share-projects.sh go`: account chính giữ file
-  thật, account phụ là symlink. Không copy, không thể phân kỳ. Mỗi cwd mới cần chạy lại 1 lần.
+  thật, account phụ là symlink. Không copy, không thể phân kỳ. Mỗi cwd mới cần chạy lại 1 lần. Chạy
+  một lần cho MỖI account phụ — `CLAUDE_ALT_DIR` mặc định là `~/.claude-account3`:
+  `CLAUDE_ALT_DIR=~/.claude-account2 ../scripts/share-projects.sh go`.
 - **Copy tự động** — project chưa symlink thì `ensureSessionInAccount` copy bản mới nhất sang account
   sắp chạy (cả 2 chiều, kể cả khi account cũ reset quota và chạy tiếp ở đó).
 

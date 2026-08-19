@@ -102,15 +102,17 @@ ai-agent/
 
 ## Nhiều account Claude (fallback khi hết quota)
 
-Máy này có 2 account, khai báo ở `ui-next/lib/config.js` → `ACCOUNTS`: `acct1` = `~/.claude` (account
-mặc định) và `acct3` = `~/.claude-account3`. Thêm account = thêm 1 entry.
+Máy này có 3 account, khai báo ở `ui-next/lib/config.js` → `ACCOUNTS`: `acct1` = `~/.claude` (account
+mặc định), `acct2` = `~/.claude-account2`, `acct3` = `~/.claude-account3`. Thêm account = thêm 1 entry.
 
 - **Account mặc định phải UNSET `CLAUDE_CONFIG_DIR`.** Set biến đó thành `~/.claude` sẽ khiến CLI đọc
   file stub `~/.claude/.claude.json` thay vì config thật `~/.claude.json` → mất toàn bộ MCP server.
   `accountEnv()` xoá biến cho account mặc định, `ecosystem.config.js` cũng theo quy tắc này.
 - **Thư mục phiên dùng chung qua symlink**: `acct1` giữ file thật ở `~/.claude/projects/<cwd-mã-hoá>/`,
-  `acct3` chỉ là symlink. Dựng/bù bằng `./scripts/share-projects.sh` (dry-run mặc định, `go` để chạy;
-  mỗi cwd mới cần chạy lại 1 lần). **Không bao giờ symlink `.credentials.json`.**
+  `acct2`/`acct3` chỉ là symlink. Dựng/bù bằng `./scripts/share-projects.sh` (dry-run mặc định, `go`
+  để chạy; chạy một lần cho MỖI account phụ: `CLAUDE_ALT_DIR=~/.claude-account2 ./scripts/share-projects.sh go`
+  — mặc định `CLAUDE_ALT_DIR` là `~/.claude-account3`; mỗi cwd mới cần chạy lại 1 lần).
+  **Không bao giờ symlink `.credentials.json`.**
 - **Console `/chat` tự đổi account** khi account đang dùng hết quota, giữ nguyên phiên, in 1 dòng
   thông báo. Logic ở `ui-next/lib/accountSwitch.js`; fail-open (không rõ quota → giữ account cũ).
   Console job (`/auto`, `/feature`, `/release`, `/rebase`, `/report`, `/investigate`) vẫn dùng account

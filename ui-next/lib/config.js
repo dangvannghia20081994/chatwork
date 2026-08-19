@@ -40,9 +40,11 @@ export function claudeHome() {
 // ~/.claude.json → set vào sẽ đọc file stub và mất hết MCP server. Vì vậy accountEnv() XOÁ biến
 // thay vì set, đúng như ecosystem.config.js đang làm.
 // Thêm account mới = thêm 1 dòng ở đây (dir = CLAUDE_CONFIG_DIR của account đó).
-// acct2 (~/.claude-account2) đã bỏ — account chết, không dùng nữa (2026-08-17).
+// acct2 (~/.claude-account2) từng bị bỏ vì org disable subscription (2026-08-17), nay đã đăng nhập
+// lại và dùng được → bật lại từ 2026-08-19.
 export const ACCOUNTS = {
   acct1: { label: "acct1", dir: path.join(os.homedir(), ".claude"), isDefault: true },
+  acct2: { label: "acct2", dir: path.join(os.homedir(), ".claude-account2") },
   acct3: { label: "acct3", dir: path.join(os.homedir(), ".claude-account3") },
 };
 
