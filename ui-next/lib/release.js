@@ -52,6 +52,20 @@ export const RELEASE_DISALLOWED = [
   // Best-effort guard against gh api being used to delete.
   "Bash(gh api -X DELETE:*)",
   "Bash(gh api --method DELETE:*)",
+  // Google Drive evidence upload runs through rclone (remote `gdrive-rezil`). mkdir/copy/lsf/lsjson
+  // are what the flow needs; everything that deletes, moves, re-shares, or touches remote tokens is
+  // blocked. `rclone link` is blocked on purpose: it grants "anyone with link" on a project file.
+  "Bash(rclone delete:*)",
+  "Bash(rclone deletefile:*)",
+  "Bash(rclone purge:*)",
+  "Bash(rclone rmdir:*)",
+  "Bash(rclone rmdirs:*)",
+  "Bash(rclone move:*)",
+  "Bash(rclone moveto:*)",
+  "Bash(rclone sync:*)",
+  "Bash(rclone cleanup:*)",
+  "Bash(rclone config:*)",
+  "Bash(rclone link:*)",
 ];
 
 // Console-specific config only — the DEV1 release PROCEDURE lives in the github-ops agent
@@ -72,7 +86,7 @@ export function releaseSystemPrompt(nowStamp) {
     "`docs(changelog): update for X.Y.Z`, `docs: ...`, `Update changelog vX.Y.Z`, `Update CHANGELOG.md for X.Y.Z`,",
     "`Sync X.Y.Z`, `REZIL-XXXX - Update CHANGELOG ...`. Git history có nhiều style cũ lẫn nhau — KHÔNG copy style từ",
     "commit cũ. Commit bump trên `develop` giữ nguyên `chore: bump version to X.Y.Z`.",
-    "BƯỚC CUỐI khi release STG — 3 việc SONG SONG sau khi CI stg pass, đủ cả 3 mới coi là xong đợt:",
+    "BƯỚC CUỐI khi release STG — 4 việc SONG SONG sau khi CI stg pass, đủ cả 4 mới coi là xong đợt:",
     "(a) cập nhật Jira các ticket của đợt (Resolved + `labels = [staging-deployed]`, confirm trước);",
     "(b) bump version lên trên `develop` (chỉ STG, KHÔNG bump sau DEV1): commit `chore: bump version to X.Y.Z`,",
     "commit thường KHÔNG force-push `develop`, confirm trước. Commit bump này PHẢI sync luôn block `### Changed` của",
@@ -81,6 +95,17 @@ export function releaseSystemPrompt(nowStamp) {
     "danh sách ticket — theo §Google Sheet Deployment trong github-ops.md (spreadsheet `1ADSGwRCwLI2_Jn26WMYkMnFjQueudUN6PqipErtUimc`,",
     "MCP `mcp__gsheets-rezil__*`). Tên tab `dd/mm` lấy từ phần ngày của mốc thời gian ở trên, KHÔNG tự sinh ngày;",
     "tab đã tồn tại thì dùng lại, KHÔNG sửa tab `Template` và KHÔNG sửa tab của đợt cũ. Xong thì báo link tab cho user.",
+    "(d) folder evidence trên Google Drive: tạo folder đợt `dd／MM Deploy <Env> UAT <Phase>` trong folder gốc",
+    "`16lz2OJe1oaNtmx_t3H4uk1hMlbbKiLLY` (nếu chưa có) → ghi link folder đợt vào ô `D10` của tab `dd/mm` dạng",
+    "`=HYPERLINK(\"https://drive.google.com/drive/folders/<ID>\",\"19/08 Deploy Staging UAT MVP2-B\")` — đọc lại ô đó,",
+    "thấy `#ERROR!` thì ghi lại với `;` thay `,` cho khớp locale; DEV1+STG cùng ngày dùng chung folder đợt nên",
+    "`D10` chỉ ghi 1 lần → folder con `DEV1`/`STG` → upload 4 ảnh CI success từ",
+    "`~/deploy-evidence/<dd-MM>/<DEV1|STG>/` (`lib.png`, `admin.png`, `mobile.png`, `portal.png`) → ghi 4 link",
+    "`https://drive.google.com/file/d/<ID>/view` vào ô `J32` (DEV1) hoặc `J34` (STG) của tab `dd/mm`, mỗi ảnh 1 dòng.",
+    "Dùng `rclone` remote `gdrive-rezil` (KHÔNG dùng remote `gdrive` — account cá nhân cho backup; KHÔNG dùng service",
+    "account, nó không có dung lượng Drive). Tên folder đợt dùng ký tự FULLWIDTH `／` (U+FF0F) như các đợt cũ nên lệnh",
+    "`rclone mkdir` PHẢI kèm `--drive-encoding=None`. Thiếu ảnh → dừng và báo user, KHÔNG upload thiếu.",
+    "Theo §Evidence Folder trên Google Drive trong github-ops.md.",
     "ĐƯỢC sửa code khi release cần (resolve conflict cherry-pick, fix build nhỏ, sync CHANGELOG/version) —",
     "nhưng KHÔNG làm feature/refactor ngoài scope; commit/push đưa các sửa đó đi vẫn phải confirm trước.",
     "Với mọi ACTION GHI (push nhánh/tag, `git tag -f`, merge PR, trigger workflow): DỪNG lại, nêu rõ lệnh +",

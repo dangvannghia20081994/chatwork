@@ -17,10 +17,10 @@
   | rezil-esms-lib    | `hybrid-tech-rezil/rezil-esms-lib`    | `develop`   | `0.3.x` | LIB — tag **TRƯỚC**; base `develop` |
   | rezil-esms        | `hybrid-tech-rezil/rezil-esms`        | `develop`   | `0.3.x` | admin (gồm module `be-lambda`) |
   | rezil-esms-mobile | `hybrid-tech-rezil/rezil-esms-mobile` | `develop`   | `0.3.x` | mobile |
-  | rezil-esms-portal | `hybrid-tech-rezil/rezil-esms-portal` | `develop`   | `0.3.x` | cùng số version với 3 repo kia; **CHƯA có pipeline dev1** → chỉ quản PR/CI, KHÔNG tag-deploy |
+  | rezil-esms-portal | `hybrid-tech-rezil/rezil-esms-portal` | `develop`   | `0.3.x` | cùng số version với 3 repo kia; **đã có pipeline** `be-api-dev1/stg` + `web-dev1/stg` → tag-deploy như admin/mobile |
 
   - **version-sync group** = lib + admin + mobile + portal → **DÙNG CHUNG số `X.Y.Z`** (đồng bộ từ `0.3.0`, 2026-07-27).
-    portal chung số nhưng **KHÔNG tag-deploy** (chưa có pipeline) → mọi đợt release vẫn chỉ tag 3 repo lib → admin → mobile.
+    Từ 2026-08-20 portal cũng tag-deploy ⇒ mỗi đợt tag ĐỦ 4 repo: lib TRƯỚC → admin + mobile + portal (song song).
 
 - **Auth**: `gh` CLI đã login sẵn (account `htv-nghiadv1`). KHÔNG đụng `gh auth`, KHÔNG đụng `git config`.
 - **Xác định repo target**: caller nói tên repo → `--repo hybrid-tech-rezil/<repo>` hoặc chạy trong local path.
@@ -45,12 +45,12 @@
   caller trước khi push tag** — tóm tắt sẽ tag repo/version/nhánh gì rồi mới chạy, KHÔNG tự động.
 - ⛔ **CẤM prod** (tag `v<X.Y.Z>` không prefix, workflow lib `01_release.yaml`) và mọi môi trường ngoài dev1/stg.
 - **Không có workflow prod cho agent** (cố ý). Tag prod phải do người tạo bằng tay.
-- ⛔ **KHÔNG release portal** (`rezil-esms-portal`). portal chưa có pipeline `*-dev1.yaml`/`*-stg.yaml` → không tag-deploy;
-  chỉ quản PR/CI. **Mọi đợt release (dev1/stg) chỉ gồm 3 repo version-sync: lib → admin → mobile.**
+- ✅ **portal ĐƯỢC release** (`rezil-esms-portal`) — đã có `be-api-dev1/stg.yaml` + `web-dev1/stg.yaml`.
+  **Mọi đợt release (dev1/stg) gồm ĐỦ 4 repo version-sync: lib TRƯỚC → admin + mobile + portal.**
 
 > ✅ **Cơ chế deploy THẬT**: deploy kích bằng **PUSH TAG**, KHÔNG phải merge branch. Tag `dev1/v<X.Y.Z>` →
-> workflow `*-dev1.yaml`; tag `stg/v<X.Y.Z>` → workflow `*-stg.yaml` → build → deploy. portal chưa có
-> `*-dev1.yaml`/`*-stg.yaml` nên không tag-deploy được.
+> workflow `*-dev1.yaml`; tag `stg/v<X.Y.Z>` → workflow `*-stg.yaml` → build → deploy. Áp cho cả 4 repo
+> (portal: `be-api-*` + `web-*`, không có lambda).
 >
 > ❌ **Đã BỎ (deprecated từ 2026-06-11)**: nhánh persistent `release/env-dev1` / `release/snapshot`;
 > promote-PR `develop → release/env-*`; **backup base branch**. Thay bằng: mỗi đợt cut **nhánh release DATED mới** —
@@ -62,14 +62,14 @@
 - **DEV1 và STG là 2 dòng version ĐỘC LẬP — KHÔNG liên quan nhau.** Mỗi lần release 1 môi trường: version mới = **tăng
   từ version của lần release GẦN NHẤT của chính môi trường đó** (không nhìn sang môi trường kia, không bắt buộc khớp
   `develop`). VD: dev1 vừa ở `0.2.10` → dev1 tiếp theo `0.2.11`; stg đang ở `0.2.11` là dòng RIÊNG. Trong CÙNG 1 môi
-  trường, nhóm version-sync (lib/admin/mobile) vẫn DÙNG CHUNG số.
+  trường, nhóm version-sync (lib/admin/mobile/portal) vẫn DÙNG CHUNG số.
 - **Bump version là THỦ CÔNG** (dev commit `chore: bump version to X.Y.Z` trên `develop` sau mỗi đợt). CI **KHÔNG** tự
   bump — github-ops chỉ tag/deploy, không bump.
 - **Nhánh release**: `release/dev1/v<X.Y.Z>/<YYYYMMDD>` (trùng tên cùng ngày → hậu tố `-2`, `-3`).
   **Ngày do caller cấp — agent KHÔNG tự sinh.**
 - **Deploy tag**: `dev1/v<X.Y.Z>`. Push tag = kích CI build/deploy.
 - **THỨ TỰ**: tag/deploy **lib TRƯỚC** → đợi CI lib publish snapshot (`X.Y.Z-dev1-SNAPSHOT`) `success` → rồi
-  **admin + mobile** (song song được).
+  **admin + mobile + portal** (song song được).
   - Consumer của lib gồm **cả `be-lambda`** (module sbt trong repo admin, build/deploy riêng) lẫn `be-api` và mobile.
     Lib chưa publish version mới → admin (gồm lambda) + mobile fail ngay bước `update`
     (`Error downloading jp.co.rezil:rezil-esms_3:X.Y.Z-SNAPSHOT … Not found`). Đây là **build-order** (lib chưa
@@ -105,8 +105,8 @@ Cut thẳng nhánh dated từ tip `origin/develop`, push nhánh, rồi tag (bỏ
 
 ## ■ TRƯỚC KHI TAG (BẮT BUỘC)
 
-So dòng đầu `CHANGELOG.md` của **lib/admin/mobile** (nhóm version-sync) phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong
-tag (portal cùng số nhưng không tag-deploy → chỉ bump trên `develop`). Lệch → DỪNG, đồng bộ CHANGELOG (mang từ nhánh chuẩn sang) rồi mới
+So dòng đầu `CHANGELOG.md` của **cả 4 repo version-sync (lib/admin/mobile/portal)** phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong
+tag (đủ 4 repo kể cả portal). Lệch → DỪNG, đồng bộ CHANGELOG (mang từ nhánh chuẩn sang) rồi mới
 tag. **Subset KHÔNG bump version** (chỉ đổi date + append ticket dưới `### Changed`).
 
 **Commit message CHANGELOG (BẮT BUỘC)**: đúng 1 dòng `chore: update CHANGELOG for X.Y.Z` (X.Y.Z = version của đợt,
@@ -114,7 +114,7 @@ không prefix tag, không ngày, không chữ `v`), không body, không Co-Autho
 (`docs(changelog): update for X.Y.Z`, `Update changelog vX.Y.Z`, `Sync X.Y.Z`, `REZIL-XXXX - Update CHANGELOG ...`) —
 history có nhiều style cũ, KHÔNG copy theo. Commit bump trên `develop`: `chore: bump version to X.Y.Z`.
 
-## ■ TAG / DEPLOY (kích CI — CONFIRM caller trước, đúng thứ tự lib → admin/mobile)
+## ■ TAG / DEPLOY (kích CI — CONFIRM caller trước, đúng thứ tự lib → admin/mobile/portal)
 
 Ở tip nhánh release đã push:
 
@@ -129,7 +129,7 @@ git push --force origin refs/tags/dev1/v<X.Y.Z>
 - Force-push được cho **TAG** (`refs/tags/...`) và **nhánh release** (`release/*`) khi cần (sau confirm). **TUYỆT ĐỐI KHÔNG force-push `develop`/`main`.**
 - Force-push tag có thể không tự trigger CI → vào GitHub Actions re-run thủ công nếu cần
   (`gh run rerun <id> --repo ...`). Theo dõi: `gh run list/watch`.
-- Lib phải `success` mới tag admin/mobile; lib `failure` → báo caller, dừng.
+- Lib phải `success` mới tag admin/mobile/portal; lib `failure` → báo caller, dừng.
 
 ## ■ Sau tag
 
@@ -152,9 +152,9 @@ Nhánh release RIÊNG `release/stg/v<X.Y.Z>/<YYYYMMDD>`, prefix tag `stg/` (thay
   - lib: `03_snapshot_stg.yaml` → publish snapshot **suffix `-stg`** (`X.Y.Z-stg-SNAPSHOT`), coexist với snapshot dev1 cùng version trên S3.
   - admin: `be-api-stg.yaml`, `be-lambda-stg.yaml`, `web-stg.yaml`. *(comment header `be-lambda-stg.yaml` ghi nhầm "dev1" — filter tag thật là `stg/v*`.)*
   - mobile: `be-api-stg.yaml`, `app-stg.yaml`.
-  - portal: **chưa có `*-stg.yaml`** → không tag-deploy stg.
+  - portal: `be-api-stg.yaml`, `web-stg.yaml`.
 - **Verify-branch**: tag phải reachable từ `develop` HOẶC nhánh `release/*` → nhánh `release/stg/*` qua được.
-- **THỨ TỰ y hệt dev1**: lib TRƯỚC → đợi CI lib publish `X.Y.Z-stg-SNAPSHOT` `success` → admin + mobile (song song). Lib `failure` → dừng, báo caller.
+- **THỨ TỰ y hệt dev1**: lib TRƯỚC → đợi CI lib publish `X.Y.Z-stg-SNAPSHOT` `success` → admin + mobile + portal (song song). Lib `failure` → dừng, báo caller.
 
 ```bash
 # CHỈ chạy SAU khi caller confirm (tóm tắt repo/version/nhánh/tag trước):
@@ -167,10 +167,57 @@ git push --force origin refs/tags/stg/v<X.Y.Z>
 
 - STG **không** back-merge về `develop` (như dev1).
 - **BẮT BUỘC**: trước khi push tag `stg/v*` → tóm tắt cho caller (repo/version/nhánh/tag) và chờ xác nhận. Không tự động.
+- **BƯỚC CUỐI (dev1 và stg)**: ngoài Jira / bump version / tab deploy `dd/mm`, còn phải chạy đủ checklist
+  evidence — tạo folder đợt, ghi link vào ô `D10`, upload ảnh CI success, ghi link ảnh vào ô `J32` (DEV1) /
+  `J34` (STG). Xem §Evidence Folder trên Google Drive ở dưới.
+
+## ■ Evidence Folder trên Google Drive (sau deploy)
+
+Mỗi đợt deploy phải để lại **ảnh CI/CD pipeline run success** trên Drive và link ảnh trong tab checklist deploy.
+Sáu bước dưới đây làm sau khi CI của môi trường vừa deploy `success` hết — CI chưa xanh thì KHÔNG upload.
+
+**Công cụ**: `rclone` remote **`gdrive-rezil`** (OAuth account công việc).
+KHÔNG dùng service account `rezil-agent@...` (Drive API tắt, và SA không có dung lượng Drive nên tạo file mới
+lỗi `storageQuotaExceeded`); KHÔNG dùng remote `gdrive` (account cá nhân, dành cho backup `~/claude-backups`).
+
+1. **Tab checklist deploy `dd/mm`** — đã làm trong luồng release: copy tab `Template` trên spreadsheet Deployment
+   `1ADSGwRCwLI2_Jn26WMYkMnFjQueudUN6PqipErtUimc` rồi điền thông tin đợt + danh sách ticket.
+   DEV1 và STG cùng ngày dùng chung 1 tab. Chi tiết: §Google Sheet Deployment trong `github-ops.md`.
+
+2. **Tạo folder đợt** trong folder gốc `16lz2OJe1oaNtmx_t3H4uk1hMlbbKiLLY`, tên
+   `dd／MM Deploy <Env> UAT <Phase>` (vd `19／08 Deploy Staging UAT MVP2-B`).
+   ⚠️ Dấu phân cách ngày là **fullwidth `／` (U+FF0F)**, không phải `/` ASCII — rclone mặc định encode `/` → `／`
+   nên `rclone mkdir` PHẢI kèm `--drive-encoding=None`, thiếu flag thì folder mới lệch với các folder cũ.
+   DEV1 và STG cùng ngày dùng chung folder đợt.
+
+3. **Ghi link folder vào ô `D10`** của tab `dd/mm`, ngay sau khi tạo folder (không đợi upload xong):
+   `=HYPERLINK("https://drive.google.com/drive/folders/<ID>","19/08 Deploy Staging UAT MVP2-B")` — chữ hiển thị
+   dùng `/` ASCII như các tab cũ. MCP ghi cell bằng `USER_ENTERED` nên công thức parse thật; đọc lại thấy
+   `#ERROR!` thì đổi `,` sang `;` cho khớp locale. Cả đợt chỉ ghi `D10` một lần.
+
+4. **Tạo folder con theo môi trường** vừa deploy, bên trong folder đợt: `DEV1` nếu deploy DEV1, `STG` nếu deploy STG.
+   Từ bước này trở đi làm việc bằng folder ID nên không còn vướng chuyện encoding.
+
+5. **Chụp + upload 4 ảnh** vào folder con đó, đúng tên `lib.png`, `admin.png`, `mobile.png`, `portal.png`
+   (folder cũ có `porttal.png` sai chính tả — KHÔNG copy theo). Thiếu file → dừng, báo caller, không upload thiếu.
+   - Chụp tự động: `scripts/capture-ci-evidence.sh --env STG --tag stg/v0.3.3 --date 19-08` — headless Chrome chụp
+     trang Actions thật của từng repo, filter theo tag, ghi ra `~/deploy-evidence/<dd-MM>/<DEV1|STG>/`.
+     Chạy `scripts/capture-ci-evidence.sh login` một lần để tạo profile Chrome có session GitHub.
+     Script từ chối chụp nếu tag chưa có run hoặc còn run không `success`. Ảnh vẫn phải xem lại trước khi upload.
+   - Upload: `rclone copy ~/deploy-evidence/<dd-MM>/<ENV>/ gdrive-rezil: --drive-root-folder-id=<ID-folder-môi-trường>`.
+
+6. **Ghi 4 link ảnh vào ô `J32`** (evidence DEV1) hoặc **`J34`** (evidence STG) của tab `dd/mm` — mỗi ô 4 dòng,
+   đúng thứ tự lib → admin → mobile → portal, dạng `<repo>: https://drive.google.com/file/d/<ID>/view`.
+   Link dựng từ file ID (`rclone lsjson`), **KHÔNG** dùng `rclone link` (lệnh đó bật quyền "anyone with link").
+   Chỉ ghi ô của môi trường vừa deploy — deploy STG thì không đụng `J32`. `J33`/`J35` là evidence confirm của
+   PMO/BrSE, không điền hộ.
+
+Chi tiết lệnh + guardrail: §Evidence Folder trên Google Drive trong `github-ops.md`.
 
 ## Không bao giờ
 
-- Không action ghi (push/merge/release/trigger/close) khi chưa có confirm rõ ràng từ caller.
+- Không action ghi (push/merge/release/trigger/close/upload Drive) khi chưa có confirm rõ ràng từ caller.
+- Không `rclone delete/purge/rmdir/move/config/link`, không sửa-xoá folder evidence của đợt cũ, không upload vào remote `gdrive`.
 - Không `gh auth`, `git config`, đổi setting repo, xoá repo.
 - Không sửa code nguồn / commit code mới (ngoài thao tác git phục vụ release nêu trên).
 - Không thêm bất kỳ AI marker nào vào PR title/body hay commit message.

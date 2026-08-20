@@ -264,6 +264,13 @@ rezil repos — promote a DEV1 PR, create releases/tags, watch CI. Just describe
   from merging. Everything destructive stays blocked via `disallowedTools`: delete push, history
   rewrite (`reset --hard`/`rebase`/`clean`), repo settings & deletion, `gh release delete`, CI secrets,
   `gh auth`/`git config`, `rm`/`sudo`, and code edits (`Edit`/`Write`). See `lib/release.js`.
+- **Evidence sau deploy**: tạo folder `dd／MM Deploy <Env> UAT <Phase>` trong Drive folder
+  `16lz2OJe1oaNtmx_t3H4uk1hMlbbKiLLY` → subfolder `DEV1`/`STG` → upload `lib/admin/mobile/portal.png` từ
+  `~/deploy-evidence/<dd-MM>/<ENV>/` bằng `rclone` remote `gdrive-rezil` → ghi link vào ô `J32`/`J34` của tab
+  deploy `dd/mm`. Xem §Evidence Folder trên Google Drive trong `github-ops.md` / `RELEASE_FLOW.md`.
+- **Chụp ảnh evidence**: `scripts/capture-ci-evidence.sh` — headless Chrome chụp trang GitHub Actions của từng
+  repo (filter theo tag đợt) vào `~/deploy-evidence/<dd-MM>/<ENV>/`. Chạy `... login` một lần để tạo profile
+  Chrome riêng có session GitHub; script tự dừng nếu CI chưa xanh hết hoặc session hết hạn.
 - ⚠️ Acts on **real GitHub repos**. Review each confirm prompt before approving.
 
 
