@@ -7,12 +7,10 @@ import { resolveProject, normalizeProject, ROOT } from "./config.js";
 
 // Absolute path to the screenshot helper (ui-next/scripts/snapshot.mjs). The chat agent runs in a
 // sibling repo's cwd, so it needs the full path to invoke the script via Bash.
-const SNAPSHOT_SCRIPT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "scripts",
-  "snapshot.mjs"
-);
+const SCRIPTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "scripts");
+const SNAPSHOT_SCRIPT = path.join(SCRIPTS_DIR, "snapshot.mjs");
+// Debug helper (ui-next/scripts/debug.mjs) — console log + network + flow click/type qua CDP.
+const DEBUG_SCRIPT = path.join(SCRIPTS_DIR, "debug.mjs");
 
 // Instruction (edit-mode only) telling the agent to screenshot the running app when the user asks to
 // "check on web / xem giao diện", save it under public/, and embed it in the answer as Markdown so it
@@ -34,6 +32,33 @@ function snapshotInstr(defaultUrl) {
     "Lệnh in ra đường dẫn ảnh ở dòng cuối stdout (vd `/ai/api/snapshot/xxx.png`). Hãy chèn NGUYÊN " +
     "đường dẫn đó vào câu trả lời dưới dạng ảnh Markdown `![mô tả](/ai/api/snapshot/xxx.png)` để ảnh " +
     "hiển thị ngay trong khung chat. Chỉ chụp khi được yêu cầu kiểm tra giao diện — không tự chụp sau mỗi lần sửa."
+  );
+}
+
+// Instruction (edit-mode only): lỗi RUNTIME của trang (trang trắng, bấm không phản ứng, request lỗi,
+// state sai) không đọc code mà đoán được — debug.mjs chạy trang thật qua CDP và trả về console log,
+// network, exception, kết quả eval. `defaultUrl` là cổng dev cố định của project ("" = mode free).
+function debugInstr(defaultUrl) {
+  return (
+    "DEBUG TRANG WEB (console + network): khi lỗi xảy ra LÚC CHẠY — trang trắng, bấm không phản ứng, " +
+    "request 4xx/5xx, cần biết log/exception hoặc state thật của trang — ĐỪNG chỉ đọc code rồi đoán, hãy chạy:\n" +
+    `  node ${DEBUG_SCRIPT} <url> --label <ten-ngan> [--filter '<regex url>'] [--eval '<js đọc state>']\n` +
+    (defaultUrl
+      ? `App chạy ở cổng cố định (mặc định ${defaultUrl}); nếu chưa chạy thì start rồi chờ sẵn sàng.\n`
+      : "Debug chính UI ai-agent này: truyền đường dẫn tương đối (vd `/chat`) kèm `--basic-auth auto` — " +
+        "script tự ghép cổng + basePath và gửi Basic Auth; thiếu cờ đó thì Chrome dừng ở 401.\n") +
+    "ĐĂNG NHẬP: app rezil (cổng 5173) có auth — gọi thẳng URL màn bên trong chỉ ra MÀN LOGIN, mọi log/" +
+    "network thu được sẽ là của màn login. Luôn thêm `--login rezil --profile rezil`: script tự đăng nhập " +
+    "(credential đọc từ file env, không lộ trên command line) và giữ session cho các lần sau; đã có session " +
+    "thì tự bỏ qua. Trang khác cần login tay (GitHub, Jira…): `--profile <ten> --profile-login` một lần, " +
+    "hoặc `--profile ci` cho GitHub repo private.\n" +
+    "Người dùng nói 'check console.log' → thêm --all-logs (mặc định báo cáo chỉ in error/warning).\n" +
+    "Đi qua flow bằng --step (lặp lại được, chạy tuần tự): 'waitfor:<css>' · 'click:<css>' · " +
+    "'type:<css>::<text>' · 'key:Enter' (kèm modifier: 'key:Shift+Enter') · 'wait:<ms>' · 'goto:<url>' · " +
+    "'shot:<nhãn>'. Thêm --body '<regex url>' để lấy response body, --json để ghi báo cáo đầy đủ ra file.\n" +
+    "Script in báo cáo gọn (step OK/FAIL, console error/warning, uncaught exception, bảng network, kết quả " +
+    "eval) — hãy dựa vào ĐÓ để kết luận, và tóm tắt lại dòng lỗi thật cho người dùng thay vì dán cả báo cáo. " +
+    "Toàn bộ tuỳ chọn ghi ở đầu file script."
   );
 }
 
@@ -179,6 +204,7 @@ function chatSystemPrompt(project, canEdit) {
       GIT_BRANCH_SAFETY,
       NO_DEGRADE_SAFETY,
       snapshotInstr(""),
+      debugInstr(""),
       TABLE_INSTR,
       WORDING_INSTR,
       SUGGEST_INSTR,
@@ -195,7 +221,8 @@ function chatSystemPrompt(project, canEdit) {
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
         GIT_BRANCH_SAFETY,
         NO_DEGRADE_SAFETY,
-        snapshotInstr("http://localhost:3000")
+        snapshotInstr("http://localhost:3000"),
+        debugInstr("http://localhost:3000")
       );
     } else {
       base.push(
@@ -217,7 +244,8 @@ function chatSystemPrompt(project, canEdit) {
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
         GIT_BRANCH_SAFETY,
         NO_DEGRADE_SAFETY,
-        snapshotInstr("http://localhost:4100")
+        snapshotInstr("http://localhost:4100"),
+        debugInstr("http://localhost:4100")
       );
     } else {
       base.push(
@@ -238,6 +266,7 @@ function chatSystemPrompt(project, canEdit) {
       GIT_BRANCH_SAFETY,
       NO_DEGRADE_SAFETY,
       snapshotInstr("http://localhost:5173"),
+      debugInstr("http://localhost:5173"),
       rezilTemplatesInstr()
     );
   } else {

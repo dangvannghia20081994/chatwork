@@ -107,7 +107,69 @@ lib/
   usage.js              # buildUsageReport() — offline ~/.claude/projects parse
   jobs.js               # running Map (job-lock) + cancel
 ecosystem.config.js     # pm2: ai-agent-ui-next (chỉ Next app; ngrok do ~/IdeaProjects/gateway lo)
+scripts/
+  snapshot.mjs          # chụp screenshot 1 trang (kèm --mark khoanh đỏ) → .snapshots/
+  debug.mjs             # debug 1 trang qua CDP: console/network/exception + flow click-type + ảnh
+  jira-search.mjs       # tra Jira bằng JQL từ CLI (không cần MCP)
+  mobile-e2e/           # kịch bản e2e app mobile
 ```
+
+## Debug trang web qua CDP — `scripts/debug.mjs`
+
+Chạy 1 trang trong Chrome headless rồi in BÁO CÁO gọn: console log/warning/error, uncaught exception,
+bảng network (status/ms/TTFB/size, kèm response body nếu cần), kết quả `--eval`, ảnh chụp. Dùng khi cần
+biết *trang đang làm gì* — trang trắng, request 4xx/5xx, log lỗi, state sai — chứ chỉ cần ảnh thì dùng
+`snapshot.mjs`. Không cần npm dep (CDP qua WebSocket có sẵn trong Node ≥ 21); đầy đủ tuỳ chọn ở đầu file.
+
+```bash
+# app CÓ ĐĂNG NHẬP (rezil-esms-mobile): --login tự đăng nhập, --profile giữ session cho lần sau
+npm run debug -- http://localhost:5173/inspection/list --login rezil --profile rezil --all-logs
+
+# đường dẫn tương đối = chính UI này: tự ghép PORT + NEXT_PUBLIC_BASE_PATH trong .env,
+# --basic-auth auto lấy UI_BASIC_AUTH (không có header thì Chrome dừng ở 401)
+npm run debug -- /chat --label chat --basic-auth auto --filter 'api/'
+
+# đi qua flow: chờ selector → nhập → gửi → chờ → soi request + state
+npm run debug -- /chat --basic-auth auto \
+  --step 'waitfor:textarea' --step 'type:textarea::ping' --step 'key:Enter' --step 'wait:8000' \
+  --filter 'api/(chat|cancel)' --body 'api/chat' --eval 'document.querySelectorAll(".md").length'
+
+# app khác, credential để trong file env (không lộ trên command line), chụp giữa flow
+npm run debug -- http://localhost:5173/ --env ~/.../rezil-esms-test.env \
+  --step 'type:input[name=email]::{{EMAIL}}' --step 'click:button[type=submit]' \
+  --step 'waitfor:.home' --step 'shot:sau-login' --json
+```
+
+Đăng nhập & profile (phần hay dùng nhất):
+
+| Cần gì | Cờ |
+|---|---|
+| App có auth, đã có preset (rezil-esms-mobile) | `--login rezil` — tự nhập credential từ file env, submit, chờ rời màn login rồi quay lại đúng URL đã truyền; đang có session thì tự bỏ qua |
+| Giữ session giữa các lần chạy | `--profile <ten>` → `ui-next/.chrome-profiles/<ten>` (git-ignored). Không có cờ này thì Chrome tạo profile tạm, mỗi lần chạy là session trắng |
+| Trang chưa có preset (GitHub, Jira…) | `--profile <ten> --profile-login` mở cửa sổ Chrome thật để login tay một lần; đóng cửa sổ là script chạy tiếp headless |
+| Trang GitHub repo private | `--profile ci` — dùng luôn profile đã login của `scripts/capture-ci-evidence.sh` |
+
+Không login thì gọi thẳng URL màn bên trong chỉ trả về **màn login**, và mọi thứ thu được (console,
+network, ảnh) là của màn login — script in cảnh báo rõ khi `--login` thất bại thay vì báo cáo im lặng.
+
+Ghi chú khi dùng lại:
+
+- `--all-logs` in mọi dòng console; mặc định chỉ in error/warning. Cần "check console.log" thì bật cờ này.
+- Profile đang bị một Chrome khác chiếm (`SingletonLock`) thì script tự chạy trên **bản chụp** profile
+  (cookie + Local State + Local Storage) và ghi rõ "session mới KHÔNG được lưu" — cùng cách xử lý với
+  `scripts/capture-ci-evidence.sh`.
+- Script đóng Chrome bằng `Browser.close` trước khi kill: `localStorage`/IndexedDB chỉ được ghi xuống
+  đĩa khi Chrome tự tắt, kill thẳng là mất session vừa login.
+
+- **Step DSL**: `wait` · `waitfor` · `click` · `type:<sel>::<text>` · `key:<phím>` (kèm modifier:
+  `Shift+Enter`, `Ctrl+a`) · `scroll` · `goto` · `eval` · `shot`. Step lỗi thì dừng flow nhưng vẫn in
+  báo cáo phần đã thu.
+- `type:` **thay** toàn bộ nội dung ô (select-all rồi `Input.insertText`, nên input controlled của
+  React/Svelte nhận được thay đổi); muốn nối thêm thì dùng `key:End` + `type` trên selector khác hoặc `eval`.
+- `--attach <port>` để dùng Chrome đang mở (`--remote-debugging-port=<port>`) khi cần session đã login sẵn.
+- Ảnh lưu ở `.snapshots/` (git-ignored, giữ 60 file mới nhất) và in ra dạng `/ai/api/snapshot/<file>.png`
+  — dán nguyên đường dẫn đó vào chat là ảnh hiện inline.
+- Credential từ `--env` / `--basic-auth` được che (`***`) trong mọi dòng báo cáo.
 
 ## Nhiều account Claude — chat tự đổi khi hết quota
 
