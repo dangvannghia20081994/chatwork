@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ThemeToggle from "../ThemeToggle";
@@ -29,13 +29,16 @@ const MD_COMPONENTS = {
     />
   ),
 };
-function Markdown({ text }) {
+// memo: mỗi lần state của console đổi (delta mới, tick tiến trình...) React sẽ render lại cả danh
+// sách message; không memo thì MỌI bong bóng cũ đều bị remark parse lại từ đầu → hội thoại dài là
+// giật/treo. Text không đổi → bỏ qua hẳn.
+const Markdown = memo(function Markdown({ text }) {
   return (
     <div className="md break-words">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{text}</ReactMarkdown>
     </div>
   );
-}
+});
 
 // Turn a raw tool/agent name (từ SSE event `tool`) thành nhãn tiếng Việt + icon dễ đọc cho panel
 // Tiến trình. Ví dụ "Read" → 📖 Đọc file, "mcp__atlassian__getJiraIssue" → 📋 Jira, "↳ agent: dev-master".
@@ -274,6 +277,14 @@ export const FIELD_BASE = "w-full rounded-lg border border-fieldline bg-field px
 // trong ô thay vì đẩy khung chat lên — giữ chỗ cho nội dung hội thoại trên màn hình nhỏ.
 const INPUT_MAX_PX = 120;
 
+// Chống giật khi câu trả lời dài: server emit `delta` theo từng token (hàng trăm event/giây), nếu
+// setState ngay mỗi event thì React render lại + remark parse lại TOÀN BỘ text ở mỗi token → chi phí
+// bậc hai theo độ dài. Gom delta vào buffer, flush theo nhịp DELTA_FLUSH_MS.
+const DELTA_FLUSH_MS = 120;
+// Trong lúc còn stream, message dài quá ngưỡng này được render dạng text thuần (rẻ); parse Markdown
+// một lần khi stream kết thúc.
+const STREAM_PLAIN_CHARS = 20000;
+
 export default function AgentConsole({ config }) {
   const isJob = config.mode === "job";
   const a = ACCENT[config.accent] || ACCENT.blue;
@@ -302,6 +313,8 @@ export default function AgentConsole({ config }) {
   const messagesRef = useRef([]);
   const needInfoRef = useRef(false);
   const accRef = useRef("");
+  const deltaBufRef = useRef(""); // text delta chưa flush vào state (xem DELTA_FLUSH_MS)
+  const flushTimerRef = useRef(null);
   const cancelKeyRef = useRef(""); // chat: = runId (job-lock key); job: = repo cancel key
   const reconnectingRef = useRef(false); // chat: đang poll khôi phục sau khi mất kết nối
   // Completion-sound bookkeeping per turn: error seen? user-aborted? already chimed?
@@ -341,6 +354,8 @@ export default function AgentConsole({ config }) {
   // restore saved conversation on mount / when the storage key changes (e.g. project or repo switch)
   useEffect(() => {
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
+    if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+    deltaBufRef.current = "";
     setBusy(false);
     let saved = null;
     try {
@@ -367,8 +382,12 @@ export default function AgentConsole({ config }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
+  // Auto-cuộn CHỈ khi người dùng đang ở gần cuối: câu trả lời dài mà ép scrollTop mỗi lần cập nhật
+  // vừa tốn một lượt reflow, vừa kéo màn hình khi họ đang cuộn lên đọc lại.
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+    const el = logRef.current;
+    if (!el) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   function patchLast(fn) {
@@ -380,9 +399,26 @@ export default function AgentConsole({ config }) {
     });
   }
 
+  // Gom delta rồi flush theo nhịp — xem DELTA_FLUSH_MS. Mọi nhánh kết thúc/ngắt stream phải gọi
+  // flushDelta() trước để không mất phần text còn trong buffer.
+  function flushDelta() {
+    if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+    const buf = deltaBufRef.current;
+    if (!buf) return;
+    deltaBufRef.current = "";
+    patchLast((m) => ({ ...m, text: m.text + buf, status: "" }));
+  }
+
+  function pushDelta(t) {
+    deltaBufRef.current += t;
+    if (!flushTimerRef.current) flushTimerRef.current = setTimeout(flushDelta, DELTA_FLUSH_MS);
+  }
+
   // Reset chỉ phía client: đóng stream, quên session, xoá localStorage + state hiển thị.
   function resetLocal() {
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
+    if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+    deltaBufRef.current = "";
     sessionRef.current = "";
     lastJobRef.current = null;
     setMessages([]);
@@ -479,6 +515,7 @@ export default function AgentConsole({ config }) {
   }
 
   function stopStream() {
+    flushDelta();
     if (cancelKeyRef.current) {
       fetch(BASE + "/api/cancel?repo=" + encodeURIComponent(cancelKeyRef.current), { method: "POST" }).catch(() => {});
     }
@@ -503,6 +540,7 @@ export default function AgentConsole({ config }) {
   async function reconnectAndReload() {
     if (reconnectingRef.current || abortedRef.current || isJob || !config.sessionsPath) return;
     reconnectingRef.current = true;
+    flushDelta();
     const rid = cancelKeyRef.current; // chat: cancelKey = runId
     const sid = sessionRef.current;
     patchLast((m) => (m.role === "ai" ? { ...m, status: "↻ mất kết nối — đang khôi phục…" } : m));
@@ -560,6 +598,8 @@ export default function AgentConsole({ config }) {
     needInfoRef.current = false;
     setNeedInfoActive(false);
     accRef.current = "";
+    if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+    deltaBufRef.current = "";
     cancelKeyRef.current = cancelKey || "";
     sawErrorRef.current = false;
     abortedRef.current = false;
@@ -579,7 +619,7 @@ export default function AgentConsole({ config }) {
     es.addEventListener("session", (ev) => { sessionRef.current = JSON.parse(ev.data); });
     es.addEventListener("delta", (ev) => {
       const t = JSON.parse(ev.data);
-      patchLast((m) => ({ ...m, text: m.text + t, status: "" }));
+      pushDelta(t);
       watchNeedInfo(t);
     });
     es.addEventListener("tool", (ev) => {
@@ -606,9 +646,10 @@ export default function AgentConsole({ config }) {
     es.addEventListener("suggest", (ev) => {
       try { const arr = JSON.parse(ev.data); if (Array.isArray(arr)) setSuggests(arr); } catch {}
     });
-    es.addEventListener("end", () => { setBusy(false); es.close(); esRef.current = null; finalizeSound(); patchLast((m) => (m.role === "ai" ? { ...m, endedAt: Date.now() } : m)); });
+    es.addEventListener("end", () => { flushDelta(); setBusy(false); es.close(); esRef.current = null; finalizeSound(); patchLast((m) => (m.role === "ai" ? { ...m, endedAt: Date.now() } : m)); });
     es.onerror = () => {
       if (!esRef.current) return; // đã đóng bởi end/stopStream → bỏ qua
+      flushDelta();
       esRef.current.close();
       esRef.current = null;
       // Chat: đừng đóng băng message. Run vẫn sống ở server → poll khôi phục rồi điền nốt đáp án
@@ -887,28 +928,34 @@ export default function AgentConsole({ config }) {
             ) : null}
           </div>
         ) : (
-          messages.map((m, i) =>
-            m.role === "me" ? (
+          messages.map((m, i) => {
+            if (m.role === "me") {
+              return (
+                <div
+                  key={i}
+                  className={`max-w-[80%] self-end whitespace-pre-wrap break-words rounded-lg px-3 py-2.5 text-[13px] leading-normal text-mebubbleink ${a.me}`}
+                >
+                  {m.text}
+                </div>
+              );
+            }
+            const live = busy && i === messages.length - 1;
+            // Đang stream mà text đã rất dài → render text thuần cho tới khi xong (xem STREAM_PLAIN_CHARS).
+            const plain = config.renderMarkdown === false || (live && (m.text || "").length > STREAM_PLAIN_CHARS);
+            return (
               <div
                 key={i}
-                className={`max-w-[80%] self-end whitespace-pre-wrap break-words rounded-lg px-3 py-2.5 text-[13px] leading-normal text-mebubbleink ${a.me}`}
+                className={`w-full self-stretch break-words rounded-lg border border-line bg-panel px-3 py-2.5 text-[13px] leading-normal ${plain ? "whitespace-pre-wrap" : ""}`}
               >
-                {m.text}
-              </div>
-            ) : (
-              <div
-                key={i}
-                className={`w-full self-stretch break-words rounded-lg border border-line bg-panel px-3 py-2.5 text-[13px] leading-normal ${config.renderMarkdown !== false ? "" : "whitespace-pre-wrap"}`}
-              >
-                <ProcessLog steps={m.steps} live={busy && i === messages.length - 1} endedAt={m.endedAt} />
+                <ProcessLog steps={m.steps} live={live} endedAt={m.endedAt} />
                 {m.status ? <div className="text-xs text-dim">{m.status}</div> : null}
-                {config.renderMarkdown !== false ? (m.text ? <Markdown text={m.text} /> : null) : m.text}
+                {m.text ? (plain ? m.text : <Markdown text={m.text} />) : null}
                 {(m.errors || []).map((er, j) => (
                   <div key={j} className="text-xs text-err">⚠ {er}</div>
                 ))}
               </div>
-            )
-          )
+            );
+          })
         )}
       </div>
 
