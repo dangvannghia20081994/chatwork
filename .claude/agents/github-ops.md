@@ -151,7 +151,16 @@ KHÔNG tạo tab rỗng, KHÔNG sửa tab `Template`, KHÔNG sửa/xoá tab củ
 3. Tìm commit IN-SCOPE trên `develop` chưa có trong base, theo DANH SÁCH TICKET caller cấp. `develop`
    đã rebase nhiều lần → xác định bằng `git cherry` / so SUBJECT + nội dung patch, **KHÔNG** dùng range-hash
    `tag..develop` (phồng 3–5×). Subject đã có trong base + patch trùng → BỎ (đã release dưới hash khác).
-4. LOẠI commit ngoài scope + reformat-only / chore / scalafmt.
+   - **Commit KHÔNG mang key ticket vẫn phải xét** (`hotfix:`, migration, `*.conf`/`application*.yml`,
+     workflow CI). Trong `rezil-esms` các commit `hotfix:` thường không có `REZIL-XXXX` trong subject lẫn
+     body (vd `d0c42ee9a hotfix: Correct the migration file order`, `32eb30486 hotfix: Set the Google Maps
+     API key for the stg admin app`) — lọc thuần theo danh sách ticket sẽ bỏ sót, deploy ra env sai config
+     hoặc migration chạy sai thứ tự. Quyết bằng PATCH, không bằng việc có key ticket hay không.
+4. LOẠI commit ngoài scope + commit KHÔNG đổi hành vi: reformat-only / scalafmt, `chore:` bump-version,
+   `docs:` chỉ đụng `.md`. **Quyết bằng `git show <sha> --stat`, KHÔNG quyết bằng prefix subject** — prefix
+   trong repo đặt không đồng nhất. Chạm `.scala` / `.ts` / `.svelte` / `.conf` / `application*.yml` /
+   migration / workflow CI → LẤY. Còn nghi ngờ → LẤY rồi build-check ở bước 5 (thừa 1 commit vô hại an toàn
+   hơn thiếu 1 fix; DEV1 không back-merge nên commit bỏ sót nằm lại `develop` tới đợt sau).
    - **portal**: không có nhánh release → không cut nhánh/cherry-pick/tag, NHƯNG vẫn phải **quét `develop` của portal theo cùng danh sách ticket** và **liệt kê kết quả cho caller** (commit in-scope + version CHANGELOG hiện tại), kèm ghi chú "chỉ bump version trên `develop`, không tag-deploy". Không có commit in-scope → ghi rõ dòng "portal: không có commit in-scope".
 5. `git checkout -B release/dev1/v<X.Y.Z>/<YYYYMMDD> <base>` → `git cherry-pick <sha...>` đúng thứ tự cũ→mới; conflict
    → resolve tay. Build-check (`sbt compile` / `npm run build`) trước khi push.
