@@ -21,6 +21,9 @@ General: keep changes small, reuse existing patterns, no unrelated refactor. Fol
 
 ## Commits & versions
 - Commit format: **`REZIL-XXXX - <description>`** (no conventional-commits prefix).
+  - Release-only exception (no ticket key): CHANGELOG commit on a release branch = **`chore: update CHANGELOG for X.Y.Z`**;
+    version bump on `develop` = **`chore: bump version to X.Y.Z`**. Exact wording — history has older mixed styles
+    (`docs(changelog): ...`, `Update changelog vX.Y.Z`, `Sync X.Y.Z`), do not copy them.
 - Version source of truth: first `## X.Y.Z - YYYY-MM-DD` line in `CHANGELOG.md`.
 - Releases are **tag-based** (no direct branch deploy): `dev1/v<X.Y.Z>`, `stg/v<X.Y.Z>`, `v<X.Y.Z>` (prod). See deployment.md.
 

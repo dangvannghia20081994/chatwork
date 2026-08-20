@@ -98,8 +98,12 @@ Cut thẳng nhánh dated từ tip `origin/develop`, push nhánh, rồi tag (bỏ
 
 So dòng đầu `CHANGELOG.md` của **lib/admin/mobile** (nhóm version-sync) phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong
 tag (portal cùng số nhưng không tag-deploy → chỉ bump trên `develop`). Lệch → DỪNG, đồng bộ CHANGELOG (mang từ nhánh chuẩn sang) rồi mới
-tag. **Subset KHÔNG bump version** (chỉ đổi date + append ticket dưới `### Changed`). Commit CHANGELOG theo style
-rezil: 1 dòng tiêu đề, không body, không Co-Authored-By.
+tag. **Subset KHÔNG bump version** (chỉ đổi date + append ticket dưới `### Changed`).
+
+**Commit message CHANGELOG (BẮT BUỘC)**: đúng 1 dòng `chore: update CHANGELOG for X.Y.Z` (X.Y.Z = version của đợt,
+không prefix tag, không ngày, không chữ `v`), không body, không Co-Authored-By, không AI marker. CẤM biến thể tự đặt
+(`docs(changelog): update for X.Y.Z`, `Update changelog vX.Y.Z`, `Sync X.Y.Z`, `REZIL-XXXX - Update CHANGELOG ...`) —
+history có nhiều style cũ, KHÔNG copy theo. Commit bump trên `develop`: `chore: bump version to X.Y.Z`.
 
 ## ■ TAG / DEPLOY (kích CI — CONFIRM caller trước, đúng thứ tự lib → admin/mobile)
 

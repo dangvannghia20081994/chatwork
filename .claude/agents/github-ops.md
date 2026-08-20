@@ -163,7 +163,14 @@ Cut thẳng nhánh dated từ tip `origin/develop`, push nhánh, rồi tag (bỏ
 ### TRƯỚC KHI TAG (BẮT BUỘC)
 So dòng đầu `CHANGELOG.md` của **lib/admin/mobile** (nhóm version-sync) phải CÙNG `X.Y.Z` và KHỚP số sẽ dùng trong tag (portal cùng số nhưng không tag-deploy → chỉ bump trên `develop`). Lệch → DỪNG, đồng bộ
 CHANGELOG (mang từ nhánh chuẩn sang) rồi mới tag. **Subset KHÔNG bump version** (chỉ đổi date + append ticket dưới
-`### Changed`). Commit CHANGELOG theo style rezil: 1 dòng tiêu đề, không body, không Co-Authored-By.
+`### Changed`).
+
+> **COMMIT MESSAGE CHO CHANGELOG (BẮT BUỘC — KHÔNG tự sáng tạo)**: tiêu đề đúng 1 dòng, đúng chữ
+> `chore: update CHANGELOG for X.Y.Z` (X.Y.Z = version của đợt, KHÔNG kèm prefix tag `dev1/`/`stg/`, KHÔNG kèm ngày,
+> KHÔNG chữ `v`), không body, không Co-Authored-By, không AI marker. CẤM mọi biến thể tự đặt:
+> `docs(changelog): update for X.Y.Z`, `docs: ...`, `Update changelog vX.Y.Z`, `Update CHANGELOG.md for X.Y.Z`,
+> `Sync X.Y.Z`, `REZIL-XXXX - Update CHANGELOG ...`. Git history có sẵn nhiều style cũ lẫn nhau — **KHÔNG** copy style
+> từ commit cũ, chỉ dùng đúng 1 dạng trên. Commit bump trên `develop` giữ nguyên `chore: bump version to X.Y.Z`.
 
 > **QUY TẮC CHANGELOG-COMMIT (BẮT BUỘC, mỗi repo mỗi đợt)**: chỉ được có **ĐÚNG 1 commit đụng `CHANGELOG.md`** trên nhánh release, và commit đó phải là **commit CUỐI CÙNG** trên nhánh (sau khi đã xong TOÀN BỘ cherry-pick + fix build/conflict), rồi mới tag ở tip. Gộp mọi thay đổi CHANGELOG (đổi date + append `### Changed`) vào 1 commit duy nhất. **KHÔNG** rải nhiều commit CHANGELOG, **KHÔNG** commit CHANGELOG giữa chừng rồi còn cherry-pick/sửa tiếp lên trên nó — nếu lỡ, `git rebase`/reorder để dồn CHANGELOG xuống cuối trước khi tag. (Bump version trên `develop` là commit CHANGELOG RIÊNG của develop, không tính vào đợt release branch này.)
 

@@ -12,6 +12,13 @@ REZIL-XXXX - <short summary in imperative, English>
 #   - Summary: concise, imperative mood, English.
 #   - One logical change per commit.
 #
+# Release-only exception (CHANGELOG / version commits, no ticket key):
+#   - CHANGELOG commit on a release branch: `chore: update CHANGELOG for X.Y.Z`
+#   - Version bump on develop after STG:    `chore: bump version to X.Y.Z`
+#   Exact wording, one line, no body. Do NOT invent variants
+#   (`docs(changelog): update for X.Y.Z`, `Update changelog vX.Y.Z`, `Sync X.Y.Z`, ...)
+#   and do NOT copy the older mixed styles found in git history.
+#
 # NO AI MARKERS — UNCONDITIONAL, EVERY commit in EVERY repo:
 #   - NEVER add "Co-Authored-By: Claude" / "Co-Authored-By: Anthropic".
 #   - NEVER add "🤖 Generated with Claude Code" or any AI signature/footer.
