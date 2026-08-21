@@ -222,9 +222,11 @@ login`):
 ⚠️ acct1 đã hết quota, không dùng được account nào khác (acct3 hết quota (còn 1%)) — lượt này vẫn chạy bằng acct1.
 ```
 
-Giới hạn: chỉ áp cho `/chat`. Các console job (`/auto`, `/feature`, `/release`, `/rebase`, `/report`,
-`/investigate`) vẫn chạy bằng account của pm2; `todos/` và `file-history/` (`/rewind`) vẫn riêng theo
-account nên không mang theo khi đổi.
+Giới hạn: áp cho `/chat` và `/release` (cả hai đều đa lượt, resume theo phiên; `/release` an toàn vì
+cả 3 account đều có agent `github-ops` và cùng bộ MCP server). Các console job còn lại (`/auto`,
+`/feature`, `/rebase`, `/report`, `/investigate`) vẫn chạy bằng account của pm2; `todos/` và
+`file-history/` (`/rewind`) vẫn riêng theo account nên không mang theo khi đổi. Việc đổi account chỉ
+xảy ra Ở ĐẦU LƯỢT — một lượt đang chạy mà cạn quota thì vẫn hỏng, lượt kế tiếp mới nhảy account.
 
 ## Trạng thái: migration xong ✅
 

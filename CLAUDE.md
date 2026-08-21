@@ -113,7 +113,7 @@ mặc định), `acct2` = `~/.claude-account2`, `acct3` = `~/.claude-account3`. 
   để chạy; chạy một lần cho MỖI account phụ: `CLAUDE_ALT_DIR=~/.claude-account2 ./scripts/share-projects.sh go`
   — mặc định `CLAUDE_ALT_DIR` là `~/.claude-account3`; mỗi cwd mới cần chạy lại 1 lần).
   **Không bao giờ symlink `.credentials.json`.**
-- **Console `/chat` tự đổi account** khi account đang dùng hết quota, giữ nguyên phiên, in 1 dòng
-  thông báo. Logic ở `ui-next/lib/accountSwitch.js`; fail-open (không rõ quota → giữ account cũ).
-  Console job (`/auto`, `/feature`, `/release`, `/rebase`, `/report`, `/investigate`) vẫn dùng account
+- **Console `/chat` và `/release` tự đổi account** khi account đang dùng hết quota, giữ nguyên phiên,
+  in 1 dòng thông báo. Logic ở `ui-next/lib/accountSwitch.js`; fail-open (không rõ quota → giữ account
+  cũ). Console job còn lại (`/auto`, `/feature`, `/rebase`, `/report`, `/investigate`) vẫn dùng account
   của pm2. Chi tiết: `ui-next/README.md` §Nhiều account Claude, `README.md` §9.
