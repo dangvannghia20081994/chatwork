@@ -177,29 +177,69 @@ Link mỗi ảnh = `https://drive.google.com/file/d/<ID>/view`. **KHÔNG dùng `
 | Ô | Nội dung |
 |---|---|
 | `D10` | Link folder ĐỢT (tạo ở bước 1–2): `=HYPERLINK("https://drive.google.com/drive/folders/<DATED>","19/08 Deploy Staging UAT MVP2-B")` — ghi NGAY sau khi tạo folder đợt, không đợi upload xong |
-| `J32` | Evidence Images của activity 1 `Deploy toàn bộ các ticket lên Dev1` |
-| `J34` | Evidence Images của activity 3 `Deploy toàn bộ các ticket lên Staging` |
+| `J<dev1>` | Evidence Images của activity 1 `Deploy toàn bộ các ticket lên Dev1` |
+| `J<stg>` | Evidence Images của activity 3 `Deploy toàn bộ các ticket lên Staging` |
+
+⚠️ **Số dòng của mục III KHÔNG cố định giữa các tab** — mục II có thể thêm/bớt dòng theo số ticket của đợt nên
+mục III dịch theo: tab `17/08` có activity 1 ở dòng 27 / activity 3 ở dòng 29, `16/08` ở dòng 41 / 43, `Template`
+và `21/08` ở dòng 33 / 35. **TUYỆT ĐỐI KHÔNG hardcode `J32`/`J34`/`J35`.** Cách lấy dòng:
+
+```
+find_in_spreadsheet(sheet="dd/mm", query="Deploy toàn bộ các ticket lên Dev1")   → vd C41 ⇒ ghi J41 (evidence DEV1)
+find_in_spreadsheet(sheet="dd/mm", query="Deploy toàn bộ các ticket lên Staging") → vd C43 ⇒ ghi J43 (evidence STG)
+```
+
+Dòng lấy được cũng là `rowIndex` cho `updateCells` (`rowIndex = row - 1`). Cột `J` = `Evidence Images`,
+cột `K` = `PIC Signed-off`. Dòng activity 2 / 4 (PMO, BrSE confirm) là evidence của PMO/BrSE — KHÔNG điền hộ.
+Không tìm thấy chuỗi (tab bị sửa nhãn) → DỪNG, báo caller, không đoán số dòng.
 
 MCP ghi cell bằng `valueInputOption=USER_ENTERED` nên `=HYPERLINK(...)` được Sheets parse thật (không thành text).
 Dùng dấu phẩy `,` phân tách tham số, rồi **đọc lại `D10`** bằng `get_sheet_data`: ra `#ERROR!` (locale dùng `;`)
 → ghi lại bằng `;`. DEV1 và STG cùng ngày dùng chung folder đợt ⇒ `D10` chỉ ghi 1 lần, KHÔNG ghi đè link cũ.
 
-**Tiền lệ tab `17/08`** (đợt đã điền đủ): `J32`/`J34` là 4 URL thuần, ngăn bằng newline, KHÔNG có nhãn, dạng
-`https://drive.google.com/open?id=<ID>&usp=drive_copy` (link Drive UI sinh ra khi copy link); `D10` lúc đó là
-text thuần, chưa có link. Từ nay chuẩn hoá: `D10` = `=HYPERLINK(...)`, `J32`/`J34` = 4 dòng có nhãn
-`<repo>: https://drive.google.com/file/d/<ID>/view`. Hai dạng URL mở ra cùng file, KHÔNG sửa lại tab cũ.
-
-Mỗi ô = 4 dòng (newline trong cùng 1 ô), đúng thứ tự lib → admin → mobile → portal:
+**Format ô Evidence Images = 4 URL THUẦN, mỗi URL 1 dòng, KHÔNG nhãn, KHÔNG `=HYPERLINK`**, đúng thứ tự
+lib → admin → mobile → portal:
 
 ```
-lib: https://drive.google.com/file/d/<id>/view
-admin: https://drive.google.com/file/d/<id>/view
-mobile: https://drive.google.com/file/d/<id>/view
-portal: https://drive.google.com/file/d/<id>/view
+https://drive.google.com/file/d/1zaVU_QAg4lqXKP_vlT-RSY6OlCxhlkqu/view
+https://drive.google.com/file/d/1CYPCLzxSx5GrcqgxemP7TJSkorDD7B7q/view
+https://drive.google.com/file/d/1NoE3ccWV_B7e4jQlEKiFjnh84dUtPf8V/view
+https://drive.google.com/file/d/1J5kE5rwRYStKrEtwPy9fd3FyKZIn_o8X/view
 ```
 
-Chỉ ghi ô của môi trường vừa deploy (deploy STG → chỉ `J34`, KHÔNG đụng `J32`). `J33`/`J35` là evidence
-confirm của PMO/BrSE — KHÔNG điền hộ. Xong thì báo caller link folder đợt + link tab.
+KHÔNG thêm tiền tố `lib:`/`admin:`/`mobile:`/`portal:` — Sheets chỉ tự nhận link khi ô là URL thuần.
+
+**Ghi bằng `batch_update` request `updateCells` + `textFormatRuns`, KHÔNG dùng `update_cells`/`batch_update_cells`** —
+values API chỉ ghi text, ô nhiều dòng sẽ KHÔNG click được (tiền lệ: `21/08` chỉ 2/4 URL thành link).
+Mỗi URL = 1 run có `link.uri`, ký tự xuống dòng giữa 2 URL = 1 run rỗng `{}` để cắt link:
+
+```json
+{"updateCells": {
+  "start": {"sheetId": <gid tab dd/mm>, "rowIndex": <dòng activity dò được - 1>, "columnIndex": 9},
+  "fields": "userEnteredValue,textFormatRuns",
+  "rows": [{"values": [{
+    "userEnteredValue": {"stringValue": "<url1>\n<url2>\n<url3>\n<url4>"},
+    "textFormatRuns": [
+      {"startIndex": 0,   "format": {"link": {"uri": "<url1>"}, "underline": true,
+       "foregroundColorStyle": {"rgbColor": {"red": 0.06666667, "green": 0.33333334, "blue": 0.8}}}},
+      {"startIndex": <len(url1)>,     "format": {}},
+      {"startIndex": <len(url1)+1>,   "format": {"link": {"uri": "<url2>"}, ...}},
+      {"startIndex": <...>,           "format": {}},
+      {"startIndex": <...>,           "format": {"link": {"uri": "<url3>"}, ...}},
+      {"startIndex": <...>,           "format": {}},
+      {"startIndex": <...>,           "format": {"link": {"uri": "<url4>"}, ...}}
+    ]}]}]}}
+```
+
+`startIndex` tính theo ký tự (URL `/file/d/<ID>/view` dài 70 ⇒ 0, 70, 71, 141, 142, 212, 213). `columnIndex: 9` = cột `J`;
+`rowIndex` = số dòng activity trừ 1. `fields` chỉ gồm `userEnteredValue,textFormatRuns` để giữ nguyên border/căn lề của
+`Template`. `gid` lấy từ `copy_sheet` hoặc `get_sheet_data` với `include_grid_data=true`. Ghi xong đọc lại
+`include_grid_data=true`, đếm đủ 4 run có `link` mới coi là xong.
+Tab `17/08` (đợt cũ) dùng dạng `https://drive.google.com/open?id=<ID>&usp=drive_copy` — cùng file, nhưng
+từ nay ghi dạng `/file/d/<ID>/view`; KHÔNG sửa lại tab cũ. Riêng `D10` vẫn là `=HYPERLINK(...)`.
+
+Chỉ ghi ô của môi trường vừa deploy (deploy STG → chỉ ô activity 3, KHÔNG đụng ô activity 1).
+Xong thì báo caller link folder đợt + link tab.
 
 ## Không bao giờ
 - Không action ghi (merge/release/trigger/close) khi chưa có confirm rõ ràng từ caller.
@@ -318,9 +358,10 @@ Với DANH SÁCH TICKET của đợt release dev1 vừa deploy (list caller đã
    - Set label: `editJiraIssue` field `labels = ["dev1-deployed"]` (ghi đè mảng ⇒ xoá hết label cũ, chỉ còn `dev1-deployed`).
 4. Báo tổng kết: ticket nào Resolved+relabel OK, ticket nào skip/lỗi (kèm lý do).
 
-#### Evidence Drive + ô `J32` (BƯỚC CUỐI DEV1 — song song với cập nhật Jira)
+#### Evidence Drive + ô Evidence Images DEV1 (BƯỚC CUỐI DEV1 — song song với cập nhật Jira)
 Sau khi CI dev1 các repo `success`: tạo folder đợt `dd／MM Deploy <Env> UAT <Phase>` (nếu chưa có) → folder con
-`DEV1` → upload 4 ảnh từ `~/deploy-evidence/<dd-MM>/DEV1/` → ghi 4 link vào ô `J32` của tab `dd/mm`.
+`DEV1` → upload 4 ảnh từ `~/deploy-evidence/<dd-MM>/DEV1/` → ghi 4 link vào ô cột `J` của dòng activity 1
+(`Deploy toàn bộ các ticket lên Dev1`) trong tab `dd/mm` — dò dòng, KHÔNG hardcode số dòng.
 Theo §Evidence Folder trên Google Drive. CI fail → KHÔNG upload. CONFIRM caller trước bước ghi.
 
 > STG có bước tương tự nhưng label `staging-deployed` — xem §STG.
@@ -349,8 +390,9 @@ STG là dòng release RIÊNG, **version ĐỘC LẬP với dev1** (tăng từ l�
   - **(a) Cập nhật Jira** — y hệt §Sau tag của DEV1 nhưng label `staging-deployed`: với DANH SÁCH TICKET của đợt STG → CONFIRM caller (liệt kê ticket + `→ Resolved`, `labels = [staging-deployed]`, xoá label khác) → mỗi ticket: `getTransitionsForJiraIssue`→`transitionJiraIssue` sang **Resolved** (đã Resolved thì bỏ qua; không có đường tới Resolved → báo, để nguyên) + `editJiraIssue` set `labels = ["staging-deployed"]`. Báo tổng kết OK/skip. CI fail → KHÔNG cập nhật Jira.
   - **(b) Bump version trên `develop`**: BẮT BUỘC bump version lên trên `develop` (xem §Khái niệm — commit `chore: bump version to X.Y.Z`, confirm caller trước, commit thường KHÔNG force-push `develop`). Commit bump này **đồng thời sync block `### Changed` của version vừa release** vào `CHANGELOG.md` develop (develop chưa có vì lúc release chỉ append trên nhánh release).
   - **(c) Tạo tab deploy `dd/mm` trên Google Sheet Deployment**: copy tab `Template` → điền I) Deployment Information (date, nhánh release, tag, version 4 repo, evidence folder) + II) Tickets (link Jira + summary, checkbox để nguyên `FALSE`) + III) PIC — theo §Google Sheet Deployment. Ngày của tab lấy theo ngày deploy caller cấp, KHÔNG tự sinh. Xong thì báo link tab cho caller.
-  - **(d) Folder evidence trên Drive + ô `J34`**: tạo folder đợt `dd／MM Deploy <Env> UAT <Phase>` (nếu chưa có) →
-    folder con `STG` → upload 4 ảnh từ `~/deploy-evidence/<dd-MM>/STG/` → ghi 4 link ảnh vào ô `J34` của tab
+  - **(d) Folder evidence trên Drive + ô Evidence Images STG**: tạo folder đợt `dd／MM Deploy <Env> UAT <Phase>` (nếu chưa có) →
+    folder con `STG` → upload 4 ảnh từ `~/deploy-evidence/<dd-MM>/STG/` → ghi 4 link ảnh vào ô cột `J` của dòng
+    activity 3 (`Deploy toàn bộ các ticket lên Staging`) trong tab
     `dd/mm` — theo §Evidence Folder trên Google Drive. Làm SAU (c) vì cần tab đã tồn tại; CI fail → KHÔNG upload.
 - **Vẫn CẤM prod** (tag `v<X.Y.Z>` không prefix, workflow `01_release.yaml`) và mọi môi trường ngoài dev1/stg.
 

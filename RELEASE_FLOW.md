@@ -168,8 +168,8 @@ git push --force origin refs/tags/stg/v<X.Y.Z>
 - STG **không** back-merge về `develop` (như dev1).
 - **BẮT BUỘC**: trước khi push tag `stg/v*` → tóm tắt cho caller (repo/version/nhánh/tag) và chờ xác nhận. Không tự động.
 - **BƯỚC CUỐI (dev1 và stg)**: ngoài Jira / bump version / tab deploy `dd/mm`, còn phải chạy đủ checklist
-  evidence — tạo folder đợt, ghi link vào ô `D10`, upload ảnh CI success, ghi link ảnh vào ô `J32` (DEV1) /
-  `J34` (STG). Xem §Evidence Folder trên Google Drive ở dưới.
+  evidence — tạo folder đợt, ghi link vào ô `D10`, upload ảnh CI success, ghi link ảnh vào ô cột `J`
+  (`Evidence Images`) của dòng activity 1 (DEV1) / activity 3 (STG). Xem §Evidence Folder trên Google Drive ở dưới.
 
 ## ■ Evidence Folder trên Google Drive (sau deploy)
 
@@ -206,11 +206,28 @@ lỗi `storageQuotaExceeded`); KHÔNG dùng remote `gdrive` (account cá nhân, 
      Script từ chối chụp nếu tag chưa có run hoặc còn run không `success`. Ảnh vẫn phải xem lại trước khi upload.
    - Upload: `rclone copy ~/deploy-evidence/<dd-MM>/<ENV>/ gdrive-rezil: --drive-root-folder-id=<ID-folder-môi-trường>`.
 
-6. **Ghi 4 link ảnh vào ô `J32`** (evidence DEV1) hoặc **`J34`** (evidence STG) của tab `dd/mm` — mỗi ô 4 dòng,
-   đúng thứ tự lib → admin → mobile → portal, dạng `<repo>: https://drive.google.com/file/d/<ID>/view`.
+6. **Ghi 4 link ảnh vào ô cột `J` (`Evidence Images`)** của dòng activity 1 `Deploy toàn bộ các ticket lên Dev1`
+   (evidence DEV1) hoặc activity 3 `Deploy toàn bộ các ticket lên Staging` (evidence STG) trong tab `dd/mm`.
+   **Số dòng khác nhau giữa các tab** vì mục II thêm/bớt dòng theo số ticket của đợt (`17/08` → dòng 27/29;
+   `16/08` → 41/43; `Template` và `21/08` → 33/35) ⇒ dò dòng bằng
+   `find_in_spreadsheet(sheet="dd/mm", query="Deploy toàn bộ các ticket lên Dev1"|"... lên Staging")` rồi ghi cột `J`
+   của đúng dòng đó. KHÔNG hardcode `J32`/`J34`/`J35`. Mỗi ô 4 dòng, thứ tự lib → admin → mobile → portal,
+   **URL thuần, không nhãn, không `=HYPERLINK`**:
+
+   ```
+   https://drive.google.com/file/d/<ID-lib>/view
+   https://drive.google.com/file/d/<ID-admin>/view
+   https://drive.google.com/file/d/<ID-mobile>/view
+   https://drive.google.com/file/d/<ID-portal>/view
+   ```
+
+   **Phải ghi bằng `batch_update` request `updateCells` + `textFormatRuns`** (mỗi URL 1 run có `link.uri`, run rỗng
+   `{}` ở ký tự xuống dòng). Ghi bằng `update_cells`/`batch_update_cells` thì ô chỉ là text, link KHÔNG click được.
+   Mẫu JSON đầy đủ: §Evidence Folder trên Google Drive trong `github-ops.md`.
+
    Link dựng từ file ID (`rclone lsjson`), **KHÔNG** dùng `rclone link` (lệnh đó bật quyền "anyone with link").
-   Chỉ ghi ô của môi trường vừa deploy — deploy STG thì không đụng `J32`. `J33`/`J35` là evidence confirm của
-   PMO/BrSE, không điền hộ.
+   Chỉ ghi ô của môi trường vừa deploy — deploy STG thì không đụng ô của activity 1. Dòng activity 2/4 là
+   evidence confirm của PMO/BrSE, không điền hộ.
 
 Chi tiết lệnh + guardrail: §Evidence Folder trên Google Drive trong `github-ops.md`.
 
