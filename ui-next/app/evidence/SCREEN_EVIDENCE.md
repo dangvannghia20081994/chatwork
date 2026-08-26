@@ -415,9 +415,13 @@ lặp lại tình trạng đó:
   folder, `moveto` sang folder khác = di chuyển, không được làm) → `rclone lsf` xác nhận → cập nhật
   ô cột M của MỌI TC đang trỏ tới tên cũ, rồi báo lại danh sách đã đổi.
 - Không chỉnh các ô thống kê (`Total TCs`, `OK`, `NG`, `% Test Progress` ở row 5–10) — đó là công thức.
-- File duy nhất được tạo/sửa trong repo: `ui-next/app/evidence/SELECTORS_<SCREEN>.md` (bản đồ selector
-  của màn đang chụp — xem §4). Mọi file khác, kể cả chính spec này, chỉ được ĐỌC; thấy sai thì báo
-  người dùng chứ không tự sửa. Không dùng Bash (`>`, `tee`, `sed -i`) để lách giới hạn đó.
+- Chỉ 2 file trong repo được tạo/sửa, cả hai nằm ở `ui-next/app/evidence/`: `SELECTORS_<SCREEN>.md`
+  (bản đồ selector của màn đang chụp — xem §4) và **chính spec này**. Mọi file khác chỉ được ĐỌC;
+  thấy sai thì báo người dùng chứ không tự sửa. Không dùng Bash (`>`, `tee`, `sed -i`) để lách.
+- Khi sửa spec này: **dữ liệu** đã tự verify trong lượt (số đếm ở §1/§4, selector, cạm bẫy mới, mốc
+  ngày verify) thì cập nhật thẳng và báo rõ đã đổi mục nào. **Rule / ràng buộc** (nới quyền, bỏ guard,
+  đổi quy ước đặt tên §3, đổi kích thước batch §6) thì phải hỏi và được đồng ý trước — spec được nhúng
+  nguyên văn vào prompt của agent, nên tự nới rule là tự bỏ chốt chặn của chính mình.
 - Xác nhận đúng tab trước khi ghi: `gid` trong URL không phải tên tab, phải resolve `sheetId` → `title`
   qua Sheets API (`sheets.properties(sheetId,title)`) rồi mới ghi.
 

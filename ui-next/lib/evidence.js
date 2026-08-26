@@ -33,9 +33,10 @@ export function readSpec() {
 
 // Tool cần: đọc/chạy script chụp (Bash + Read/Grep/Glob), đọc-ghi sheet (MCP gsheets-rezil),
 // SELECT dữ liệu dựng pre-condition (MCP mysql_207).
-// Write/Edit mở từ 2026-08-26 CHỈ để cập nhật bản đồ selector `app/evidence/SELECTORS_<SCREEN>.md`
-// (spec §4 bắt agent ghi lại selector vừa verify để lượt sau khỏi dò — trước đây rule đó không chạy
-// được vì 2 tool này bị chặn). Phạm vi file là RÀNG BUỘC MỀM trong system prompt: run dùng
+// Write/Edit mở từ 2026-08-26 CHỈ cho 2 file trong `app/evidence/`: bản đồ selector
+// `SELECTORS_<SCREEN>.md` (spec §4 bắt agent ghi lại selector vừa verify để lượt sau khỏi dò) và
+// chính spec `SCREEN_EVIDENCE.md` (ghi lại số đếm/cạm bẫy mới đo được). Phạm vi file là RÀNG BUỘC
+// MỀM trong system prompt: run dùng
 // `--permission-mode bypassPermissions` nên deny-list không nhận pattern theo đường dẫn; bù lại mọi
 // đường git/gh vẫn bị chặn nên thay đổi lạc chỗ không thể vào lịch sử repo.
 export const EVIDENCE_ALLOWED = [
@@ -110,10 +111,14 @@ export function evidenceSystemPrompt(nowStamp) {
     "  `FULL-VIEWPORT` thì sửa selector rồi chụp lại, KHÔNG upload ảnh thiếu khoanh đỏ.",
     "",
     "# GIỚI HẠN CỨNG",
-    "- File DUY NHẤT được tạo/sửa bằng Write/Edit: `ui-next/app/evidence/SELECTORS_<SCREEN>.md` (bản đồ",
-    "  selector của màn đang chụp). Mọi file khác trong repo — code, spec, config, script — KHÔNG được",
-    "  sửa, kể cả khi thấy sai; phát hiện sai thì báo lại người dùng. Cũng không dùng Bash để ghi đè",
-    "  file (`>`, `tee`, `sed -i`) nhằm lách giới hạn này.",
+    "- Chỉ 2 file được tạo/sửa bằng Write/Edit, đều nằm trong `ui-next/app/evidence/`:",
+    "  `SELECTORS_<SCREEN>.md` (bản đồ selector của màn đang chụp) và `SCREEN_EVIDENCE.md` (chính spec).",
+    "  Mọi file khác trong repo — code, config, script — KHÔNG được sửa kể cả khi thấy sai; báo lại",
+    "  người dùng. Cũng không dùng Bash (`>`, `tee`, `sed -i`) để ghi đè file nhằm lách giới hạn này.",
+    "- Sửa `SCREEN_EVIDENCE.md`: DỮ LIỆU đã tự tay verify trong lượt (số đếm, selector, cạm bẫy mới,",
+    "  mốc ngày verify) thì cứ cập nhật và nói rõ đã đổi mục nào. Còn RULE/ràng buộc (nới quyền, bỏ",
+    "  guard, đổi quy ước đặt tên, đổi kích thước batch) thì PHẢI hỏi và được đồng ý trước mới sửa —",
+    "  spec này được nhúng vào chính prompt của bạn, tự nới rule là tự bỏ chốt chặn của mình.",
     "- Chỉ ghi cột M (và cột N khi ghi lý do skip). KHÔNG sửa J/K/L, không chèn/xoá dòng, không đụng",
     "  ô công thức thống kê ở row 5–10.",
     "- KHÔNG ghi đè file evidence đã có trên Drive: `rclone lsf | grep <tên file>` trước mỗi upload,",
