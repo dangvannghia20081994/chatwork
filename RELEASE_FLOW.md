@@ -46,7 +46,8 @@
 - ⛔ **CẤM prod** (tag `v<X.Y.Z>` không prefix, workflow lib `01_release.yaml`) và mọi môi trường ngoài dev1/stg.
 - **Không có workflow prod cho agent** (cố ý). Tag prod phải do người tạo bằng tay.
 - ✅ **portal ĐƯỢC release** (`rezil-esms-portal`) — đã có `be-api-dev1/stg.yaml` + `web-dev1/stg.yaml`.
-  **Mọi đợt release (dev1/stg) gồm ĐỦ 4 repo version-sync: lib TRƯỚC → admin + mobile + portal.**
+  **Mọi đợt release (dev1/stg) gồm ĐỦ 4 repo version-sync: lib TRƯỚC → admin + mobile + portal** — kể cả khi portal
+  KHÔNG có commit in-scope (cut nhánh dated từ base, sync CHANGELOG, tag để version 4 repo không lệch).
 
 > ✅ **Cơ chế deploy THẬT**: deploy kích bằng **PUSH TAG**, KHÔNG phải merge branch. Tag `dev1/v<X.Y.Z>` →
 > workflow `*-dev1.yaml`; tag `stg/v<X.Y.Z>` → workflow `*-stg.yaml` → build → deploy. Áp cho cả 4 repo
@@ -95,6 +96,12 @@
    trong repo đặt không đồng nhất. Chạm `.scala` / `.ts` / `.svelte` / `.conf` / `application*.yml` /
    migration / workflow CI → LẤY. Còn nghi ngờ → LẤY rồi build-check ở bước 5 (thừa 1 commit vô hại an toàn
    hơn thiếu 1 fix; DEV1 không back-merge nên commit bỏ sót nằm lại `develop` tới đợt sau).
+   - **portal**: cut nhánh release dated + cherry-pick + tag y như admin/mobile (portal đã có pipeline). Vẫn phải
+     **quét `develop` của portal theo cùng danh sách ticket** và **liệt kê kết quả cho caller** (commit in-scope +
+     version CHANGELOG hiện tại). Không có commit in-scope → vẫn ghi rõ dòng "portal: không có commit in-scope",
+     nhưng **VẪN release portal trong đợt đó để version 4 repo không lệch**: cut nhánh dated từ base (không
+     cherry-pick gì), sync dòng đầu `CHANGELOG.md` sang `X.Y.Z` của đợt (commit `chore: update CHANGELOG for X.Y.Z`),
+     rồi tag như 3 repo kia. KHÔNG bỏ portal khỏi đợt tag.
 5. `git checkout -B release/dev1/v<X.Y.Z>/<YYYYMMDD> <base>` → `git cherry-pick <sha...>` đúng thứ tự cũ→mới;
    conflict → resolve tay. Build-check (`sbt compile` / `npm run build`) trước khi push.
 6. Push nhánh release (CHƯA kích CI — an toàn): `git push -u origin HEAD`.
