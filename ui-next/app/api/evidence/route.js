@@ -17,6 +17,7 @@ import fs from "fs";
 import { buildEvidenceArgv } from "../../../lib/evidence.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
+import { tagSession } from "../../../lib/sessions.js";
 import { resolveProject, accountEnv, currentAccountKey, ROOT } from "../../../lib/config.js";
 import { markAccountExhausted, markAccountBlocked } from "../../../lib/limits.js";
 import { chooseAccount, fallbackAccount, LIMIT_RE, isLimitBlocked, isLimitResult, isBlockedResult, isBlockedText } from "../../../lib/accountSwitch.js";
@@ -24,8 +25,11 @@ import { chooseAccount, fallbackAccount, LIMIT_RE, isLimitBlocked, isLimitResult
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Console evidence chạy trên project "rezil" (add-dir 4 repo rezil) → thư mục phiên của nó cũng là
-// thư mục "rezil". Hằng số này giữ cho chooseAccount/ensureSessionInAccount tra đúng chỗ.
+// Console evidence chạy trên project "rezil" (add-dir 4 repo rezil) để chooseAccount tra đúng quota
+// theo project. NHƯNG cwd của run là ROOT, không phải repo rezil, nên phiên .jsonl nằm ở thư mục của
+// ROOT — vì vậy mọi lời gọi tra phiên phải kèm consoleKey "evidence" (xem ROOT_CWD_CONSOLES trong
+// lib/sessions.js). Thiếu nó thì ensureSessionInAccount nhìn nhầm thư mục "rezil", luôn báo missing
+// và đổi account xong là mất context.
 const EVIDENCE_PROJECT = "rezil";
 
 const SSE_HEADERS = {
@@ -61,7 +65,7 @@ export async function GET(req) {
   // vì cả 3 account đều có cùng bộ MCP server (gsheets-rezil, mysql_207) và cùng đọc được spec.
   // Chỉ đổi được Ở ĐẦU LƯỢT: một batch đang chụp giữa đường mà cạn quota thì vẫn hỏng, lượt sau mới
   // nhảy — khi đó chạy lại batch, các TC đã ghi cột M sẽ bị loại ở bước đối chiếu nên không trùng.
-  const chosen = await chooseAccount(EVIDENCE_PROJECT, session);
+  const chosen = await chooseAccount(EVIDENCE_PROJECT, session, "evidence");
   let runAcct = chosen.acct;
   const env = runAcct === currentAccountKey() ? undefined : accountEnv(runAcct);
 
@@ -81,13 +85,16 @@ export async function GET(req) {
     // Chạy lại trong cùng lượt khi account vừa dùng không dùng được nữa (xem app/api/chat/route.js).
     retry: async () => {
       if (!acctFailed || contentLen > 0) return null;
-      const fb = await fallbackAccount(EVIDENCE_PROJECT, session, runAcct, acctFailed);
+      const fb = await fallbackAccount(EVIDENCE_PROJECT, session, runAcct, acctFailed, "evidence");
       if (!fb) return null;
       runAcct = fb.acct;
       acctFailed = null;
       return { env: fb.env, notice: fb.notice };
     },
     onEvent: (event, data) => {
+      // Gắn nhãn console cho phiên → panel "Phiên đã lưu" của màn này không lẫn phiên màn khác
+      // (nhiều console ghi .jsonl chung một thư mục — xem lib/sessions.js).
+      if (event === "session") tagSession(data, "evidence");
       if (event === "delta" && !isBlockedText(data) && !LIMIT_RE.test(data)) contentLen += data.length;
       // CLI báo bị chặn hạn mức ngay khi request bị từ chối (trước cả event result) → đánh dấu sớm.
       if (event === "rate_limit") {

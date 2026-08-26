@@ -223,6 +223,12 @@ function Lightbox({ src, onClose }) {
   );
 }
 
+// config.sessionsPath và config.reconnect là HAI thứ khác nhau, đừng gộp:
+//   - sessionsPath: bật panel "Phiên đã lưu" (liệt kê / mở lại / xoá phiên .jsonl). Console nào cũng
+//     dùng được — chỉ cần đọc file, không đòi hỏi gì ở route.
+//   - reconnect: khi rớt stream thì poll /api/chat/active rồi lấy đáp án từ .jsonl. CHỈ đúng với
+//     console mà route chạy killOnDisconnect:false + đăng ký runId vào job-lock (hiện chỉ /api/chat).
+//     Bật cho console khác sẽ báo "đã khôi phục" trong khi run thật ra đã bị kill lúc socket đứt.
 // Shared multi-turn console for every agent UI. Two modes via config.mode:
 //   - "chat" (default): free text input (+ optional ✏️ Sửa code toggle), session resume — /chat, /release.
 //   - "job": page supplies a composer (ticket/repo/task fields) + getSubmission(); one-shot run with
@@ -342,7 +348,7 @@ export default function AgentConsole({ config }) {
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState !== "visible") return;
-      if (!busy || isJob || !config.sessionsPath || reconnectingRef.current || abortedRef.current) return;
+      if (!busy || isJob || !config.reconnect || reconnectingRef.current || abortedRef.current) return;
       const es = esRef.current;
       if (!es || es.readyState === 2) reconnectAndReload();
     };
@@ -538,7 +544,7 @@ export default function AgentConsole({ config }) {
   // rồi ĐIỀN NỐT text đáp án vào bong bóng cuối — GIỮ NGUYÊN m.steps + endedAt nên log tiến trình +
   // thời gian KHÔNG mất. Chỉ áp dụng chat-mode (job có cơ chế resume riêng).
   async function reconnectAndReload() {
-    if (reconnectingRef.current || abortedRef.current || isJob || !config.sessionsPath) return;
+    if (reconnectingRef.current || abortedRef.current || isJob || !config.reconnect) return;
     reconnectingRef.current = true;
     flushDelta();
     const rid = cancelKeyRef.current; // chat: cancelKey = runId
@@ -654,7 +660,7 @@ export default function AgentConsole({ config }) {
       esRef.current = null;
       // Chat: đừng đóng băng message. Run vẫn sống ở server → poll khôi phục rồi điền nốt đáp án
       // (giữ log tiến trình). Job giữ hành vi cũ (báo lỗi, dừng).
-      if (!isJob && config.sessionsPath && !abortedRef.current) { reconnectAndReload(); return; }
+      if (!isJob && config.reconnect && !abortedRef.current) { reconnectAndReload(); return; }
       setBusy(false);
       sawErrorRef.current = true;
       finalizeSound();

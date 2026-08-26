@@ -11,6 +11,7 @@ import fs from "fs";
 import { buildInvestigateArgv } from "../../../lib/investigate.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
+import { tagSession } from "../../../lib/sessions.js";
 import { resolveProject, ROOT } from "../../../lib/config.js";
 
 export const runtime = "nodejs";
@@ -47,6 +48,14 @@ export async function GET(req) {
   // hideSubagentText: khi chạy nhiều ticket, mỗi ticket là 1 sub-agent trả về đúng 1 dòng bảng.
   // Không đổ output thô đó ra chat — agent chính tự ráp thành bảng hoàn chỉnh; đổ ra thì vừa trùng,
   // vừa dính nhãn ticket vào cuối đoạn text của sub-agent.
-  const stream = claudeSSE({ cwd: proj.cwd, argv, onSession: true, hideSubagentText: true });
+  const stream = claudeSSE({
+    cwd: proj.cwd,
+    argv,
+    onSession: true,
+    hideSubagentText: true,
+    // Gắn nhãn console cho phiên để panel "Phiên đã lưu" của từng màn không lẫn nhau
+    // (chat/release/rebase/investigate ghi .jsonl chung một thư mục — xem lib/sessions.js).
+    onEvent: (event, data) => { if (event === "session") tagSession(data, "investigate"); },
+  });
   return new Response(stream, { headers: SSE_HEADERS });
 }

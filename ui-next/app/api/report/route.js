@@ -10,6 +10,7 @@ import fs from "fs";
 import { buildReportArgv } from "../../../lib/report.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
+import { tagSession } from "../../../lib/sessions.js";
 import { ROOT } from "../../../lib/config.js";
 
 export const runtime = "nodejs";
@@ -42,6 +43,12 @@ export async function GET(req) {
   }
 
   const argv = buildReportArgv(message, session, nowStamp(), []);
-  const stream = claudeSSE({ cwd: ROOT, argv, onSession: true });
+  const stream = claudeSSE({
+    cwd: ROOT,
+    argv,
+    onSession: true,
+    // Xem app/api/investigate/route.js — nhãn console để tách phiên theo màn.
+    onEvent: (event, data) => { if (event === "session") tagSession(data, "report"); },
+  });
   return new Response(stream, { headers: SSE_HEADERS });
 }

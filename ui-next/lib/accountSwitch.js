@@ -80,7 +80,8 @@ export function describeSkipped(rows) {
 // → { acct, env, notice } để truyền vào claudeSSE({ retry }), hoặc null nếu không có account nào
 // thay thế (khi đó lượt kết thúc với lỗi gốc, đúng như trước).
 //   failedAcct: account vừa chạy hỏng.  reason: câu mô tả để in trong thông báo.
-export async function fallbackAccount(project, session, failedAcct, reason) {
+//   consoleKey: console gọi (xem chooseAccount) — bắt buộc với console chạy cwd = ROOT.
+export async function fallbackAccount(project, session, failedAcct, reason, consoleKey) {
   const { best: alt } = await surveyAccounts({
     exclude: [failedAcct],
     minHeadroom: MIN_HEADROOM,
@@ -89,7 +90,7 @@ export async function fallbackAccount(project, session, failedAcct, reason) {
   if (!alt) return null;
 
   // Phiên phải thấy được ở account mới, nếu không lượt chạy lại sẽ mất context.
-  const moved = session ? ensureSessionInAccount(project, session, alt.acct) : { ok: true, action: "new" };
+  const moved = session ? ensureSessionInAccount(project, session, alt.acct, consoleKey) : { ok: true, action: "new" };
   if (!moved.ok) return null;
 
   return {
@@ -100,7 +101,12 @@ export async function fallbackAccount(project, session, failedAcct, reason) {
 }
 
 // → { acct, notice? }. notice là 1 dòng hiện đầu lượt trong chat (nếu có gì đáng nói).
-export async function chooseAccount(project, session) {
+//
+// `consoleKey` (tuỳ chọn) = tên console gọi hàm này. Thư mục .jsonl của một phiên do CWD của route
+// quyết định, KHÔNG phải project: /evidence và /report chạy cwd = ROOT nên phiên của chúng không nằm
+// trong thư mục của project "rezil". Thiếu tham số này, mọi lần tra phiên ở đây đều nhìn sai thư mục
+// → luôn ra "missing" → đổi account xong là mất context. Xem ROOT_CWD_CONSOLES trong sessions.js.
+export async function chooseAccount(project, session, consoleKey) {
   const current = currentAccountKey();
   const cur = await accountUsage(current);
 
@@ -116,7 +122,7 @@ export async function chooseAccount(project, session) {
   // nhất về đây TRƯỚC khi resume — nếu không, lượt này resume bản cũ và mất hết phần đã làm ở kia.
   if (!curDead && (!cur.ok || cur.headroom >= MIN_HEADROOM)) {
     if (!session) return { acct: current };
-    const back = ensureSessionInAccount(project, session, current);
+    const back = ensureSessionInAccount(project, session, current, consoleKey);
     if (back.ok) {
       return back.action === "copied"
         ? { acct: current, notice: `ℹ️ Phiên này có phần chạy ở ${back.from} — đã đồng bộ về ${current} trước khi tiếp.` }
@@ -124,7 +130,7 @@ export async function chooseAccount(project, session) {
     }
     // Không đồng bộ được: bản mới nhất nằm ở account khác. Thà chạy bằng account đó (nếu còn quota)
     // hơn là resume bản cũ và làm mất context.
-    const holder = sessionCopies(project, session)[0];
+    const holder = sessionCopies(project, session, consoleKey)[0];
     if (holder && holder.acct !== current) {
       const u = await accountUsage(holder.acct);
       if (u.ok && u.headroom >= MIN_HEADROOM) {
@@ -167,7 +173,7 @@ export async function chooseAccount(project, session) {
   }
 
   // Phiên mới (chưa có session id) thì không có gì phải copy.
-  const moved = session ? ensureSessionInAccount(project, session, alt.acct) : { ok: true, action: "new" };
+  const moved = session ? ensureSessionInAccount(project, session, alt.acct, consoleKey) : { ok: true, action: "new" };
   if (!moved.ok) {
     return {
       acct: current,

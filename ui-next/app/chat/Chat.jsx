@@ -74,7 +74,10 @@ export default function Chat({ initialProject }) {
     emptyText: p.emptyText,
     placeholder: p.placeholder,
     editToggle: project !== "free", // free mode is always fully capable → toggle is meaningless
-    params: { project },
+    // reconnect: chỉ /api/chat chạy killOnDisconnect:false + đăng ký runId, nên chỉ màn này khôi
+    // phục được run sau khi rớt socket (xem AgentConsole).
+    reconnect: true,
+    params: { project, console: "chat" },
   };
 
   return <AgentConsole config={config} />;

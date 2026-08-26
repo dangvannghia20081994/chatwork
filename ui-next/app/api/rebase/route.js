@@ -5,6 +5,7 @@
 import { buildRebaseArgv } from "../../../lib/rebase.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
+import { tagSession } from "../../../lib/sessions.js";
 import { resolveProject } from "../../../lib/config.js";
 
 export const runtime = "nodejs";
@@ -35,6 +36,12 @@ export async function GET(req) {
   // cwd = default rezil repo; add-dir all 3 rezil repos so git-rebaser can rebase any of them.
   const proj = resolveProject("rezil");
   const argv = buildRebaseArgv(message, session, nowStamp(), proj.addDirs);
-  const stream = claudeSSE({ cwd: proj.cwd, argv, onSession: true });
+  const stream = claudeSSE({
+    cwd: proj.cwd,
+    argv,
+    onSession: true,
+    // Xem app/api/investigate/route.js — nhãn console để tách phiên theo màn.
+    onEvent: (event, data) => { if (event === "session") tagSession(data, "rebase"); },
+  });
   return new Response(stream, { headers: SSE_HEADERS });
 }

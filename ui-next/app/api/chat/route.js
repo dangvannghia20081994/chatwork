@@ -3,6 +3,7 @@
 import { buildChatArgv, claudeSSE, cleanSessionId, resolveProject, normalizeProject } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { running } from "../../../lib/jobs.js";
+import { tagSession } from "../../../lib/sessions.js";
 import { notifyTelegram } from "../../../lib/telegram.js";
 import { accountEnv, currentAccountKey } from "../../../lib/config.js";
 import { markAccountExhausted, markAccountBlocked } from "../../../lib/limits.js";
@@ -39,7 +40,7 @@ export async function GET(req) {
 
   // Hết quota → chạy lượt này bằng account khác, vẫn trên cùng phiên: thư mục phiên đã dùng chung
   // qua symlink (scripts/share-projects.sh), project nào chưa symlink thì transcript được copy sang.
-  const chosen = await chooseAccount(project, session);
+  const chosen = await chooseAccount(project, session, "chat");
   let runAcct = chosen.acct;
   const env = runAcct === currentAccountKey() ? undefined : accountEnv(runAcct);
 
@@ -76,7 +77,7 @@ export async function GET(req) {
     // chứng lỗi-account VÀ lượt chưa trả ra nội dung nào (có nội dung rồi thì chạy lại sẽ nhân đôi).
     retry: async () => {
       if (!acctFailed || contentLen > 0) return null;
-      const fb = await fallbackAccount(project, session, runAcct, acctFailed);
+      const fb = await fallbackAccount(project, session, runAcct, acctFailed, "chat");
       if (!fb) return null;
       runAcct = fb.acct;
       acctFailed = null;
@@ -86,6 +87,9 @@ export async function GET(req) {
       return { env: fb.env, notice: fb.notice };
     },
     onEvent: (event, data) => {
+      // Gắn nhãn console cho phiên → panel "Phiên đã lưu" của màn này không lẫn phiên màn khác
+      // (nhiều console ghi .jsonl chung một thư mục — xem lib/sessions.js).
+      if (event === "session") tagSession(data, "chat");
       if (event === "delta") {
         answer += data;
         if (!isBlockedText(data) && !LIMIT_RE.test(data)) contentLen += data.length;

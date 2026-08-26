@@ -16,6 +16,7 @@ const EXAMPLES = [
 
 const config = {
   apiPath: "/api/release",
+  sessionsPath: "/api/sessions",
   storageKey: "release:console",
   accent: "purple",
   icon: "🚀",
@@ -26,6 +27,10 @@ const config = {
     "Release DEV1/STG (subset cherry-pick → push tag): nêu danh sách ticket. Agent github-ops dùng git/gh, làm lib trước → admin/mobile. Mọi action ghi (push nhánh/tag, merge, trigger) hỏi xác nhận trước; STG bắt buộc confirm. Xong STG: update Jira + bump version develop + tạo tab deploy dd/mm trên sheet Deployment. Cấm PRODUCTION.",
   placeholder: "Vd: Release DEV1 REZIL-2673 REZIL-2663 · hoặc: check CI run mới nhất rezil-esms-lib",
   editToggle: false,
+  // project: /api/release chạy cwd = repo mặc định của "rezil" → phiên nằm ở thư mục .jsonl của
+  // project đó. console: lọc lấy đúng phiên của màn Release (chat/rebase/investigate ghi chung thư
+  // mục này). KHÔNG bật `reconnect` — route này không chạy killOnDisconnect:false.
+  params: { project: "rezil", console: "release" },
 };
 
 export default function Release() {
