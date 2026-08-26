@@ -106,20 +106,6 @@ function fmtReset(iso) {
   }
 }
 
-function bar(pct) {
-  const n = Math.max(0, Math.min(100, Math.round(pct)));
-  const filled = Math.round(n / 10);
-  return "█".repeat(filled) + "░".repeat(10 - filled);
-}
-
-// Rows to render (only those present/non-null in the response).
-const ROWS = [
-  ["five_hour", "Phiên 5h"],
-  ["seven_day", "Tuần · chung"],
-  ["seven_day_opus", "Tuần · Opus"],
-  ["seven_day_sonnet", "Tuần · Sonnet"],
-];
-
 function fetchUsage(token) {
   return fetch(USAGE_URL, {
     headers: {
@@ -150,103 +136,73 @@ const explainError = (e) => {
   return m ? explainHttp(Number(m[1])) : String(e || "không rõ");
 };
 
-// Một dòng cho MỖI account. Cần thiết vì báo cáo chi tiết ở trên chỉ nói về account của tiến trình
-// pm2: account đó bị chặn/hết quota mà 2 account kia vẫn chạy được thì nhìn báo cáo cũ tưởng hỏng cả.
-async function accountLines() {
-  const cur = currentAccountKey();
-  const rows = await Promise.all(listAccounts().map((k) => accountUsage(k)));
-  const out = ["  ── Theo account ──"];
-  for (const r of rows) {
-    const tag = r.acct === cur ? " (đang chạy)" : "";
-    out.push(
-      r.ok
-        ? `    ${r.acct}${tag}  còn ${Math.round(r.headroom)}%`
-        : `    ${r.acct}${tag}  ✖ ${explainError(r.error)}`
-    );
-  }
-  return out;
-}
-
 export async function buildLimitsReport() {
-  const readOrFail = () => {
-    try {
-      return { creds: readCreds() };
-    } catch (e) {
-      return { err: "🚦 Giới hạn: không đọc được " + path.join(claudeHome(), ".credentials.json") + " (" + e.message + ")" };
-    }
-  };
+  const cur = currentAccountKey();
+  const accts = listAccounts();
+  if (!accts.length) return "🚦 Giới hạn: chưa đăng nhập Claude ở account nào (thiếu .credentials.json).";
 
-  let r = readOrFail();
-  if (r.err) return r.err;
-  let creds = r.creds;
-
-  // Refresh up front when the stored token is (nearly) expired, so the usual case costs no 401.
-  let refreshed = false;
-  if (creds.token && creds.expiresAt && creds.expiresAt - Date.now() < 60000) {
-    refreshed = true;
-    const before = creds.expiresAt;
-    console.warn("[limits] OAuth token hết hạn — chạy 1 lượt claude để CLI refresh");
-    await refreshCredsViaCli();
-    r = readOrFail();
-    if (r.err) return r.err;
-    creds = r.creds;
-    console.warn(
-      creds.expiresAt > before
-        ? "[limits] refresh OK — token mới hết hạn " + new Date(creds.expiresAt).toISOString()
-        : "[limits] refresh KHÔNG đổi được token (expiresAt vẫn " + before + ")"
-    );
-  }
-  if (!creds.token) return "🚦 Giới hạn: chưa đăng nhập Claude (thiếu OAuth token).";
-
-  let res, data;
+  // Token của account ĐANG CHẠY sắp hết hạn thì refresh trước (chỉ CLI refresh được, ~15s). Các
+  // account khác để nguyên: /usage là lệnh xem nhanh, không đáng chờ 3 lần refresh.
   try {
-    res = await fetchUsage(creds.token);
-    // Expiry we didn't predict (clock skew, token revoked server-side) → one refresh + retry.
-    if (res.status === 401 && !refreshed) {
-      refreshed = true;
-      console.warn("[limits] API trả 401 dù token còn hạn — thử refresh qua claude CLI");
+    const creds = readCreds(claudeHome());
+    if (creds.token && creds.expiresAt && creds.expiresAt - Date.now() < 60000 && !unusableReason(creds)) {
+      console.warn("[limits] OAuth token của " + cur + " hết hạn — chạy 1 lượt claude để CLI refresh");
       await refreshCredsViaCli();
-      r = readOrFail();
-      if (r.err) return r.err;
-      creds = r.creds;
-      if (creds.token) res = await fetchUsage(creds.token);
     }
-  } catch (e) {
-    return "🚦 Giới hạn: lỗi gọi API (" + e.message + ").";
-  }
-  if (res.status === 401)
-    return (
-      "🚦 Giới hạn: token OAuth hết hạn, refresh qua claude CLI không được — trên máy chạy UI chạy:\n" +
-      "  CLAUDE_CONFIG_DIR=" + claudeHome() + " claude auth login"
-    );
-  if (!res.ok) {
-    const why = explainHttp(res.status, res.headers.get("retry-after"));
-    return [
-      `🚦 Giới hạn: không đọc được hạn mức của ${currentAccountKey()} — ${why}.`,
-      ...(await accountLines()),
-    ].join("\n");
-  }
-  try {
-    data = await res.json();
-  } catch (e) {
-    return "🚦 Giới hạn: không parse được phản hồi (" + e.message + ").";
-  }
+  } catch {}
 
+  const rows = await Promise.all(accts.map((k) => accountUsage(k, { allowRefresh: false })));
+
+  // Bảng markdown: console render bằng react-markdown + remark-gfm. KHÔNG dùng dòng thụt lề — trong
+  // markdown các dòng liền nhau bị gộp thành 1 đoạn nên 3 account dính vào nhau.
+  const pct = (v) => (typeof v === "number" ? `${v}%` : "—");
+  // Cột theo model chỉ hiện khi API thực sự trả về (gói hiện tại chỉ có five_hour + seven_day) —
+  // để trống cả cột "—" thì bảng rộng thêm mà không nói gì.
+  const showOpus = rows.some((r) => typeof r.detail?.seven_day_opus === "number");
+  const showSonnet = rows.some((r) => typeof r.detail?.seven_day_sonnet === "number");
+  const head = [
+    "Account",
+    "Phiên 5h",
+    "Tuần · chung",
+    ...(showOpus ? ["Tuần · Opus"] : []),
+    ...(showSonnet ? ["Tuần · Sonnet"] : []),
+    "Reset phiên 5h",
+    "Reset tuần",
+  ];
   const L = [];
-  L.push("🚦 Giới hạn sử dụng (live · Anthropic)" + (creds.tier ? ` · gói ${creds.tier}` : ""));
-  for (const [key, label] of ROWS) {
-    const v = data[key];
-    if (!v || typeof v.utilization !== "number") continue;
-    const pct = v.utilization;
-    L.push(`  ${label.padEnd(14)} ${bar(pct)} ${String(Math.round(pct)).padStart(3)}%  · reset ${fmtReset(v.resets_at)}`);
+  const tier = rows.find((r) => r.tier)?.tier;
+  L.push(`🚦 **Giới hạn sử dụng** (live · Anthropic)${tier ? ` · gói \`${tier}\`` : ""} — số là **phần đã dùng**`);
+  L.push("");
+  L.push("| " + head.join(" | ") + " |");
+  L.push("|" + head.map(() => "---").join("|") + "|");
+  for (const r of rows) {
+    const name = r.acct === cur ? `**${r.acct}** (đang chạy)` : r.acct;
+    if (!r.ok) {
+      const why = explainError(r.error);
+      L.push(`| ${name} | ${why} | ` + Array(head.length - 2).fill("—").join(" | ") + " |");
+      continue;
+    }
+    const d = r.detail || {};
+    const cells = [
+      pct(d.five_hour),
+      pct(d.seven_day),
+      ...(showOpus ? [pct(d.seven_day_opus)] : []),
+      ...(showSonnet ? [pct(d.seven_day_sonnet)] : []),
+      d.resets_five_hour ? fmtReset(d.resets_five_hour) : "—",
+      d.resets_seven_day ? fmtReset(d.resets_seven_day) : "—",
+    ];
+    L.push(`| ${name} | ${cells.join(" | ")} |`);
   }
-  if (L.length === 1) L.push("  (không có dữ liệu giới hạn)");
 
-  const ex = data.extra_usage;
-  if (ex && ex.is_enabled) {
-    L.push(`  Extra usage: bật${ex.utilization != null ? ` (${Math.round(ex.utilization)}%)` : ""}`);
+  const extra = rows.filter((r) => r.ok && r.detail?.extra != null);
+  if (extra.length) {
+    L.push(
+      "",
+      "Extra usage đang bật: " +
+        extra.map((r) => `${r.acct}${typeof r.detail.extra === "number" ? ` (${r.detail.extra}%)` : ""}`).join(", ") +
+        "."
+    );
   }
-  L.push(...(await accountLines()));
   return L.join("\n");
 }
 
@@ -267,6 +223,22 @@ export function markAccountBlocked(acct, reason = "") {
   if (blockedAccounts.has(acct)) return;
   console.warn(`[limits] đánh dấu ${acct} bị tổ chức chặn Claude Code${reason ? " — " + reason : ""}`);
   blockedAccounts.set(acct, "tổ chức đã tắt Claude subscription cho Claude Code");
+}
+
+// Phần trăm ĐÃ DÙNG của từng hạn mức + mốc reset, để /usage in bảng chi tiết theo account.
+// headroom (dưới đây) chỉ là 1 con số gộp dùng cho việc tự đổi account, không đủ để hiển thị.
+const util = (v) => (v && typeof v.utilization === "number" ? Math.round(v.utilization) : null);
+function detailFrom(data) {
+  const ex = data.extra_usage;
+  return {
+    five_hour: util(data.five_hour),
+    seven_day: util(data.seven_day),
+    seven_day_opus: util(data.seven_day_opus),
+    seven_day_sonnet: util(data.seven_day_sonnet),
+    resets_five_hour: data.five_hour?.resets_at || "",
+    resets_seven_day: data.seven_day?.resets_at || "",
+    extra: ex && ex.is_enabled ? (typeof ex.utilization === "number" ? Math.round(ex.utilization) : true) : null,
+  };
 }
 
 function headroomFrom(data) {
@@ -323,7 +295,7 @@ export async function accountUsage(acct, { allowRefresh = false } = {}) {
     const res = await fetchUsage(creds.token);
     if (!res.ok) return put({ ok: false, headroom: 0, error: `HTTP ${res.status}` });
     const data = await res.json();
-    return put({ ok: true, headroom: headroomFrom(data), tier: creds.tier });
+    return put({ ok: true, headroom: headroomFrom(data), tier: creds.tier, detail: detailFrom(data) });
   } catch (e) {
     return put({ ok: false, headroom: 0, error: e.message });
   }
