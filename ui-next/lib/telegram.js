@@ -355,17 +355,25 @@ async function cmdStatus(conf, chatId) {
 
 async function cmdRestart(conf, chatId, arg) {
   const apps = pm2Apps();
-  const target = (arg || apps[0]).trim();
+  // `--fresh` = delete + start lại từ ecosystem, cần khi vừa sửa ui-next/.env (pm2 restart không nạp
+  // lại file đó — xem scripts/pm2-restart.sh). Cờ đặt ở vị trí nào cũng được: "/restart --fresh".
+  const words = (arg || "").split(/\s+/).filter(Boolean);
+  const fresh = words.includes("--fresh");
+  const target = (words.find((w) => !w.startsWith("-")) || apps[0]).trim();
   if (!apps.includes(target)) {
     await sendMessage(conf.token, chatId, `⛔ Chỉ khởi động lại được: ${apps.join(", ")}`);
     return;
   }
-  await sendMessage(conf.token, chatId, `♻️ Đang khởi động lại '${target}'… Kết quả sẽ báo lại sau ~10-45s.`);
+  await sendMessage(
+    conf.token,
+    chatId,
+    `♻️ Đang khởi động lại '${target}'${fresh ? " (--fresh: delete + start, nạp lại .env)" : ""}… Kết quả sẽ báo lại sau ~10-45s.`
+  );
   // Detached on purpose: the target may be THIS process. scripts/pm2-restart.sh setsid's itself,
   // runs the restart → verify → delete+start escalation, and reports the outcome back to this chat
   // (NOTIFY_CHAT_ID) — so the answer arrives even if the bot itself was the thing being restarted.
   try {
-    const child = spawn("bash", [RESTART_SH, target], {
+    const child = spawn("bash", fresh ? [RESTART_SH, target, "--fresh"] : [RESTART_SH, target], {
       detached: true,
       stdio: "ignore",
       env: { ...process.env, NOTIFY_CHAT_ID: String(chatId) },
@@ -399,7 +407,7 @@ const HELP =
   "/help — trợ giúp\n\n" +
   "Vận hành (chạy thẳng pm2, không qua agent — dùng được cả khi agent hỏng):\n" +
   "/status — trạng thái các app pm2\n" +
-  "/restart [app] — khởi động lại (mặc định ai-agent-ui-next)\n" +
+  "/restart [app] [--fresh] — khởi động lại (mặc định ai-agent-ui-next; --fresh = delete + start, nạp lại .env)\n" +
   "/logs [app] [số dòng] — log gần nhất (mặc định 40 dòng)";
 
 async function handleMessage(conf, state, msg) {
