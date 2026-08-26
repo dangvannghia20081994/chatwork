@@ -4,6 +4,10 @@
 // Console CÓ GHI: upload ảnh lên Drive bằng rclone + ghi cột M/N của sheet. Không sửa code repo,
 // không git/gh, DB 207 chỉ SELECT.
 //
+// Có switch account như /api/chat và /api/release: chọn account còn quota ở đầu lượt (chooseAccount),
+// và nếu run chết vì lỗi thuộc về account (org tắt Claude Code / hết hạn mức) thì chạy lại NGAY
+// trong lượt bằng account khác (claudeSSE({ retry }) + fallbackAccount).
+//
 // Multi-turn via --resume: chụp evidence đi theo từng batch, người dùng xem kết quả batch rồi mới
 // cho chạy batch tiếp. Không job lock / không timeout — người dùng tự dừng bằng nút ⏹ (đóng stream).
 //
@@ -13,10 +17,16 @@ import fs from "fs";
 import { buildEvidenceArgv } from "../../../lib/evidence.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
-import { resolveProject, ROOT } from "../../../lib/config.js";
+import { resolveProject, accountEnv, currentAccountKey, ROOT } from "../../../lib/config.js";
+import { markAccountExhausted, markAccountBlocked } from "../../../lib/limits.js";
+import { chooseAccount, fallbackAccount, LIMIT_RE, isLimitBlocked, isLimitResult, isBlockedResult, isBlockedText } from "../../../lib/accountSwitch.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Console evidence chạy trên project "rezil" (add-dir 4 repo rezil) → thư mục phiên của nó cũng là
+// thư mục "rezil". Hằng số này giữ cho chooseAccount/ensureSessionInAccount tra đúng chỗ.
+const EVIDENCE_PROJECT = "rezil";
 
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream",
@@ -40,12 +50,72 @@ export async function GET(req) {
   const slash = await maybeSlashResponse(message, { session });
   if (slash) return slash;
 
-  const proj = resolveProject("rezil");
+  const proj = resolveProject(EVIDENCE_PROJECT);
   if (!fs.existsSync(ROOT)) {
     return Response.json({ error: `Root path not found: ${ROOT}` }, { status: 400 });
   }
 
   const argv = buildEvidenceArgv(message, session, nowStamp(), proj.addDirs);
-  const stream = claudeSSE({ cwd: ROOT, argv, onSession: true });
+
+  // Hết quota → chạy lượt này bằng account khác, vẫn trên cùng phiên (giống /api/release). An toàn
+  // vì cả 3 account đều có cùng bộ MCP server (gsheets-rezil, mysql_207) và cùng đọc được spec.
+  // Chỉ đổi được Ở ĐẦU LƯỢT: một batch đang chụp giữa đường mà cạn quota thì vẫn hỏng, lượt sau mới
+  // nhảy — khi đó chạy lại batch, các TC đã ghi cột M sẽ bị loại ở bước đối chiếu nên không trùng.
+  const chosen = await chooseAccount(EVIDENCE_PROJECT, session);
+  let runAcct = chosen.acct;
+  const env = runAcct === currentAccountKey() ? undefined : accountEnv(runAcct);
+
+  // Lỗi thuộc về ACCOUNT (org tắt Claude Code / hết hạn mức) → chạy lại ngay trong lượt này bằng
+  // account khác, xem claudeSSE({ retry }) và app/api/chat/route.js.
+  let acctFailed = null;
+  // Chỉ đếm nội dung THẬT: CLI in lỗi account như text của assistant, đếm cả nó thì không bao giờ
+  // chạy lại được (xem app/api/chat/route.js).
+  let contentLen = 0;
+
+  const stream = claudeSSE({
+    cwd: ROOT,
+    argv,
+    env,
+    notice: chosen.notice,
+    onSession: true,
+    // Chạy lại trong cùng lượt khi account vừa dùng không dùng được nữa (xem app/api/chat/route.js).
+    retry: async () => {
+      if (!acctFailed || contentLen > 0) return null;
+      const fb = await fallbackAccount(EVIDENCE_PROJECT, session, runAcct, acctFailed);
+      if (!fb) return null;
+      runAcct = fb.acct;
+      acctFailed = null;
+      return { env: fb.env, notice: fb.notice };
+    },
+    onEvent: (event, data) => {
+      if (event === "delta" && !isBlockedText(data) && !LIMIT_RE.test(data)) contentLen += data.length;
+      // CLI báo bị chặn hạn mức ngay khi request bị từ chối (trước cả event result) → đánh dấu sớm.
+      if (event === "rate_limit") {
+        if (isLimitBlocked(data)) markAccountExhausted(runAcct, `rate_limit_event status=${data.status} type=${data.rateLimitType}`);
+      } else if (event === "result") {
+        // Check "bị org chặn" trước "hết hạn mức" vì cụ thể hơn; cả hai đều để lượt sau đổi account.
+        if (isBlockedResult(data)) {
+          markAccountBlocked(runAcct, `result text=${String(data.resultText || "").slice(0, 120)}`);
+          acctFailed = "bị tổ chức chặn Claude Code";
+        } else if (isLimitResult(data)) {
+          markAccountExhausted(runAcct, `result api_error_status=${data.apiErrorStatus} text=${String(data.resultText || "").slice(0, 120)}`);
+          acctFailed = "hết hạn mức";
+        }
+      } else if (
+        event === "error_msg" &&
+        typeof data === "string" &&
+        data !== chosen.notice // đừng soi dòng notice do CHÍNH ta vừa phát ra ở đầu lượt
+      ) {
+        // Lỗi org chặn account đến qua stderr, không có mã 429 nào kèm → chỉ bắt được bằng text.
+        if (isBlockedText(data)) {
+          markAccountBlocked(runAcct, `error_msg khớp BLOCKED_RE: ${data.slice(0, 120)}`);
+          acctFailed = "bị tổ chức chặn Claude Code";
+        } else if (LIMIT_RE.test(data)) {
+          markAccountExhausted(runAcct, `error_msg khớp LIMIT_RE: ${data.slice(0, 120)}`);
+          acctFailed = "hết hạn mức";
+        }
+      }
+    },
+  });
   return new Response(stream, { headers: SSE_HEADERS });
 }

@@ -321,7 +321,7 @@ organization has disabled Claude subscription access for Claude Code`) — the l
 its own, so it is remembered for the process lifetime instead of the 60s quota cache. Both are only
 visible once the run has died, so the failed run is **re-spawned on another account inside the same
 turn** (up to 3 spawns) instead of costing the user a turn.
-Only `/chat` and `/release` do this — job consoles still use the pm2 account. Details in
+Only `/chat`, `/release` and `/evidence` do this — job consoles still use the pm2 account. Details in
 `ui-next/README.md`.
 
 ### Manual handoff from a terminal

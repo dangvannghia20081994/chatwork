@@ -269,9 +269,11 @@ login`):
 ⚠️ acct1 đã hết quota, không dùng được account nào khác (acct3 hết quota (còn 1%)) — lượt này vẫn chạy bằng acct1.
 ```
 
-Giới hạn: áp cho `/chat` và `/release` (cả hai đều đa lượt, resume theo phiên; `/release` an toàn vì
-cả 3 account đều có agent `github-ops` và cùng bộ MCP server). Các console job còn lại (`/auto`,
-`/feature`, `/rebase`, `/report`, `/investigate`) vẫn chạy bằng account của pm2; `todos/` và
+Giới hạn: áp cho `/chat`, `/release` và `/evidence` (cả ba đều đa lượt, resume theo phiên;
+`/release` an toàn vì cả 3 account đều có agent `github-ops` và cùng bộ MCP server, `/evidence` vì
+cả 3 account đều có `gsheets-rezil` + `mysql_207` và cùng đọc được spec `SCREEN_EVIDENCE.md`). Các
+console job còn lại (`/auto`, `/feature`, `/rebase`, `/report`, `/investigate`) vẫn chạy bằng
+account của pm2; `todos/` và
 `file-history/` (`/rewind`) vẫn riêng theo account nên không mang theo khi đổi. Đổi account xảy ra ở
 ĐẦU LƯỢT (`chooseAccount`, theo quota đo được) và ở lúc RUN VỪA CHẾT (`retry` → `fallbackAccount`,
 theo lỗi thật của run). Lượt đã trả ra nội dung rồi mới cạn quota thì vẫn hỏng — lượt kế tiếp mới
