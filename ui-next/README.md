@@ -65,6 +65,8 @@ app/
   report/   page.jsx → Report.jsx      # chat: Jira report read-only (JQL→REST CLI) → /api/report
   investigate/ page.jsx → Investigate.jsx # chat: điều tra ticket read-only (nguyên nhân gốc + đánh giá
                                        #   DEV/SQA + phương án khắc phục) → /api/investigate
+  evidence/ page.jsx → Evidence.jsx    # chat: chụp/gán evidence TC lên Google Sheet SQA (spec
+                                       #   SCREEN_EVIDENCE.md cạnh màn) → /api/evidence
   sprint/   page.jsx                   # tool: upload xlsx burndown → giờ âm (Expect vs Actual)
   api/
     chat/route.js         # SSE chat (project-aware, slash-commands)
@@ -76,8 +78,9 @@ app/
     rebase/route.js       # SSE rebase (drive git-rebaser, multi-turn resume)
     report/route.js       # SSE report (Jira read-only chat, multi-turn resume)
     investigate/route.js  # SSE điều tra ticket (read-only: Jira + code + git log + SELECT QA)
+    evidence/route.js     # SSE evidence (đọc-ghi sheet SQA + rclone Drive, multi-turn resume)
     sprint/route.js       # POST xlsx → JSON giờ âm (dùng lib/sprint.js)
-    sessions/route.js     # list/đọc phiên chat Claude CLI (.jsonl) theo project
+    sessions/route.js     # list/đọc/xoá phiên Claude CLI (.jsonl) theo project + console
     snapshot/[name]/route.js # serve runtime asset (ảnh snapshot web) — Next16 không serve public/ sau build
     cancel/route.js       # POST hủy job đang chạy
     healthz/route.js      # health check
@@ -95,6 +98,8 @@ lib/
   report.js             # report prompt/argv (Jira JQL → REST CLI, read-only, không dùng MCP)
   investigate.js        # điều tra ticket: prompt/argv read-only + CAUSE_OPTIONS (bảng phân loại
                         #   nguyên nhân cố định của team) — không Edit/Write, không git ghi, không ghi Jira
+  evidence.js           # evidence prompt/argv: nhúng nguyên văn spec app/evidence/SCREEN_EVIDENCE.md
+                        #   lúc chạy — ghi cột M/N của sheet + upload Drive; không Edit/Write, không git
   jira.js               # Jira Cloud REST client server-side (report console dùng thay MCP)
   sprint.js             # burndown "giờ âm" — nguồn chung cho web + skill sprint-negative-hours
   slashCommands.js      # slash-command dùng chung (/usage…) — short-circuit trước khi spawn claude
