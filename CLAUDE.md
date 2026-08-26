@@ -94,7 +94,8 @@ ai-agent/
     │                      #   + accountSwitch.js: chat tự đổi account Claude khi hết quota (xem §Nhiều account)
     ├── proxy.js           # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
     ├── telegram-bot.mjs   # bot Telegram chạy TIẾN TRÌNH RIÊNG (pm2 app ai-agent-telegram)
-    ├── scripts/pm2-restart.sh # restart pm2 an toàn từ trong chính app (setsid + bậc thang tự chữa)
+    ├── scripts/pm2-restart.sh # restart pm2 an toàn từ trong chính app (setsid + bậc thang tự chữa
+    │                          #   + --fresh nạp lại .env, tự xoá CLAUDE_* rò từ phiên gọi lệnh)
     ├── ecosystem.config.js# pm2: ai-agent-ui-next + ai-agent-telegram (ngrok do ~/IdeaProjects/gateway lo)
     ├── .env               # UI config: UI_BASIC_AUTH + PORT/HOSTNAME/NGROK_DOMAIN (pm2); npm scripts dùng -p 5000
     └── .env.example
@@ -112,6 +113,14 @@ mất luôn kênh ra lệnh khôi phục.
   process CON của app đó, pm2 giết cả cây process nên lệnh chết giữa chừng và app không lên lại.
   Dùng `ui-next/scripts/pm2-restart.sh <app>` (tự `setsid`, có bậc thang delete + start lại từ
   ecosystem, báo kết quả qua Telegram). Guard prompt: `PM2_OPS_SAFETY` trong `ui-next/lib/claude.js`.
+- **Sửa `app/`/`lib/` → `npm run build` TRƯỚC khi restart.** Sửa `ui-next/.env` → phải
+  `./scripts/pm2-restart.sh <app> --fresh` (delete + start): `pm2 restart` không nạp lại `.env` vì
+  `ecosystem.config.js` chỉ đọc file đó lúc `pm2 start`. Sửa file `.md` (spec `/evidence`, selector
+  map) thì không cần build lẫn restart — đọc lúc chạy.
+- **Không gõ pm2 tay từ trong phiên Claude Code.** `pm2` nhét env của shell gọi lệnh vào app, đè cả
+  phần `ecosystem.config.js` đã xoá (kể cả `pm2 delete` + `pm2 start`) → app thừa hưởng
+  `CLAUDE_CONFIG_DIR`/`CLAUDE_EFFORT` của phiên đó và truyền tiếp cho mọi `claude -p` nó spawn, tức
+  agent chạy nhầm account. Script restart đã tự xoá `CLAUDECODE|CLAUDE_*|AI_AGENT` trước khi gọi pm2.
 - Trong Telegram: `/status`, `/restart [app]`, `/logs [app] [n]` — chạy thẳng pm2 CLI, không qua
   `claude`, nên vẫn dùng được khi agent hỏng hoặc hết quota.
 - Chỉ MỘT process được poll một bot token (bật `TELEGRAM_IN_PROCESS=1` thì phải stop app bot, không

@@ -30,6 +30,7 @@ pm2 restart ecosystem.config.js --update-env                  # sau khi build l�
 # ⚠️ ĐỪNG gọi thẳng `pm2 restart ai-agent-ui-next` từ trong console/agent (nó là process con của
 # app → bị giết giữa chừng). Dùng script tự tách session:
 ./scripts/pm2-restart.sh ai-agent-ui-next
+./scripts/pm2-restart.sh ai-agent-ui-next --fresh   # vừa sửa .env → delete + start để nạp lại
 ```
 
 > ⚠️ `npm run dev`/`start` dùng `-p 7000` hardcode trong `package.json` và **BỎ QUA** `PORT` trong `.env`.
@@ -220,6 +221,25 @@ agent hỏng hoặc hết quota:
 chưa được thì `pm2 delete` + `pm2 start ecosystem.config.js --only <app>` → vẫn hỏng thì gửi Telegram
 kèm 30 dòng log lỗi. Log đầy đủ ở `logs/pm2-restart.log`. Script tự tách session nên dùng được cả khi
 app gọi nó chính là app bị restart (kể cả bot tự restart chính mình).
+
+Hai điểm phải nhớ khi restart:
+
+| Vừa sửa gì | Làm gì |
+|---|---|
+| `app/**`, `lib/**` (JS/JSX) | `npm run build` **rồi** `./scripts/pm2-restart.sh <app>` |
+| `ui-next/.env` | `./scripts/pm2-restart.sh <app> **--fresh**` — `pm2 restart` KHÔNG nạp lại `.env`: `ecosystem.config.js` chỉ đọc file đó (qua dotenv) lúc `pm2 start`, nên `--fresh` bỏ qua bậc 1 và `delete` + `start` thẳng (kèm `pm2 save`) |
+| Spec/tài liệu `.md` (`app/evidence/*.md`…) | không cần build, cũng không cần restart — đọc lúc chạy |
+
+**Rò biến môi trường của phiên Claude Code** (đo 2026-08-26): `pm2` nhét env của **shell gọi lệnh**
+vào app và đè cả phần `ecosystem.config.js` đã xoá — kể cả khi dùng `pm2 delete` + `pm2 start`. Gọi
+pm2 tay từ trong một phiên Claude Code là app thừa hưởng `CLAUDE_CONFIG_DIR` / `CLAUDE_EFFORT` /
+`CLAUDE_CODE_*` của phiên đó rồi truyền tiếp cho **mọi** `claude -p` nó spawn → agent chạy nhầm
+account, effort bị đè. `scripts/pm2-restart.sh` đã tự xoá `CLAUDECODE|CLAUDE_*|AI_AGENT` trước khi
+gọi pm2, nên **luôn restart qua script**. Kiểm nhanh sau restart — chỉ được còn `CLAUDE_ACCOUNT=`:
+
+```bash
+tr '\0' '\n' < /proc/$(pm2 jlist | jq -r '.[]|select(.name=="ai-agent-ui-next").pid')/environ | grep ^CLAUDE
+```
 
 Env liên quan (`ui-next/.env`):
 

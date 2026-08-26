@@ -7,13 +7,29 @@
 # Script tự `setsid` sang session mới nên nó sống sót qua cái chết của app đã gọi nó.
 #
 #   ./scripts/pm2-restart.sh [app]        # mặc định: ai-agent-ui-next
+#   ./scripts/pm2-restart.sh [app] --fresh # delete + start lại từ ecosystem (nạp lại ui-next/.env)
 #   NOTIFY_CHAT_ID=123 ./scripts/pm2-restart.sh ai-agent-telegram
 #
 # Bậc thang tự chữa: restart --update-env → (nếu chưa online) delete + start ecosystem --only
 # → vẫn hỏng thì báo Telegram kèm 30 dòng log lỗi. Log đầy đủ: ui-next/logs/pm2-restart.log
+#
+# `--fresh` bỏ qua bậc 1 và đi thẳng delete + start. Cần dùng khi vừa sửa `ui-next/.env`:
+# `pm2 restart` KHÔNG nạp lại file đó — `ecosystem.config.js` chỉ đọc `.env` (qua dotenv) ở thời
+# điểm `pm2 start`, nên giá trị cũ còn nguyên trong env của app cho tới khi delete + start.
+# Sửa code trong `app/`/`lib/` thì không cần `--fresh`, nhưng nhớ `npm run build` TRƯỚC khi restart.
 set -uo pipefail
 
-APP="${1:-ai-agent-ui-next}"
+# Đối số: tên app (vị trí bất kỳ) + cờ --fresh. Cờ được giữ nguyên khi script tự gọi lại sau setsid.
+APP=""
+FRESH=0
+for a in "$@"; do
+  case "$a" in
+    --fresh) FRESH=1 ;;
+    -*) ;;
+    *) [ -z "$APP" ] && APP="$a" ;;
+  esac
+done
+APP="${APP:-ai-agent-ui-next}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # ui-next/
 LOG="$HERE/logs/pm2-restart.log"
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
@@ -78,23 +94,29 @@ notify() {
 
 # Cho caller (SSE/tin nhắn Telegram) kịp gửi nốt phản hồi trước khi process bị thay.
 sleep 2
-log "=== restart '$APP' (status hiện tại: $(app_status "$APP")) ==="
+log "=== restart '$APP' (status hiện tại: $(app_status "$APP"))$([ "$FRESH" = 1 ] && echo " · --fresh") ==="
 
-pm2 restart "$APP" --update-env 2>&1 | tail -5
+if [ "$FRESH" != 1 ]; then
+  pm2 restart "$APP" --update-env 2>&1 | tail -5
 
-if wait_online "$APP" 25; then
-  log "OK: '$APP' online sau pm2 restart."
-  notify "✅ Đã khởi động lại '$APP'. Trạng thái: online."
-  exit 0
+  if wait_online "$APP" 25; then
+    log "OK: '$APP' online sau pm2 restart."
+    notify "✅ Đã khởi động lại '$APP'. Trạng thái: online."
+    exit 0
+  fi
+  log "pm2 restart không đưa được '$APP' về online — thử delete + start lại từ ecosystem."
+else
+  log "--fresh: bỏ qua pm2 restart, delete + start thẳng từ ecosystem để nạp lại .env."
 fi
 
-log "pm2 restart không đưa được '$APP' về online — thử delete + start lại từ ecosystem."
 pm2 delete "$APP" 2>&1 | tail -3
 pm2 start "$HERE/ecosystem.config.js" --only "$APP" --update-env 2>&1 | tail -5
 
 if wait_online "$APP" 40; then
+  # Danh sách app vừa đổi (delete + start) → lưu lại để `pm2 resurrect` sau reboot không dựng bản cũ.
+  pm2 save >/dev/null 2>&1
   log "OK: '$APP' online sau delete + start ecosystem."
-  notify "✅ Đã khởi động lại '$APP' (phải delete + start lại từ ecosystem). Trạng thái: online."
+  notify "✅ Đã khởi động lại '$APP' ($([ "$FRESH" = 1 ] && echo "--fresh: delete + start, đã nạp lại .env" || echo "phải delete + start lại từ ecosystem")). Trạng thái: online."
   exit 0
 fi
 
