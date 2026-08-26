@@ -20,6 +20,14 @@
 //   --headed               mở cửa sổ Chrome thật (mặc định headless)
 //   --attach <port>        KHÔNG tự mở Chrome, attach vào Chrome đang chạy với
 //                          --remote-debugging-port=<port> (dùng profile/session đang login sẵn)
+//   --keep <ten>           GIỮ Chrome sống sau khi script xong; lần chạy sau cùng --keep <ten> sẽ
+//                          ATTACH vào đúng Chrome đó. Bỏ được ~12-15s cold start mỗi lần chạy và
+//                          giữ nguyên trạng thái trang (không phải dựng lại flow) — dùng khi chụp
+//                          nhiều bước/nhiều TC trên cùng một màn. Chrome nền dùng đúng --profile và
+//                          --chrome-flag của LẦN MỞ ĐẦU: lần đầu phải truyền đủ cờ
+//   --renav                đang attach bằng --keep vẫn load lại <url> từ đầu (mặc định: giữ nguyên
+//                          trang đang mở nếu cùng origin)
+//   --keep-stop <ten>      đóng Chrome keep-alive tên <ten> rồi thoát (Browser.close → lưu session)
 //   --env <file>           nạp file key=value; step/eval dùng được {{KEY}} (để credential
 //                          KHÔNG lộ trên command line)
 //   --login <preset>       tự đăng nhập trước khi chạy step (preset: xem LOGIN_PRESETS). Đang có
@@ -86,10 +94,12 @@ const MAX_KEEP = 60;
 // ---------- args ----------
 const argv = process.argv.slice(2);
 let url = argv[0];
-if (!url || url.startsWith("--")) {
+// `--keep-stop <ten>` chỉ đóng Chrome nền nên KHÔNG cần url; các lệnh còn lại vẫn bắt buộc.
+if ((!url || url.startsWith("--")) && !argv.includes("--keep-stop")) {
   console.error("Usage: node scripts/debug.mjs <url|/path> [--label x] [--step '...'] [--eval 'js'] … (xem đầu file)");
   process.exit(2);
 }
+if (!url || url.startsWith("--")) url = "about:blank";
 const has = (n) => argv.includes(`--${n}`);
 function opt(name, def) {
   const i = argv.indexOf(`--${name}`);
@@ -121,6 +131,11 @@ const geo = (() => {
 const height = num(opt("height", "800"), 800, 240, 4320);
 const headed = has("headed");
 const attachPort = opt("attach", "");
+// --keep/--keep-stop: Chrome nền dùng lại giữa nhiều lần chạy (xem KEEP ở phần kết nối).
+const slug = (v) => String(v || "").replace(/[^a-zA-Z0-9-_]/g, "-").slice(0, 40);
+const keepName = slug(opt("keep", ""));
+const keepStop = slug(opt("keep-stop", ""));
+const wantRenav = has("renav");
 const wantShot = !has("no-shot");
 const allLogs = has("all-logs"); // "check console.log" cần cả log/info, không chỉ error/warning
 const wantJson = has("json");
@@ -259,6 +274,56 @@ function snapshotProfile() {
   return snapDir;
 }
 
+// ---------- KEEP: Chrome nền dùng lại giữa nhiều lần chạy ----------
+// Mỗi lần chạy bình thường trả giá ~12-15s cố định (mở Chrome + chờ DevTools + --wait + kiểm login).
+// Chụp evidence hay đi theo cụm: nhiều lệnh liên tiếp trên CÙNG một màn → giá đó nhân lên. `--keep`
+// mở Chrome DETACHED, ghi {port,pid} vào lockfile; lần sau attach lại đúng cửa sổ đó, giữ nguyên cả
+// trạng thái trang (popup đang mở, form đã điền) nên không phải dựng lại flow.
+const keepFile = (n) => path.join(UI_NEXT, ".chrome-profiles", `.keep-${n}.json`);
+function readKeep(n) {
+  try {
+    return JSON.parse(readFileSync(keepFile(n), "utf8"));
+  } catch {
+    return null;
+  }
+}
+// Lockfile còn nhưng Chrome đã chết (reboot, bị kill) → coi như không có và xoá lock.
+async function keepAlive(n) {
+  const k = readKeep(n);
+  if (!k?.port) return null;
+  try {
+    const r = await fetch(`http://127.0.0.1:${k.port}/json/version`, { signal: AbortSignal.timeout(1500) });
+    if (r.ok) return { ...k, version: await r.json() };
+  } catch {}
+  rmSync(keepFile(n), { force: true });
+  return null;
+}
+
+if (keepStop) {
+  const k = await keepAlive(keepStop);
+  if (!k) {
+    console.log(`Không có Chrome keep-alive "${keepStop}" nào đang chạy.`);
+    process.exit(0);
+  }
+  // Browser.close trước rồi mới kill: localStorage/cookie chỉ ghi xuống profile khi Chrome tự tắt.
+  let graceful = false;
+  try {
+    const bws = new WebSocket(k.version.webSocketDebuggerUrl);
+    await new Promise((res, rej) => {
+      bws.addEventListener("open", res, { once: true });
+      bws.addEventListener("error", () => rej(new Error("ws browser lỗi")), { once: true });
+      setTimeout(() => rej(new Error("hết giờ mở ws browser")), 3000);
+    });
+    bws.send(JSON.stringify({ id: 1, method: "Browser.close", params: {} }));
+    graceful = true;
+    await new Promise((r) => setTimeout(r, 1500));
+  } catch {}
+  if (k.pid) spawnSync("kill", [String(k.pid)]);
+  rmSync(keepFile(keepStop), { force: true });
+  console.log(`Đã đóng Chrome keep-alive "${keepStop}" (port ${k.port}${graceful ? ", Browser.close" : ", kill"}).`);
+  process.exit(0);
+}
+
 // Mở cửa sổ Chrome thật để đăng nhập bằng tay vào profile, rồi chạy tiếp phần debug headless.
 if (wantProfileLogin) {
   if (profileBusy()) {
@@ -386,8 +451,17 @@ function cdp(ws) {
 let chrome = null;
 let profileNote = ""; // ghi chú về profile để in trong báo cáo
 let browserWs = ""; // endpoint CDP cấp browser — cần để đóng Chrome tử tế (xem shutdown())
+let keepReused = false; // đang attach vào Chrome keep-alive có sẵn → không load lại trang
 async function connect() {
   let port = attachPort;
+  if (!port && keepName) {
+    const k = await keepAlive(keepName);
+    if (k) {
+      port = String(k.port);
+      keepReused = true;
+      profileNote = `attach vào Chrome keep-alive "${keepName}" (port ${k.port}) — giữ nguyên trạng thái trang`;
+    }
+  }
   if (!port) {
     // Profile bị Chrome khác chiếm → chạy trên bản chụp (đọc được session, nhưng thay đổi KHÔNG lưu
     // lại profile gốc). Rảnh → chạy thẳng trên profile và dọn lock cũ còn sót.
@@ -418,9 +492,39 @@ async function connect() {
       // gọi API khác origin khi dev server chạy trên cổng không nằm trong CORS allow-list của BE.
       ...extraChromeFlags,
       ...(userDataDir ? [`--user-data-dir=${userDataDir}`] : []),
-      "--remote-debugging-port=0",
+      // --keep cần port BIẾT TRƯỚC (lần chạy sau đọc lockfile để attach) nên không dùng port 0.
+      `--remote-debugging-port=${keepName ? await freePort() : 0}`,
       "about:blank",
     ];
+    if (keepName) {
+      // Detached + stdio ignore: script này thoát trước, Chrome phải sống tiếp và không được ghi vào
+      // pipe đã đóng (EPIPE làm Chrome chết ngay sau khi script thoát).
+      chrome = spawn(chromeBin(), args, { stdio: "ignore", detached: true });
+      chrome.unref();
+      const kport = args.find((a) => a.startsWith("--remote-debugging-port=")).split("=")[1];
+      const until = Date.now() + 20000;
+      let version = null;
+      while (Date.now() < until) {
+        try {
+          const r = await fetch(`http://127.0.0.1:${kport}/json/version`, { signal: AbortSignal.timeout(1000) });
+          if (r.ok) {
+            version = await r.json();
+            break;
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if (!version) throw new Error(`Chrome keep-alive không mở được DevTools trên port ${kport} sau 20s`);
+      browserWs = version.webSocketDebuggerUrl;
+      port = kport;
+      mkdirSync(path.dirname(keepFile(keepName)), { recursive: true });
+      writeFileSync(
+        keepFile(keepName),
+        JSON.stringify({ port: Number(kport), pid: chrome.pid, profile: profileDir, openedFor: url }, null, 2)
+      );
+      profileNote = `Chrome keep-alive "${keepName}" vừa mở (port ${kport}) — lần sau thêm --keep ${keepName} là attach lại, đóng bằng --keep-stop ${keepName}`;
+      return finishConnect(port);
+    }
     chrome = spawn(chromeBin(), args, { stdio: ["ignore", "ignore", "pipe"] });
     const wsUrl = await new Promise((resolve, reject) => {
       let buf = "";
@@ -441,6 +545,10 @@ async function connect() {
     browserWs = wsUrl;
     port = new URL(wsUrl).port;
   }
+  return finishConnect(port);
+}
+
+async function finishConnect(port) {
   const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
   const page = targets.find((t) => t.type === "page") || targets[0];
   if (!page?.webSocketDebuggerUrl) throw new Error("không tìm thấy page target");
@@ -452,9 +560,28 @@ async function connect() {
   return { ws, c: cdp(ws) };
 }
 
+// Cổng còn rảnh cho Chrome keep-alive (port 0 không dùng được: lần sau phải biết port mà attach).
+function freePort() {
+  return new Promise((resolve, reject) => {
+    import("node:net").then(({ createServer }) => {
+      const srv = createServer();
+      srv.on("error", reject);
+      srv.listen(0, "127.0.0.1", () => {
+        const { port } = srv.address();
+        srv.close(() => resolve(port));
+      });
+    }, reject);
+  });
+}
+
 // Đóng Chrome bằng Browser.close rồi mới kill: localStorage/IndexedDB chỉ được ghi xuống đĩa khi
 // Chrome tự tắt. Kill thẳng (SIGTERM) làm mất session vừa login → --profile trở nên vô nghĩa.
 async function shutdown() {
+  // --keep: để Chrome sống cho lần chạy sau attach vào. Đóng bằng `--keep-stop <ten>`.
+  if (keepName) {
+    if (snapDir) rmSync(snapDir, { recursive: true, force: true });
+    return;
+  }
   if (!chrome) return;
   if (browserWs) {
     try {
@@ -650,8 +777,21 @@ try {
     await c.send("Browser.grantPermissions", { origin, permissions: ["geolocation"] }).catch(() => {});
     await c.send("Emulation.setGeolocationOverride", geo).catch(() => {});
   }
-  await c.send("Page.navigate", { url });
-  await new Promise((r) => setTimeout(r, wait));
+  // Attach vào Chrome keep-alive mà trang đang mở CÙNG origin → không load lại: giữ nguyên trạng
+  // thái đang dựng (popup, form, bước giữa flow) và bỏ luôn --wait. `--renav` để buộc load lại.
+  let keptPage = false;
+  if (keepReused && !wantRenav) {
+    try {
+      const href = String((await evaluate("location.href")) ?? "");
+      keptPage = !!href && new URL(href).origin === new URL(url).origin;
+    } catch {}
+  }
+  if (keptPage) {
+    stepLog.push({ step: "navigate", ok: true, note: `giữ nguyên trang đang mở (--keep ${keepName}); dùng --renav để load lại ${url}` });
+  } else {
+    await c.send("Page.navigate", { url });
+    await new Promise((r) => setTimeout(r, wait));
+  }
 
   // ---------- đăng nhập (--login) ----------
   // Chạy TRƯỚC mọi --step: không login thì URL màn bên trong chỉ trả về màn login, mọi thứ thu được

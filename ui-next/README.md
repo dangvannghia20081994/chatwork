@@ -161,6 +161,7 @@ npm run debug -- http://localhost:5173/ --env ~/.../rezil-esms-test.env \
 | Giữ session giữa các lần chạy | `--profile <ten>` → `ui-next/.chrome-profiles/<ten>` (git-ignored). Không có cờ này thì Chrome tạo profile tạm, mỗi lần chạy là session trắng |
 | Trang chưa có preset (GitHub, Jira…) | `--profile <ten> --profile-login` mở cửa sổ Chrome thật để login tay một lần; đóng cửa sổ là script chạy tiếp headless |
 | Trang GitHub repo private | `--profile ci` — dùng luôn profile đã login của `scripts/capture-ci-evidence.sh` |
+| Chạy nhiều lệnh liên tiếp trên **cùng một màn** | `--keep <ten>` — xem "Chrome keep-alive" bên dưới |
 
 Không login thì gọi thẳng URL màn bên trong chỉ trả về **màn login**, và mọi thứ thu được (console,
 network, ảnh) là của màn login — script in cảnh báo rõ khi `--login` thất bại thay vì báo cáo im lặng.
@@ -180,6 +181,16 @@ Ghi chú khi dùng lại:
 - `type:` **thay** toàn bộ nội dung ô (select-all rồi `Input.insertText`, nên input controlled của
   React/Svelte nhận được thay đổi); muốn nối thêm thì dùng `key:End` + `type` trên selector khác hoặc `eval`.
 - `--attach <port>` để dùng Chrome đang mở (`--remote-debugging-port=<port>`) khi cần session đã login sẵn.
+- **Chrome keep-alive — `--keep <ten>`**: giữ Chrome sống sau khi lệnh xong, lệnh sau cùng `--keep <ten>`
+  attach lại đúng cửa sổ đó. Trang đang mở cùng origin thì **không** load lại nên giữ nguyên trạng thái
+  (popup đang mở, form đã điền, biến `window.*` đã inject) và bỏ luôn `--wait` + bước kiểm login. Đo trên
+  web mobile env 207 ngày 2026-08-26: lệnh mở 5,9s → lệnh attach **0,8s**. Dùng khi chụp một cụm ảnh trên
+  cùng một màn (`/evidence`); đóng bằng `node scripts/debug.mjs --keep-stop <ten>` (`Browser.close` nên
+  session vẫn được lưu vào `--profile`). Cần về màn đầu thì thêm `--renav`. Lockfile `{port,pid}` nằm ở
+  `.chrome-profiles/.keep-<ten>.json`; **quên `--keep-stop` là còn một Chrome headless treo chiếm profile**
+  — lần chạy sau với cùng `--profile` mà không có `--keep` sẽ rơi vào nhánh "bản chụp profile".
+  `--login/--profile/--chrome-flag` chỉ có tác dụng ở lệnh MỞ; `--width/--height/--geo` là override theo
+  phiên CDP nên phải truyền lại mỗi lệnh.
 - Ảnh lưu ở `.snapshots/` (git-ignored, giữ 60 file mới nhất) và in ra dạng `/ai/api/snapshot/<file>.png`
   — dán nguyên đường dẫn đó vào chat là ảnh hiện inline.
 - Credential từ `--env` / `--basic-auth` được che (`***`) trong mọi dòng báo cáo.

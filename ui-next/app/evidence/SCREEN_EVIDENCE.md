@@ -135,22 +135,26 @@ Evidence cũ trên Drive lẫn nhiều kiểu (`MOB-011_0001.webm` 4 chữ số,
 
 ## 4. Chụp evidence
 
-| Mục                  | Giá trị                                                                                                                                                                                                                                                     |
-|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Loại evidence        | Ảnh `.png` cho mọi TC chụp bằng script. TC nhiều bước → chụp **nhiều ảnh** theo từng bước (`_1`, `_2`, …) thay cho video, vì `debug.mjs` không quay được `.webm`/`.mp4`. TC bắt buộc phải là video thì quay tay, ghi lý do vào cột N                        |
-| Env                  | `http://mobile.10.9.17.207.nip.io` — bản web của app mobile (host `10.9.17.207`, cùng env với DB MCP `mysql_207`). Đã verify trả HTTP 200 ngày 2026-08-26.                                                                                                  |
-| Cách chụp            | Chụp trên **web mobile** bằng `ui-next/scripts/debug.mjs` ở chế độ **headless + profile Chrome bền**, không dùng iPad thật. `snapshot.mjs` **không dùng được** cho màn này vì không có `--login`/`--profile` (màn MOB-011 cần đăng nhập)                    |
-| Lệnh mẫu             | `node ui-next/scripts/debug.mjs http://mobile.10.9.17.207.nip.io/ --login rezil --profile mob011 --width 744 --height 1133 --step 'click:<sel>' --step 'shot:MOB-011_472'` — URL **luôn** là gốc `/`, xem "Điều hướng" bên dưới |
-| Profile              | 1 profile per account: `--profile mob011-<role>`. Preset `--login rezil` đã khớp form Ionic của app mobile; login 1 lần, các lần sau còn cookie nên tự bỏ qua. Đang có sẵn các profile `rezil`, `rezil207`, `rezil-admin` trong `ui-next/.chrome-profiles/` |
-| Khi nào cần headed   | Chỉ khi phải login tay (SSO/Entra ID, MFA) hoặc profile mất session: chạy 1 lần `--profile <ten> --profile-login`, đăng nhập rồi đóng cửa sổ, sau đó quay lại headless                                                                                      |
-| Viewport             | **`--width 744 --height 1133`** (iPad mini gen 6, khung logic 744×1133). Lưu ý `debug.mjs` đặt cứng `deviceScaleFactor: 1`, `mobile: false` và **không** đổi user-agent (`debug.mjs:633`) — ảnh là Chrome desktop ở khung 744×1133, không phải emulate iPad thật |
-| Điều hướng           | App mobile là Ionic, điều hướng bằng nav stack (`root = <component>` trong `src/App.svelte`), **không có URL routing** → không `goto` được URL của màn trong; mọi TC phải đi từ `/` rồi click qua các bước |
-| Selector             | Class Svelte có hash theo build (`s-5xw9RGpuDz7F`) → **không** dùng hash trong selector. Dùng class BEM ổn định (`.tabs__item`, `.card`, `.customer-acknowledgement__signature-image`, `.signature-modal__canvas`), hoặc `--step eval:` tìm phần tử theo text rồi gán `id` tạm và `click:#id` |
-| Không được bấm       | Nút gây mutation mà TC không yêu cầu: `確認しました` / `提出する` (submit report, đổi `plan.state`), `承認`, `削除`. Chụp dialog thì dừng ở dialog |
-| Account chính | Credential ở `~/.claude/projects/-home-nghiadv-IdeaProjects-rezil-esms/credentials/rezil-esms-test.env` (preset `--login rezil` tự đọc, không paste ra command line). Đã verify login env 207 ngày 2026-08-26: `POST /api/v1/auth/login` → 200 |
-| Account đó là ai | `user.id` = 4 (`user.name` = `Admin`, `state` = 1), engineer `eid` = 4 / code `G-00004` / `engineerName` = `nghiadv test ep`, group `gid` = 4 (`YenLTB`). App mobile chỉ cho login khi user có bản ghi `engineer` và `/api/v1/auth/me` trả `engineerId` → account này **là engineer hợp lệ**; `user.name` = `Admin` chỉ là tên hiển thị, không phải role |
-| Chỉ dùng 1 account | Toàn bộ TC chụp bằng account `eid` = 4 ở trên, không cấp thêm account thứ 2. TC cần engineer **không** được assign (ví dụ TC 17) thì chọn inspection mà `eid` = 4 không có trong `plan_assignment`; không dựng được thì để trống cột M + ghi lý do vào cột N |
-| Quyền group | Không kiểm trước quyền của group `YenLTB` (gid 4). TC nào bị chặn quyền sẽ lộ ra lúc chụp → xử lý như TC không dựng được điều kiện |
+| Mục                       | Giá trị                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Loại evidence             | Ảnh `.png` cho mọi TC chụp bằng script. TC nhiều bước → chụp **nhiều ảnh** theo từng bước (`_1`, `_2`, …) thay cho video, vì `debug.mjs` không quay được `.webm`/`.mp4`. TC bắt buộc phải là video thì quay tay, ghi lý do vào cột N                                                                                                                                                                                                                                                                                                                                                                            |
+| Env                       | `http://mobile.10.9.17.207.nip.io` — bản web của app mobile (host `10.9.17.207`, cùng env với DB MCP `mysql_207`). Đã verify trả HTTP 200 ngày 2026-08-26.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Cách chụp                 | Chụp trên **web mobile** bằng `ui-next/scripts/debug.mjs` ở chế độ **headless + profile Chrome bền**, không dùng iPad thật. `snapshot.mjs` **không dùng được** cho màn này vì không có `--login`/`--profile` (màn MOB-011 cần đăng nhập)                                                                                                                                                                                                                                                                                                                                                                        |
+| Lệnh mẫu (mở phiên)       | `node ui-next/scripts/debug.mjs http://mobile.10.9.17.207.nip.io/ --keep mob011 --login rezil --profile mob011 --width 744 --height 1133 --geo "34.6937,135.5023" --chrome-flag "--unsafely-treat-insecure-origin-as-secure=http://mobile.10.9.17.207.nip.io" --step 'click:<sel>' --step 'shot:MOB-011_472'` — URL **luôn** là gốc `/`, xem "Điều hướng" bên dưới. Hai cờ GPS xem dòng "GPS" bên dưới |
+| Lệnh mẫu (lần sau)        | `node ui-next/scripts/debug.mjs http://mobile.10.9.17.207.nip.io/ --keep mob011 --width 744 --height 1133 --geo "34.6937,135.5023" --wait 1500 --settle 500 --step "eval:window.__mark('.modal__inner')" --step 'shot:MOB-011_0477'` — attach vào Chrome đã mở, **giữ nguyên trạng thái trang** nên không phải dựng lại flow, không phải login lại. `--width/--height/--geo` là override theo phiên CDP nên vẫn phải truyền mỗi lần; `--login/--profile/--chrome-flag` chỉ có tác dụng ở lần MỞ |
+| Chrome keep-alive         | **Bắt buộc khi chụp một cụm TC.** `--keep mob011` giữ Chrome sống sau khi lệnh xong; lần chạy sau cùng `--keep mob011` attach lại đúng cửa sổ đó (bỏ được ~12–15s mở Chrome + load app + kiểm login mỗi lệnh, đo 2026-08-26: 2,7s → 0,5s trên app local). Trang đang mở cùng origin thì **không** load lại — cần về màn đầu thì thêm `--renav`. Hết batch **phải** `node ui-next/scripts/debug.mjs --keep-stop mob011` (Browser.close → lưu session vào profile), không thì còn 1 Chrome headless treo chiếm profile. Lockfile: `ui-next/.chrome-profiles/.keep-mob011.json` |
+| Chờ / settle              | Lần MỞ giữ mặc định (`--wait 4000 --settle 1500`): app Ionic cần thời gian dựng DOM rồi mới login được. Các lệnh attach sau đó dùng `--wait 1500 --settle 500` — trang đã dựng sẵn, chờ thêm chỉ là thời gian chết |
+| Profile                   | 1 profile per account: `--profile mob011-<role>`. Preset `--login rezil` đã khớp form Ionic của app mobile; login 1 lần, các lần sau còn cookie nên tự bỏ qua. Đang có sẵn các profile `rezil`, `rezil207`, `rezil-admin` trong `ui-next/.chrome-profiles/`                                                                                                                                                                                                                                                                                                                                                     |
+| Khi nào cần headed        | Chỉ khi phải login tay (SSO/Entra ID, MFA) hoặc profile mất session: chạy 1 lần `--profile <ten> --profile-login`, đăng nhập rồi đóng cửa sổ, sau đó quay lại headless                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Viewport                  | **`--width 744 --height 1133`** (iPad mini gen 6, khung logic 744×1133). Lưu ý `debug.mjs` đặt cứng `deviceScaleFactor: 1`, `mobile: false` và **không** đổi user-agent (`debug.mjs:633`) — ảnh là Chrome desktop ở khung 744×1133, không phải emulate iPad thật                                                                                                                                                                                                                                                                                                                                                |
+| Điều hướng                | App mobile là Ionic, điều hướng bằng nav stack (`root = <component>` trong `src/App.svelte`), **không có URL routing** → không `goto` được URL của màn trong; mọi TC phải đi từ `/` rồi click qua các bước                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Selector                  | Class Svelte có hash theo build (`s-5xw9RGpuDz7F`) → **không** dùng hash trong selector. Dùng class BEM ổn định (`.tabs__item`, `.card`, `.customer-acknowledgement__signature-image`, `.signature-modal__canvas`), hoặc `--step eval:` tìm phần tử theo text rồi gán `id` tạm và `click:#id`                                                                                                                                                                                                                                                                                                                   |
+| Không được bấm            | Nút gây mutation mà TC không yêu cầu: `確認しました` / `提出する` (submit report, đổi `plan.state`), `承認`, `削除`, `点検開始を取り消し`, `点検再開`. Chụp dialog thì dừng ở dialog. Chuỗi dialog submit (verify 2026-08-26): `報告書を確認` → `報告書を提出する` → dialog 1 `点検報告を提出の確認` (hoặc `立会者の署名がありませんが、提出しますか？` khi chưa ký) → `提出する` → dialog 2 `報告書を提出します。` → `確認しました` → `PUT /api/v1/inspection/report/submit/<report_id>`. **Dừng ở dialog 2 vẫn chưa mutation.** Luồng resubmit (`report.is_rejected` = 1): dialog 2 đổi thành `報告書を再提出する` có textarea comment bắt buộc → `提出する` → `PUT /api/v1/inspection/report/resubmit/<report_id>`    |
+| GPS (bắt buộc khi submit) | App chặn submit/approve nếu không lấy được toạ độ. **Chỉ `--geo` là KHÔNG đủ**: origin `http://…nip.io` là HTTP nên Chrome coi là insecure context và chặn thẳng `navigator.geolocation` — app hiện dialog 「点検アプリで位置情報の設定をオンにします」 rồi dừng, **không** gọi API submit. Phải truyền thêm `--chrome-flag "--unsafely-treat-insecure-origin-as-secure=http://mobile.10.9.17.207.nip.io"`. Kiểm nhanh trước khi chạy flow: `--eval 'window.isSecureContext'` phải trả `true` và `--eval 'new Promise(r=>navigator.geolocation.getCurrentPosition(p=>r("OK"),e=>r("ERR "+e.code)))'` phải trả `OK`. Verify 2026-08-26 |
+| Account chính             | Credential ở `~/.claude/projects/-home-nghiadv-IdeaProjects-rezil-esms/credentials/rezil-esms-test.env` (preset `--login rezil` tự đọc, không paste ra command line). Đã verify login env 207 ngày 2026-08-26: `POST /api/v1/auth/login` → 200                                                                                                                                                                                                                                                                                                                                                                  |
+| Account đó là ai          | `user.id` = 4 (`user.name` = `Admin`, `state` = 1), engineer `eid` = 4 / code `G-00004` / `engineerName` = `nghiadv test ep`, group `gid` = 4 (`YenLTB`). App mobile chỉ cho login khi user có bản ghi `engineer` và `/api/v1/auth/me` trả `engineerId` → account này **là engineer hợp lệ**; `user.name` = `Admin` chỉ là tên hiển thị, không phải role                                                                                                                                                                                                                                                        |
+| Chỉ dùng 1 account        | Toàn bộ TC chụp bằng account `eid` = 4 ở trên, không cấp thêm account thứ 2. TC cần engineer **không** được assign (ví dụ TC 17) thì chọn inspection mà `eid` = 4 không có trong `plan_assignment`; không dựng được thì để trống cột M + ghi lý do vào cột N                                                                                                                                                                                                                                                                                                                                                    |
+| Quyền group               | Không kiểm trước quyền của group `YenLTB` (gid 4). TC nào bị chặn quyền sẽ lộ ra lúc chụp → xử lý như TC không dựng được điều kiện                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### Tái sử dụng evidence cho nhóm TC cùng trạng thái (tăng tốc)
 
@@ -172,6 +176,11 @@ Cách làm:
    → `--step eval:` xoá khoanh đỏ. Cả nhóm nằm trong **một** lần chạy `debug.mjs`.
 3. TC nào cần thao tác làm mất trạng thái (ví dụ TC 477 bấm `未確認` thì popup đóng) thì để **cuối
    nhóm**, hoặc chụp trạng thái trước-sau rồi mới bấm.
+
+Với `--keep` (xem bảng trên) cả nhóm **không cần** nằm trong một lệnh: trang không bị load lại giữa
+các lệnh nên trạng thái vừa dựng vẫn còn, chia thành nhiều lệnh ngắn để soi kết quả từng ảnh cũng
+không mất thêm thời gian. `window.__mark` cũng còn nguyên trong trang → inject snippet **1 lần** ở
+lệnh đầu, các lệnh sau gọi thẳng `--step "eval:window.__mark('<sel>')"`.
 
 `debug.mjs` **không có** cờ `--mark` (chỉ `snapshot.mjs` có, mà `snapshot.mjs` lại không login được).
 Nên khoanh đỏ bằng overlay tự inject qua `--step eval:`:
@@ -282,25 +291,39 @@ liệt kê 526 file). KHÔNG dùng Drive API qua service account `rezil-agent` �
 trong project của service account đó (`403 Google Drive API has not been used in project
 192480675792 before or it is disabled`), chỉ Sheets API dùng được.
 
+Mỗi lệnh `rclone` mất ~2,5s (đo 2026-08-26). Làm từng file (`copyto` → `lsf` → `link` = 3 lệnh/file)
+thì một batch 20 TC trả ~10 phút chỉ cho `rclone`. Vì vậy **upload theo batch: 3 lệnh cho cả batch**,
+qua một thư mục staging đặt sẵn ĐÚNG tên đích.
+
 ```bash
 FOLDER=10ZYvBxO9Oa2gbTmibKy6DnCrO_wxYAZB          # folder MOB-011
+STAGE=$(mktemp -d)                                 # staging RIÊNG cho batch này
 
-# upload 1 file
-rclone copyto <local>/MOB-011_476.png \
-  --drive-root-folder-id "$FOLDER" gdrive-rezil:MOB-011_476.png
+# 1. Gom ảnh của batch vào staging, đặt luôn tên đích (debug.mjs đặt tên khác: <label>-<tag>-<runId>.png)
+cp ui-next/.snapshots/mob011-MOB-011_476-<runId>.png "$STAGE/MOB-011_476.png"
 
-# kiểm tra đã lên chưa
-rclone lsf --drive-root-folder-id "$FOLDER" gdrive-rezil: | grep MOB-011_476
+# 2. Liệt kê folder Drive MỘT lần — dùng cho cả bước chống ghi đè và bước lấy link (field ID)
+rclone lsjson --drive-root-folder-id "$FOLDER" gdrive-rezil: > /tmp/drive-mob011.json
+comm -12 <(ls "$STAGE" | sort) <(jq -r '.[].Name' /tmp/drive-mob011.json | sort)   # in ra tên nào TRÙNG
 
-# lấy link để ghi vào cột M
-rclone link --drive-root-folder-id "$FOLDER" gdrive-rezil:MOB-011_476.png
+# 3. Upload cả batch bằng 1 lệnh (chỉ chạy khi bước 2 không in gì)
+rclone copy "$STAGE" --drive-root-folder-id "$FOLDER" gdrive-rezil: \
+  --transfers 8 --checkers 8 --no-traverse
+
+# 4. Lấy link cho cả batch bằng 1 lệnh: ID trong lsjson → URL y như `rclone link` trả về
+rclone lsjson --drive-root-folder-id "$FOLDER" gdrive-rezil: \
+  | jq -r '.[] | select(.Name | startswith("MOB-011_")) | "\(.Name)\thttps://drive.google.com/open?id=\(.ID)"'
 ```
 
 Quy ước dùng `rclone`:
 - Luôn truyền `--drive-root-folder-id <folder id của sheet>`; không upload vào My Drive gốc.
-- Dùng `copyto` với tên đích tường minh, **không** `copy` (tránh tên local lọt vào Drive).
-- Trước khi upload: `rclone lsf … | grep <tên file>` — trùng tên thì **dừng**, không ghi đè evidence cũ.
-- Sau khi upload: `rclone lsf` lại để xác nhận, rồi mới ghi cột M.
+- `rclone copy` chỉ được dùng với **thư mục staging** mà mọi file đã mang đúng tên đích. Upload lẻ 1 file
+  thì vẫn dùng `copyto` với tên đích tường minh — **không** `copy` từ `.snapshots/` (tên local lọt vào Drive).
+- Chống ghi đè: đối chiếu staging với `lsjson` **trước** khi upload (bước 2). Trùng tên thì **dừng**,
+  không ghi đè evidence cũ.
+- Link ghi vào cột M lấy từ field `ID` của `lsjson` — đúng định dạng `rclone link` vẫn trả
+  (`https://drive.google.com/open?id=<ID>`, verify 2026-08-26), nên không cần `rclone link` từng file.
+- Sau khi upload: `lsjson` lại (bước 4) là đã xác nhận file có trên Drive, rồi mới ghi cột M.
 
 | Sheet   | Folder                                                                   |
 |---------|--------------------------------------------------------------------------|
@@ -341,13 +364,28 @@ cột M, ghi lý do vào cột N và báo lại người phụ trách.
 3. **Đối chiếu Drive** (`rclone lsf`): TC nào đã có file thì chỉ lấy link + ghi cột M, loại khỏi
    danh sách cần chụp. Xem §2 — bắt buộc, làm trước khi mở `debug.mjs`.
 4. **Gom nhóm trước khi chụp**: sắp các TC trong batch theo trạng thái màn hình cần dựng, TC nào
-   dùng chung trạng thái thì xử lý trong cùng một lần chạy `debug.mjs` (xem §4 — Tái sử dụng
+   dùng chung trạng thái thì chụp liên tiếp trên **cùng một Chrome `--keep`** (xem §4 — Tái sử dụng
    evidence). Đây là bước quyết định tốc độ của cả batch.
-5. Với từng TC còn thiếu file: dựng pre-condition → chụp (khoanh đỏ phần tử của TC đó) → đặt tên
-   theo §3 → upload bằng `rclone` → ghi cột M theo §5.
-6. Ghi cột M bằng `batch_update_cells` (1 lần cho cả batch), **không** ghi từng ô lẻ.
-7. Sau mỗi batch: đọc lại đúng các ô vừa ghi, đối chiếu tên file ↔ TC No. rồi báo kết quả
+5. Mở Chrome keep-alive **1 lần** cho cả batch (lệnh mẫu "mở phiên" ở §4), rồi với từng TC còn thiếu
+   file: dựng pre-condition → chụp (khoanh đỏ phần tử của TC đó) → gom ảnh vào staging với đúng tên
+   theo §3. Hết batch thì `--keep-stop`.
+6. Upload cả batch theo §5 (3 lệnh `rclone` cho cả batch, **không** 3 lệnh cho mỗi file), lấy link từ
+   field `ID` của `lsjson`.
+7. Ghi cột M bằng `batch_update_cells` (1 lần cho cả batch), **không** ghi từng ô lẻ.
+8. Sau mỗi batch: đọc lại đúng các ô vừa ghi, đối chiếu tên file ↔ TC No. rồi báo kết quả
    (số TC đã ghi, số TC skip + lý do).
+
+### Giữ tốc độ (đo trên 2 phiên `/evidence` ngày 2026-08-26)
+
+Batch 20 TC đang mất ~40 phút. Phân bổ đo được: `debug.mjs` 45 lần chạy × 29,5s = 22 min ·
+`rclone` 5,8–7,7 min · model nghĩ giữa các tool 12–21 min · Sheets/DB < 1 min. Ba quy tắc chống
+lặp lại tình trạng đó:
+
+- **Không mở Chrome mới cho mỗi lệnh.** 1 batch = 1 Chrome `--keep`, đóng bằng `--keep-stop` khi xong.
+- **Không gọi `rclone` theo từng file.** 3 lệnh cho cả batch (§5).
+- **Không chạy `debug.mjs` để dò selector.** 22/45 lần chạy của phiên 597eef78 ra 0 ảnh vì đi dò
+  selector. Dò bằng `--step eval:` **trong cùng lệnh đang mở** (`document.querySelectorAll(...).length`,
+  liệt kê text của node) rồi khoanh đỏ luôn; selector đã verify thì ghi lại vào §4 để lượt sau khỏi dò.
 
 ## 7. Ràng buộc
 
