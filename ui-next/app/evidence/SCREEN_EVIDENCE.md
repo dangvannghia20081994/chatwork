@@ -403,8 +403,17 @@ lặp lại tình trạng đó:
 
 - Chỉ ghi vào cột M (và cột N khi cần ghi lý do skip). Không chèn/xoá dòng, không sửa
   Steps / Expected Result / Pre-condition, không đổi format ô.
-- Không rename hoặc xoá file evidence đã có trên Drive. Không chạy `rclone delete`/`rclone move`/
-  `rclone sync` lên folder evidence — chỉ `copyto`, `lsf`, `link`.
+- **Không xoá** file evidence đã có trên Drive. Không chạy `rclone delete`/`rclone move`/`rclone sync`
+  lên folder evidence, và **không `rclone link`** (lệnh đó cấp quyền anyone-with-link cho file — xem
+  §5). Lệnh được dùng: `copyto` (1 file, tên đích tường minh), `copy` (từ thư mục staging), `lsf`,
+  `lsjson`, và `moveto` **chỉ để rename** theo điều kiện dưới đây.
+- **Rename: chỉ khi người dùng yêu cầu trực tiếp, hoặc đã hỏi và được xác nhận.** Không bao giờ tự
+  rename trong lúc chạy batch, kể cả khi tên file cũ sai quy ước §3 — tên cũ đang được tham chiếu ở
+  các ô cột M đã ghi. Khi được phép, làm đúng thứ tự: in bảng `tên cũ → tên mới` cho toàn bộ file
+  định đổi và chờ xác nhận → `rclone lsf` kiểm tên mới CHƯA tồn tại (trùng thì dừng, không ghi đè) →
+  `rclone moveto --drive-root-folder-id "$FOLDER" gdrive-rezil:<cũ> gdrive-rezil:<mới>` (giữ nguyên
+  folder, `moveto` sang folder khác = di chuyển, không được làm) → `rclone lsf` xác nhận → cập nhật
+  ô cột M của MỌI TC đang trỏ tới tên cũ, rồi báo lại danh sách đã đổi.
 - Không chỉnh các ô thống kê (`Total TCs`, `OK`, `NG`, `% Test Progress` ở row 5–10) — đó là công thức.
 - Xác nhận đúng tab trước khi ghi: `gid` trong URL không phải tên tab, phải resolve `sheetId` → `title`
   qua Sheets API (`sheets.properties(sheetId,title)`) rồi mới ghi.

@@ -9,7 +9,7 @@
 //   2. `rclone lsf` folder Drive của sheet → TC nào ĐÃ có file thì chỉ lấy link, KHÔNG chụp lại.
 //   3. TC còn thiếu: dựng pre-condition (SELECT ở DB 207) → chạy `debug.mjs` trên web mobile,
 //      khoanh đỏ phần tử của TC → chụp.
-//   4. `rclone copyto` lên folder Drive (dừng nếu trùng tên) → `rclone link`.
+//   4. Upload cả batch lên folder Drive (dừng nếu trùng tên) → lấy link từ field `ID` của `lsjson`.
 //   5. Ghi cột M bằng HYPERLINK (Sheets API), đọc lại verify, báo TC ghi được / TC skip + lý do.
 //
 // Anh em với investigate.js (cùng khung AgentConsole + claudeSSE) nhưng đây là console CÓ GHI: ghi
@@ -46,7 +46,8 @@ export const EVIDENCE_ALLOWED = [
 ];
 
 // Chặn: sửa code repo, mọi đường git/gh, và các lệnh rclone có thể XOÁ evidence của người khác.
-// `rclone copyto/lsf/lsl/link` vẫn mở — đó là toàn bộ nhu cầu upload theo spec.
+// `rclone copy/copyto/lsf/lsjson` vẫn mở (upload + lấy link theo spec §5); `moveto` mở để rename có
+// điều kiện (§7). `rclone link` không chặn ở đây nhưng spec CẤM — lệnh đó cấp quyền anyone-with-link.
 export const EVIDENCE_DISALLOWED = [
   "Edit",
   "Write",
@@ -64,14 +65,16 @@ export const EVIDENCE_DISALLOWED = [
   "Bash(gh pr create:*)",
   "Bash(gh pr merge:*)",
   "Bash(gh release:*)",
-  // rclone: chỉ được copy/list/link. delete/move/sync/rmdir đều có thể xoá evidence đã có.
+  // rclone: được copy/list (+ moveto để rename). delete/move/sync/rmdir đều có thể mất evidence đã có.
   "Bash(rclone delete:*)",
   "Bash(rclone deletefile:*)",
   "Bash(rclone purge:*)",
   "Bash(rclone rmdir:*)",
   "Bash(rclone rmdirs:*)",
   "Bash(rclone move:*)",
-  "Bash(rclone moveto:*)",
+  // `moveto` KHÔNG chặn: đó là cách rename file trên Drive, mà rename đã được mở (2026-08-26) với
+  // điều kiện người dùng yêu cầu trực tiếp hoặc xác nhận trước — rule ở SCREEN_EVIDENCE.md §7.
+  // `move` (cả thư mục) vẫn chặn, và mọi lệnh xoá vẫn chặn.
   "Bash(rclone sync:*)",
   // Destructive shell.
   "Bash(rm:*)",
