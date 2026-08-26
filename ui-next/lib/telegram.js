@@ -195,7 +195,12 @@ function runClaude({ project, canEdit, timeoutMs }, message, sessionId, onProgre
 
     let child;
     try {
-      child = spawn("claude", argv, { cwd: proj.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
+      // Cùng trần Bash với agent do console spawn (xem agentEnv trong lib/claude.js).
+      child = spawn("claude", argv, {
+        cwd: proj.cwd,
+        env: process.env.BASH_MAX_TIMEOUT_MS ? process.env : { ...process.env, BASH_MAX_TIMEOUT_MS: "1200000" },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
     } catch (e) {
       resolve({ text: "⚠️ Không chạy được claude: " + e.message, session: sessionId, isError: true, suggest: [] });
       return;

@@ -521,6 +521,15 @@ export function handleEvent(evt, emit, state) {
 //   ACCOUNT (org tắt Claude Code, hết hạn mức) — không có nó thì lượt đầu tiên gặp lỗi luôn hỏng và
 //   người dùng phải gửi lại. Caller tự quyết khi nào đáng retry (xem app/api/chat/route.js).
 //   Tối đa MAX_SPAWNS lần spawn cho mỗi lượt để không lặp vô hạn.
+// Trần thời gian 1 lệnh Bash của agent. CLI mặc định chặn ở 600000ms (10 phút) — job của console
+// (build gradle, test suite, upload cả batch lên Drive) hay vượt mức đó và chết giữa lệnh, mất luôn
+// phần việc đang làm. Nâng trần lên 1200000ms (20 phút); mức mặc định mỗi lệnh vẫn là 120s, agent
+// muốn lâu hơn thì tự truyền timeout. Đặt trong .env (BASH_MAX_TIMEOUT_MS) thì giá trị đó thắng.
+const BASH_MAX_TIMEOUT_MS = "1200000";
+function agentEnv(base) {
+  return base.BASH_MAX_TIMEOUT_MS ? base : { ...base, BASH_MAX_TIMEOUT_MS };
+}
+
 export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true, hideSubagentText = false, retry }) {
   const encoder = new TextEncoder();
   return new ReadableStream({
@@ -606,7 +615,7 @@ export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose,
       const launch = (runEnv) => {
         spawns++;
         try {
-          child = spawn("claude", argv, { cwd, env: runEnv || process.env, stdio: ["ignore", "pipe", "pipe"] });
+          child = spawn("claude", argv, { cwd, env: agentEnv(runEnv || process.env), stdio: ["ignore", "pipe", "pipe"] });
         } catch (e) {
           emit("error_msg", "Failed to launch claude: " + e.message);
           doClose(null);

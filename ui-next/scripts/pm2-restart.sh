@@ -27,6 +27,15 @@ if [ "${AI_PM2_RESTART_DETACHED:-}" != "1" ]; then
   exit 0
 fi
 
+# pm2 nhét env của SHELL gọi lệnh vào app, ĐÈ cả phần ecosystem.config.js đã xoá (đo 2026-08-26:
+# app giữ nguyên CLAUDE_CONFIG_DIR/CLAUDE_EFFORT của phiên gọi lệnh, kể cả khi dùng
+# `pm2 delete` + `pm2 start ecosystem`). Gọi script này từ trong một phiên Claude Code mà không xoá
+# thì app chạy nhầm account của phiên đó và truyền tiếp biến ấy cho MỌI `claude -p` nó spawn.
+for k in $(env | sed -n 's/^\(CLAUDECODE\|CLAUDE_[A-Za-z0-9_]*\|AI_AGENT\)=.*/\1/p'); do
+  [ "$k" = "AI_PM2_RESTART_DETACHED" ] && continue
+  unset "$k"
+done
+
 log() { echo "[$(date '+%F %T')] $*"; }
 
 app_status() {

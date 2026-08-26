@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { claudeHome, accountHome, listAccounts } from "./config.js";
+import { claudeHome, accountHome, listAccounts, currentAccountKey } from "./config.js";
 
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
@@ -130,6 +130,43 @@ function fetchUsage(token) {
   });
 }
 
+// Dịch mã HTTP của endpoint usage sang câu có nghĩa. Hai mã hay gặp và KHÁC hẳn nhau:
+//   403 — account bị tổ chức tắt Claude Code (đã gặp với acct1 ngày 2026-08-24 và 2026-08-26), hoặc
+//         token không đủ quyền. Không tự hết theo thời gian.
+//   429 — API chặn TẦN SUẤT gọi endpoint này, không phải hết quota (quota cạn vẫn trả 200 với
+//         utilization 100%). Header `retry-after` nói còn bao lâu.
+function explainHttp(status, retryAfter) {
+  if (status === 403) return "403 — account bị tổ chức chặn Claude Code, hoặc token không đủ quyền";
+  if (status === 429) {
+    const s = Number(retryAfter);
+    return "429 — API chặn tần suất gọi" + (s > 0 ? `, thử lại sau ${Math.ceil(s / 60)} phút` : "");
+  }
+  return `HTTP ${status}`;
+}
+
+// accountUsage() trả lỗi dạng "HTTP 403" → đổi sang câu có nghĩa khi in ra cho người đọc.
+const explainError = (e) => {
+  const m = /^HTTP (\d+)$/.exec(String(e || ""));
+  return m ? explainHttp(Number(m[1])) : String(e || "không rõ");
+};
+
+// Một dòng cho MỖI account. Cần thiết vì báo cáo chi tiết ở trên chỉ nói về account của tiến trình
+// pm2: account đó bị chặn/hết quota mà 2 account kia vẫn chạy được thì nhìn báo cáo cũ tưởng hỏng cả.
+async function accountLines() {
+  const cur = currentAccountKey();
+  const rows = await Promise.all(listAccounts().map((k) => accountUsage(k)));
+  const out = ["  ── Theo account ──"];
+  for (const r of rows) {
+    const tag = r.acct === cur ? " (đang chạy)" : "";
+    out.push(
+      r.ok
+        ? `    ${r.acct}${tag}  còn ${Math.round(r.headroom)}%`
+        : `    ${r.acct}${tag}  ✖ ${explainError(r.error)}`
+    );
+  }
+  return out;
+}
+
 export async function buildLimitsReport() {
   const readOrFail = () => {
     try {
@@ -182,7 +219,13 @@ export async function buildLimitsReport() {
       "🚦 Giới hạn: token OAuth hết hạn, refresh qua claude CLI không được — trên máy chạy UI chạy:\n" +
       "  CLAUDE_CONFIG_DIR=" + claudeHome() + " claude auth login"
     );
-  if (!res.ok) return `🚦 Giới hạn: API trả HTTP ${res.status}.`;
+  if (!res.ok) {
+    const why = explainHttp(res.status, res.headers.get("retry-after"));
+    return [
+      `🚦 Giới hạn: không đọc được hạn mức của ${currentAccountKey()} — ${why}.`,
+      ...(await accountLines()),
+    ].join("\n");
+  }
   try {
     data = await res.json();
   } catch (e) {
@@ -203,6 +246,7 @@ export async function buildLimitsReport() {
   if (ex && ex.is_enabled) {
     L.push(`  Extra usage: bật${ex.utilization != null ? ` (${Math.round(ex.utilization)}%)` : ""}`);
   }
+  L.push(...(await accountLines()));
   return L.join("\n");
 }
 
