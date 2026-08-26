@@ -213,6 +213,18 @@ const BINDING_ROWS = ["five_hour", "seven_day"];
 const USAGE_CACHE_MS = 60000;
 const usageCache = new Map(); // acct → { at, ok, headroom, tier, error }
 
+// Account bị CHẶN ở mức tổ chức (admin tắt Claude subscription cho Claude Code): khác hết quota ở
+// chỗ KHÔNG tự hết sau vài giờ, và API usage vẫn trả về quota bình thường nên không đo ra được. Vì
+// vậy phải nhớ riêng, giữ suốt đời process (pm2 restart là hết) chứ không đi qua cache 60s.
+const blockedAccounts = new Map(); // acct → lý do
+
+// Một run vừa báo account bị tổ chức chặn → loại account đó khỏi mọi lựa chọn sau này.
+export function markAccountBlocked(acct, reason = "") {
+  if (blockedAccounts.has(acct)) return;
+  console.warn(`[limits] đánh dấu ${acct} bị tổ chức chặn Claude Code${reason ? " — " + reason : ""}`);
+  blockedAccounts.set(acct, "tổ chức đã tắt Claude subscription cho Claude Code");
+}
+
 function headroomFrom(data) {
   let worst = 0;
   for (const key of BINDING_ROWS) {
@@ -226,6 +238,11 @@ function headroomFrom(data) {
 // (mất ~15s) trừ khi allowRefresh — token hết hạn thì coi như không biết (ok:false) và bỏ qua
 // account đó, chứ không làm chậm chat.
 export async function accountUsage(acct, { allowRefresh = false } = {}) {
+  // Bị tổ chức chặn thì mọi run đều chết ngay, quota còn bao nhiêu cũng vô nghĩa → báo unusable để
+  // caller không chọn (và đổi khỏi) account này. blocked=true để phân biệt với mất đăng nhập.
+  const blocked = blockedAccounts.get(acct);
+  if (blocked) return { acct, at: Date.now(), ok: false, unusable: true, blocked: true, headroom: 0, error: blocked };
+
   const hit = usageCache.get(acct);
   // Bản cache hỏng (token hết hạn, API lỗi) KHÔNG được dùng lại khi caller cho phép refresh — nếu
   // không, lần gọi có allowRefresh sẽ nhận luôn kết quả hỏng cũ và không bao giờ chạy refresh.

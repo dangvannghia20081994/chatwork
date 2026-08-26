@@ -495,7 +495,13 @@ export function handleEvent(evt, emit, state) {
 //   Chat truyền env của account khác khi account đang dùng hết quota — xem lib/config.js accountEnv().
 // notice: 1 dòng thông báo hiện ngay đầu lượt (dùng event error_msg vì UI đã render sẵn), vd
 //   "acct1 hết quota — đã chuyển sang acct3".
-export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true, hideSubagentText = false }) {
+// retry({ code, spawns }): hook CHẠY LẠI NGAY TRONG CÙNG LƯỢT khi tiến trình claude vừa chết. Trả
+//   `{ env, notice }` là spawn lại y nguyên argv bằng env mới (event `end` chưa phát, client không
+//   thấy lượt bị hỏng); trả null/undefined là kết thúc như bình thường. Dùng cho lỗi thuộc về
+//   ACCOUNT (org tắt Claude Code, hết hạn mức) — không có nó thì lượt đầu tiên gặp lỗi luôn hỏng và
+//   người dùng phải gửi lại. Caller tự quyết khi nào đáng retry (xem app/api/chat/route.js).
+//   Tối đa MAX_SPAWNS lần spawn cho mỗi lượt để không lặp vô hạn.
+export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose, onEvent, timeoutMs, killOnDisconnect = true, hideSubagentText = false, retry }) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
@@ -522,19 +528,8 @@ export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose,
         if (onClose) { try { onClose(code, child, emit); } catch {} }
       };
 
-      try {
-        child = spawn("claude", argv, { cwd, env: env || process.env, stdio: ["ignore", "pipe", "pipe"] });
-      } catch (e) {
-        emit("error_msg", "Failed to launch claude: " + e.message);
-        doClose(null);
-        emit("end", {});
-        controller.close();
-        return;
-      }
-      if (onSpawn) { try { onSpawn(child); } catch {} }
-
       const state = { streamed: new Set(), curMsg: null, hideSubagentText };
-      let sentSession = false, finished = false, buf = "";
+      let sentSession = false, finished = false, buf = "", spawns = 0;
       const hb = setInterval(() => {
         try { controller.enqueue(encoder.encode(":hb\n\n")); } catch {}
       }, 15000);
@@ -547,6 +542,8 @@ export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose,
           killHard = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, 5000);
         }, timeoutMs);
       }
+      // Hạn mức spawn cho MỘT lượt: lần đầu + tối đa 2 lần retry (số account trên máy là 3).
+      const MAX_SPAWNS = 3;
 
       const finish = () => {
         if (finished) return;
@@ -560,31 +557,69 @@ export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose,
         streamClosed = true;
       };
 
-      child.stdout.on("data", (chunk) => {
-        buf += chunk.toString("utf8");
-        let nl;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl).trim();
-          buf = buf.slice(nl + 1);
-          if (!line) continue;
-          let evt;
-          try { evt = JSON.parse(line); } catch { continue; }
-          if (!sentSession && evt.session_id && onSession) { sentSession = true; emit("session", evt.session_id); }
-          handleEvent(evt, emit, state);
+      // Tiến trình vừa chết: hỏi caller có chạy lại bằng env khác không (đổi account). Chạy lại thì
+      // KHÔNG doClose/finish — cùng một stream, client chỉ thấy thêm 1 dòng thông báo.
+      const onChildClose = async (code) => {
+        if (retry && spawns < MAX_SPAWNS && !finished) {
+          let next = null;
+          try { next = await retry({ code, spawns }); } catch {}
+          if (next) {
+            if (next.notice) emit("error_msg", next.notice);
+            // Reset trạng thái parse của lượt cũ; lượt mới bắt đầu từ đầu.
+            buf = "";
+            state.streamed.clear();
+            state.curMsg = null;
+            state.pending = "";
+            state.suggesting = false;
+            state.suggestRaw = "";
+            // Cho phép phát lại event `session`: lượt hỏng có thể đã tạo session id ở account cũ;
+            // client phải nhận id THẬT của lượt chạy được, nếu không lượt sau resume nhầm phiên rỗng.
+            sentSession = false;
+            if (launch(next.env)) return;
+          }
         }
-      });
-      child.stderr.on("data", (d) => emit("error_msg", d.toString("utf8")));
-      child.on("error", (e) => {
-        emit("error_msg", "claude error: " + e.message + (e.code === "ENOENT" ? " (is `claude` on PATH?)" : ""));
-        doClose(null);
-        finish();
-      });
-      child.on("close", (code) => {
         doClose(code);
         finish();
-      });
+      };
 
-      this._child = child;
+      // Spawn claude bằng env cho trước. true = spawn được, false = hỏng (đã báo lỗi + kết thúc).
+      const launch = (runEnv) => {
+        spawns++;
+        try {
+          child = spawn("claude", argv, { cwd, env: runEnv || process.env, stdio: ["ignore", "pipe", "pipe"] });
+        } catch (e) {
+          emit("error_msg", "Failed to launch claude: " + e.message);
+          doClose(null);
+          finish();
+          return false;
+        }
+        if (onSpawn) { try { onSpawn(child); } catch {} }
+        this._child = child;
+
+        child.stdout.on("data", (chunk) => {
+          buf += chunk.toString("utf8");
+          let nl;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line) continue;
+            let evt;
+            try { evt = JSON.parse(line); } catch { continue; }
+            if (!sentSession && evt.session_id && onSession) { sentSession = true; emit("session", evt.session_id); }
+            handleEvent(evt, emit, state);
+          }
+        });
+        child.stderr.on("data", (d) => emit("error_msg", d.toString("utf8")));
+        child.on("error", (e) => {
+          emit("error_msg", "claude error: " + e.message + (e.code === "ENOENT" ? " (is `claude` on PATH?)" : ""));
+          doClose(null);
+          finish();
+        });
+        child.on("close", (code) => { onChildClose(code); });
+        return true;
+      };
+
+      launch(env);
     },
     cancel() {
       // Client disconnected. Kill only if the run is bound to the connection (jobs). Chat runs

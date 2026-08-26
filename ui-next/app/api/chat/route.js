@@ -5,8 +5,8 @@ import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { running } from "../../../lib/jobs.js";
 import { notifyTelegram } from "../../../lib/telegram.js";
 import { accountEnv, currentAccountKey } from "../../../lib/config.js";
-import { markAccountExhausted } from "../../../lib/limits.js";
-import { chooseAccount, LIMIT_RE, isLimitBlocked, isLimitResult } from "../../../lib/accountSwitch.js";
+import { markAccountExhausted, markAccountBlocked } from "../../../lib/limits.js";
+import { chooseAccount, fallbackAccount, LIMIT_RE, isLimitBlocked, isLimitResult, isBlockedResult, isBlockedText } from "../../../lib/accountSwitch.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,8 +40,17 @@ export async function GET(req) {
   // Hết quota → chạy lượt này bằng account khác, vẫn trên cùng phiên: thư mục phiên đã dùng chung
   // qua symlink (scripts/share-projects.sh), project nào chưa symlink thì transcript được copy sang.
   const chosen = await chooseAccount(project, session);
-  const runAcct = chosen.acct;
+  let runAcct = chosen.acct;
   const env = runAcct === currentAccountKey() ? undefined : accountEnv(runAcct);
+
+  // Lỗi thuộc về ACCOUNT của lượt đang chạy (org tắt Claude Code / hết hạn mức) → chạy lại NGAY
+  // trong lượt này bằng account khác (claudeSSE({ retry })). Không có nó thì lượt đầu tiên gặp lỗi
+  // luôn hỏng: dấu hiệu chỉ lộ ra khi run đã chết, mà chooseAccount thì chạy trước đó.
+  let acctFailed = null;
+  // Số ký tự nội dung THẬT đã trả ra. Không đếm đoạn text chính là thông báo lỗi account: CLI in
+  // "Your organization has disabled…" như text của assistant (kèm api_error_status 403), nên nếu
+  // đếm cả nó thì guard "đã có nội dung" chặn luôn việc chạy lại — đúng lượt cần chạy lại nhất.
+  let contentLen = 0;
 
   // Accumulate the final answer/status for the Telegram completion ping fired on `end` — cheap
   // no-op via notifyTelegram() when TELEGRAM_BOT_TOKEN/TELEGRAM_NOTIFY_CHAT_IDS aren't set.
@@ -63,8 +72,24 @@ export async function GET(req) {
     // the /api/chat/active status check can find this run even after a disconnect.
     onSpawn: runId ? (child) => running.set(runId, { child, label: "chat" }) : undefined,
     onClose: runId ? () => { running.delete(runId); } : undefined,
+    // Chạy lại trong cùng lượt khi account vừa dùng không dùng được nữa. Điều kiện: đã có bằng
+    // chứng lỗi-account VÀ lượt chưa trả ra nội dung nào (có nội dung rồi thì chạy lại sẽ nhân đôi).
+    retry: async () => {
+      if (!acctFailed || contentLen > 0) return null;
+      const fb = await fallbackAccount(project, session, runAcct, acctFailed);
+      if (!fb) return null;
+      runAcct = fb.acct;
+      acctFailed = null;
+      runError = false;
+      gotResult = false;
+      answer = "";      // phần đã trả ra chỉ là dòng lỗi — đừng để nó lẫn vào ping Telegram
+      return { env: fb.env, notice: fb.notice };
+    },
     onEvent: (event, data) => {
-      if (event === "delta") answer += data;
+      if (event === "delta") {
+        answer += data;
+        if (!isBlockedText(data) && !LIMIT_RE.test(data)) contentLen += data.length;
+      }
       // CLI báo bị chặn hạn mức ngay khi request bị từ chối (trước cả event result) → đánh dấu sớm.
       else if (event === "rate_limit") {
         if (isLimitBlocked(data)) markAccountExhausted(runAcct, `rate_limit_event status=${data.status} type=${data.rateLimitType}`);
@@ -72,15 +97,28 @@ export async function GET(req) {
       else if (event === "result") {
         gotResult = true;
         runError = !!data.isError;
-        // Run bị chặn vì hết hạn mức → đánh dấu account cạn ngay, lượt sau tự đổi account.
-        if (isLimitResult(data)) markAccountExhausted(runAcct, `result api_error_status=${data.apiErrorStatus} text=${String(data.resultText || "").slice(0, 120)}`);
+        // Org tắt Claude subscription cho Claude Code → account chết hẳn; hoặc hết hạn mức → cạn tạm
+        // thời. Cả hai đánh dấu ngay để lượt sau tự đổi account. Check "bị chặn" trước vì cụ thể hơn.
+        if (isBlockedResult(data)) {
+          markAccountBlocked(runAcct, `result text=${String(data.resultText || "").slice(0, 120)}`);
+          acctFailed = "bị tổ chức chặn Claude Code";
+        } else if (isLimitResult(data)) {
+          markAccountExhausted(runAcct, `result api_error_status=${data.apiErrorStatus} text=${String(data.resultText || "").slice(0, 120)}`);
+          acctFailed = "hết hạn mức";
+        }
       } else if (
         event === "error_msg" &&
         typeof data === "string" &&
-        data !== chosen.notice && // đừng soi dòng notice do CHÍNH ta vừa phát ra ở đầu lượt
-        LIMIT_RE.test(data)
+        data !== chosen.notice // đừng soi dòng notice do CHÍNH ta vừa phát ra ở đầu lượt
       ) {
-        markAccountExhausted(runAcct, `error_msg khớp LIMIT_RE: ${data.slice(0, 120)}`);
+        // Lỗi org chặn account đến qua stderr, không có mã 429 nào kèm → chỉ bắt được bằng text.
+        if (isBlockedText(data)) {
+          markAccountBlocked(runAcct, `error_msg khớp BLOCKED_RE: ${data.slice(0, 120)}`);
+          acctFailed = "bị tổ chức chặn Claude Code";
+        } else if (LIMIT_RE.test(data)) {
+          markAccountExhausted(runAcct, `error_msg khớp LIMIT_RE: ${data.slice(0, 120)}`);
+          acctFailed = "hết hạn mức";
+        }
       }
       else if (event === "end") {
         const status = runError ? "⚠️ Lỗi" : gotResult ? "✅ Xong" : "⏹ Đã dừng";

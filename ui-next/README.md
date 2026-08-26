@@ -191,6 +191,8 @@ Cơ chế:
 | Chọn account + đồng bộ transcript trước khi resume | `lib/accountSwitch.js` → `chooseAccount` |
 | Spawn `claude` bằng account đã chọn | `lib/claude.js` → `claudeSSE({ env, notice })` |
 | Đánh dấu account cạn khi run báo hết hạn mức | `app/api/chat/route.js` → `markAccountExhausted` |
+| Đánh dấu account bị tổ chức chặn Claude Code | `app/api/chat/route.js` → `markAccountBlocked` (xem dưới) |
+| Chạy lại NGAY trong lượt bằng account khác | `lib/claude.js` → `claudeSSE({ retry })` + `lib/accountSwitch.js` → `fallbackAccount` |
 
 Phiên nằm ở `<CLAUDE_CONFIG_DIR>/projects/<cwd-mã-hoá>/<session-id>.jsonl`, nên account mới phải
 thấy được file đó. Hai cách, dùng song song được:
@@ -204,6 +206,51 @@ thấy được file đó. Hai cách, dùng song song được:
 
 Fail-open: không đọc được quota (token hết hạn, API lỗi) hoặc copy phiên thất bại → giữ account cũ
 đúng như trước, chỉ kèm cảnh báo.
+
+### Ngoài hết quota: 2 trường hợp cũng phải đổi account
+
+Cả hai đều là NGOẠI LỆ của fail-open — giữ account cũ thì lượt nào cũng chết, nên đổi là lựa chọn duy
+nhất còn chạy được:
+
+1. **Mất đăng nhập** — access token hết hạn mà refresh token cũng mất/hết hạn (`unusableReason` trong
+   `lib/limits.js`). CLI sẽ chết với "OAuth session expired and could not be refreshed". Xử lý:
+   `CLAUDE_CONFIG_DIR=<dir> claude auth login`.
+2. **Tổ chức tắt Claude subscription cho Claude Code** — run chết ngay với:
+
+   ```
+   ⚠ Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access
+   ```
+
+   Lỗi này KHÔNG tự hết sau vài giờ và API `/usage` vẫn trả quota bình thường, nên không đo ra được —
+   chỉ bắt được bằng text (`BLOCKED_RE` trong `lib/accountSwitch.js`, khớp cả `result` lẫn stderr).
+   Vì vậy nó được nhớ RIÊNG (`markAccountBlocked`), giữ suốt đời process (pm2 restart là hết) thay vì
+   đi qua cache quota 60s — nếu coi là "hết quota" thì sau 60s account lại được chọn lại và lượt nào
+   cũng chết. Account đã đánh dấu bị loại khỏi mọi lựa chọn sau đó; dòng cảnh báo ghi "bị tổ chức chặn
+   Claude Code", và nếu không còn account nào khác thì nhắc nhờ admin bật lại / dùng Anthropic API key.
+
+### Chạy lại ngay trong lượt (không mất lượt)
+
+Hai lỗi trên chỉ lộ ra KHI RUN ĐÃ CHẾT, còn `chooseAccount` chạy trước đó — nếu chỉ đổi account cho
+lượt sau thì lượt đang gửi luôn hỏng và người dùng phải gửi lại. Vì vậy `claudeSSE` nhận thêm hook
+`retry`: tiến trình `claude` chết → hỏi caller có env khác để chạy lại không → có thì **spawn lại
+nguyên argv trong CÙNG stream** (chưa phát `end`, client chỉ thấy thêm 1 dòng thông báo):
+
+```
+Your organization has disabled Claude subscription access for Claude Code · …
+⚠️ acct1 bị tổ chức chặn Claude Code — chạy lại lượt này bằng acct2 (còn 97%).
+4
+```
+
+Chi tiết đáng lưu ý:
+
+- Tối đa 3 lần spawn cho mỗi lượt (`MAX_SPAWNS` trong `lib/claude.js`) — bằng số account trên máy.
+- Chỉ chạy lại khi lượt **chưa trả ra nội dung thật** (`contentLen` trong route). CLI in dòng
+  "Your organization has disabled…" như **text của assistant** (event `delta`, kèm
+  `api_error_status: 403`), nên đoạn text khớp `BLOCKED_RE`/`LIMIT_RE` KHÔNG được tính là nội dung —
+  tính cả nó thì đúng lượt cần chạy lại nhất lại bị chặn.
+- `session` được phát lại cho lượt mới: lượt hỏng có thể đã tạo session id ở account cũ, client phải
+  giữ id của lượt chạy được, nếu không lượt sau resume nhầm phiên rỗng.
+- Console job (`/auto`, `/feature`, …) không truyền `retry` → hành vi y như trước.
 
 Refresh token: token OAuth mỗi account chỉ được CLI làm mới khi có một lượt `claude` thật chạy dưới
 account đó, nên account ít dùng hay bị quá hạn token. Quy tắc:
@@ -225,8 +272,10 @@ login`):
 Giới hạn: áp cho `/chat` và `/release` (cả hai đều đa lượt, resume theo phiên; `/release` an toàn vì
 cả 3 account đều có agent `github-ops` và cùng bộ MCP server). Các console job còn lại (`/auto`,
 `/feature`, `/rebase`, `/report`, `/investigate`) vẫn chạy bằng account của pm2; `todos/` và
-`file-history/` (`/rewind`) vẫn riêng theo account nên không mang theo khi đổi. Việc đổi account chỉ
-xảy ra Ở ĐẦU LƯỢT — một lượt đang chạy mà cạn quota thì vẫn hỏng, lượt kế tiếp mới nhảy account.
+`file-history/` (`/rewind`) vẫn riêng theo account nên không mang theo khi đổi. Đổi account xảy ra ở
+ĐẦU LƯỢT (`chooseAccount`, theo quota đo được) và ở lúc RUN VỪA CHẾT (`retry` → `fallbackAccount`,
+theo lỗi thật của run). Lượt đã trả ra nội dung rồi mới cạn quota thì vẫn hỏng — lượt kế tiếp mới
+nhảy account.
 
 ## Trạng thái: migration xong ✅
 

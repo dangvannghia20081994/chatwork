@@ -7,7 +7,7 @@
 //
 // Nguyên tắc fail-open: mọi trường hợp không chắc (token hết hạn, API usage lỗi, copy phiên thất
 // bại) đều giữ nguyên account cũ — hành vi y như trước khi có tính năng này, chỉ kèm 1 dòng cảnh báo.
-import { currentAccountKey } from "./config.js";
+import { accountEnv, currentAccountKey } from "./config.js";
 import { accountUsage, surveyAccounts } from "./limits.js";
 import { ensureSessionInAccount, sessionCopies } from "./sessions.js";
 
@@ -21,6 +21,24 @@ export const MIN_HEADROOM = 3;
 // cả session/weekly, (2) đường tin cậy chính là tín hiệu CẤU TRÚC — event rate_limit_event và
 // api_error_status=429 (xem isLimitResult + app/api/chat/route.js), text chỉ là lớp dự phòng.
 export const LIMIT_RE = /(usage|rate|session|weekly|5-hour|five hour)\s*limit|limit reached|429/i;
+
+// Dấu hiệu account bị CHẶN ở mức tổ chức, không phải hết hạn mức:
+//   "Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic
+//    API key instead, or ask your admin to enable access"
+// Lỗi này không tự hết theo thời gian và API usage vẫn trả quota bình thường, nên phải bắt bằng text
+// rồi đánh dấu riêng (markAccountBlocked) — coi là "hết quota" thì sau 60s cache account lại được
+// chọn lại và lượt nào cũng chết.
+export const BLOCKED_RE = /organi[sz]ation has disabled[^\n]{0,80}claude|subscription access for claude code/i;
+
+// Text lỗi (result / stderr) có phải là lỗi org chặn account không.
+export function isBlockedText(text) {
+  return BLOCKED_RE.test(String(text || ""));
+}
+
+// Event `result` có hỏng vì account bị org chặn không.
+export function isBlockedResult(data) {
+  return !!data && !!data.isError && isBlockedText(data.resultText);
+}
 
 // Event `rate_limit` (từ rate_limit_event của CLI) có báo account bị CHẶN không? "allowed_warning"
 // chỉ là cảnh báo sắp hết — vẫn chạy được, không được coi là cạn.
@@ -48,9 +66,37 @@ export function describeSkipped(rows) {
     .map((r) =>
       r.ok
         ? `${r.acct} hết quota (còn ${Math.round(r.headroom)}%)`
-        : `${r.acct} không kiểm tra được: ${r.error || "lỗi không rõ"}`
+        : r.blocked
+          ? `${r.acct} bị tổ chức chặn Claude Code`
+          : `${r.acct} không kiểm tra được: ${r.error || "lỗi không rõ"}`
     )
     .join("; ");
+}
+
+// Lượt vừa chạy chết vì LỖI THUỘC VỀ ACCOUNT (org tắt Claude Code, hết hạn mức) → tìm account khác
+// để chạy lại NGAY TRONG LƯỢT ĐÓ. Khác `chooseAccount` (chạy ở đầu lượt, dựa trên quota đo được):
+// đây là đường xử lý sau khi đã có bằng chứng account hỏng, nên bỏ qua bước đo account vừa chạy.
+//
+// → { acct, env, notice } để truyền vào claudeSSE({ retry }), hoặc null nếu không có account nào
+// thay thế (khi đó lượt kết thúc với lỗi gốc, đúng như trước).
+//   failedAcct: account vừa chạy hỏng.  reason: câu mô tả để in trong thông báo.
+export async function fallbackAccount(project, session, failedAcct, reason) {
+  const { best: alt } = await surveyAccounts({
+    exclude: [failedAcct],
+    minHeadroom: MIN_HEADROOM,
+    allowRefresh: true,
+  });
+  if (!alt) return null;
+
+  // Phiên phải thấy được ở account mới, nếu không lượt chạy lại sẽ mất context.
+  const moved = session ? ensureSessionInAccount(project, session, alt.acct) : { ok: true, action: "new" };
+  if (!moved.ok) return null;
+
+  return {
+    acct: alt.acct,
+    env: accountEnv(alt.acct),
+    notice: `⚠️ ${failedAcct} ${reason} — chạy lại lượt này bằng ${alt.acct} (còn ${Math.round(alt.headroom)}%).`,
+  };
 }
 
 // → { acct, notice? }. notice là 1 dòng hiện đầu lượt trong chat (nếu có gì đáng nói).
@@ -58,10 +104,11 @@ export async function chooseAccount(project, session) {
   const current = currentAccountKey();
   const cur = await accountUsage(current);
 
-  // cur.unusable = account của pm2 mất đăng nhập (token + refresh token đều hết hạn/bị xoá). Đây là
-  // NGOẠI LỆ của nguyên tắc fail-open: giữ nguyên account lúc này thì lượt nào cũng chết với
-  // "OAuth session expired and could not be refreshed", đổi account là lựa chọn duy nhất còn chạy.
-  // Lỗi mạng / API 5xx vẫn fail-open như cũ (ok:false nhưng unusable:false).
+  // cur.unusable = account của pm2 mất đăng nhập (token + refresh token đều hết hạn/bị xoá), hoặc bị
+  // tổ chức chặn Claude Code (cur.blocked). Đây là NGOẠI LỆ của nguyên tắc fail-open: giữ nguyên
+  // account lúc này thì lượt nào cũng chết với "OAuth session expired and could not be refreshed" /
+  // "your organization has disabled Claude subscription access", đổi account là lựa chọn duy nhất
+  // còn chạy. Lỗi mạng / API 5xx vẫn fail-open như cũ (ok:false nhưng unusable:false).
   const curDead = !!cur.unusable;
 
   // Account của pm2 còn quota → chạy bằng nó. NHƯNG phiên có thể đã chạy tiếp ở account khác trong
@@ -97,16 +144,22 @@ export async function chooseAccount(project, session) {
   // Account của pm2 đã cạn (hoặc mất đăng nhập) → lượt này hỏng chắc nếu không đổi, nên cho phép
   // refresh token (~15s cho mỗi account quá hạn): thà chờ còn hơn bỏ sót account còn dư chỉ vì
   // token chưa được CLI làm mới.
-  const curState = curDead ? `mất đăng nhập: ${cur.error}` : `hết quota (còn ${Math.round(cur.headroom)}%)`;
+  const curState = cur.blocked
+    ? "bị tổ chức chặn Claude Code"
+    : curDead
+      ? `mất đăng nhập: ${cur.error}`
+      : `hết quota (còn ${Math.round(cur.headroom)}%)`;
   const { best: alt, rows } = await surveyAccounts({
     exclude: [current],
     minHeadroom: MIN_HEADROOM,
     allowRefresh: true,
   });
   if (!alt) {
-    const tail = curDead
-      ? `lượt này vẫn chạy bằng ${current} và nhiều khả năng lỗi xác thực — chạy \`claude auth login\` cho ${current}.`
-      : `lượt này vẫn chạy bằng ${current}.`;
+    const tail = cur.blocked
+      ? `lượt này vẫn chạy bằng ${current} và sẽ lỗi — nhờ admin bật lại Claude Code cho ${current}, hoặc dùng Anthropic API key.`
+      : curDead
+        ? `lượt này vẫn chạy bằng ${current} và nhiều khả năng lỗi xác thực — chạy \`claude auth login\` cho ${current}.`
+        : `lượt này vẫn chạy bằng ${current}.`;
     return {
       acct: current,
       notice: `⚠️ ${current} ${curState}, không dùng được account nào khác (${describeSkipped(rows)}) — ${tail}`,
