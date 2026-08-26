@@ -15,6 +15,8 @@
 //   --wait <ms>            chờ sau khi load xong, trước khi chạy step  (default: 4000)
 //   --settle <ms>          chờ cuối cùng trước khi tổng kết            (default: 1500)
 //   --width/--height <px>  kích thước viewport                         (default: 1280x800)
+//   --geo "<lat>,<lon>"    cấp quyền vị trí + ghi đè toạ độ GPS (màn cần GPS mới cho thao tác, vd
+//                          submit báo cáo của rezil-esms-mobile). Không truyền → không cấp quyền
 //   --headed               mở cửa sổ Chrome thật (mặc định headless)
 //   --attach <port>        KHÔNG tự mở Chrome, attach vào Chrome đang chạy với
 //                          --remote-debugging-port=<port> (dùng profile/session đang login sẵn)
@@ -104,6 +106,18 @@ const label = (opt("label", "debug").replace(/[^a-zA-Z0-9-_]/g, "-").slice(0, 30
 const wait = num(opt("wait", "4000"), 4000, 0, 60000);
 const settle = num(opt("settle", "1500"), 1500, 0, 60000);
 const width = num(opt("width", "1280"), 1280, 320, 3840);
+// --geo "<lat>,<lon>": cấp quyền vị trí + ghi đè toạ độ (app rezil-esms-mobile chặn submit report
+// khi không lấy được GPS: hiện popup 位置情報の設定をオン). Không truyền --geo → giữ nguyên hành vi cũ.
+const geoOpt = opt("geo", "");
+const geo = (() => {
+  if (!geoOpt) return null;
+  const [la, lo] = geoOpt.split(",").map((s) => parseFloat(s.trim()));
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) {
+    console.error(`--geo "${geoOpt}": cần dạng "<lat>,<lon>", ví dụ --geo "35.681236,139.767125"`);
+    process.exit(2);
+  }
+  return { latitude: la, longitude: lo, accuracy: 20 };
+})();
 const height = num(opt("height", "800"), 800, 240, 4320);
 const headed = has("headed");
 const attachPort = opt("attach", "");
@@ -149,6 +163,7 @@ const mask = (s) => {
   return out;
 };
 
+const extraChromeFlags = optAll("chrome-flag");
 const steps = optAll("step");
 const evals = optAll("eval");
 
@@ -166,6 +181,15 @@ const LOGIN_PRESETS = {
     // `ion-button` chỉ có PROPERTY type=submit, không có attribute → `ion-button[type=submit]` không
     // match. Nút ログイン là ion-button.btn-primary; loại .sso__button (đăng nhập Microsoft Entra ID).
     submitSel: ["ion-button.btn-primary:not(.sso__button)", "button[type=submit]:not([style*='display: none'])"],
+  },
+  // rezil-esms (admin web, SvelteKit, cổng dev 3000) — form メールアドレス/パスワード của /admin/login.
+  "rezil-admin": {
+    envFile: "~/.claude/projects/-home-nghiadv-IdeaProjects-rezil-esms/credentials/rezil-esms-test.env",
+    userKey: "REZIL_ESMS_TEST_EMAIL",
+    passKey: "REZIL_ESMS_TEST_PASSWORD",
+    userSel: "input[name=email]",
+    passSel: "input[name=password]",
+    submitSel: ["button[type=submit]"],
   },
 };
 const loginPreset = opt("login", "");
@@ -390,6 +414,9 @@ async function connect() {
       "--disable-sync",
       "--disable-component-extensions-with-background-pages",
       `--window-size=${width},${height}`,
+      // --chrome-flag: cờ Chrome thêm vào (lặp lại được), vd --chrome-flag --disable-web-security để
+      // gọi API khác origin khi dev server chạy trên cổng không nằm trong CORS allow-list của BE.
+      ...extraChromeFlags,
       ...(userDataDir ? [`--user-data-dir=${userDataDir}`] : []),
       "--remote-debugging-port=0",
       "about:blank",
@@ -549,7 +576,8 @@ try {
   const typeSel = async (sel, text) => {
     const ok = await evaluate(`(() => { const e = document.querySelector(${JSON.stringify(sel)});
       if (!e) return false; e.focus();
-      if (e.setSelectionRange && e.value != null) e.setSelectionRange(0, e.value.length);
+      // input type=email/number không hỗ trợ selection → setSelectionRange ném InvalidStateError.
+      if (e.setSelectionRange && e.value != null) { try { e.setSelectionRange(0, e.value.length); } catch { e.value = ''; } }
       else if (e.isContentEditable) document.getSelection()?.selectAllChildren(e);
       return true; })()`);
     if (!ok) return false;
@@ -617,6 +645,11 @@ try {
 
   // ---------- điều hướng ----------
   await c.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }).catch(() => {});
+  if (geo) {
+    const origin = new URL(url).origin;
+    await c.send("Browser.grantPermissions", { origin, permissions: ["geolocation"] }).catch(() => {});
+    await c.send("Emulation.setGeolocationOverride", geo).catch(() => {});
+  }
   await c.send("Page.navigate", { url });
   await new Promise((r) => setTimeout(r, wait));
 
