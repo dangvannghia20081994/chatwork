@@ -13,8 +13,8 @@
 //   5. Ghi cột M bằng HYPERLINK (Sheets API), đọc lại verify, báo TC ghi được / TC skip + lý do.
 //
 // Anh em với investigate.js (cùng khung AgentConsole + claudeSSE) nhưng đây là console CÓ GHI: ghi
-// file ảnh lên Drive và ghi cột M/N của sheet. Không sửa code repo (Edit/Write bị chặn), không
-// git/gh, không DML lên DB.
+// file ảnh lên Drive và ghi cột M/N của sheet. Không sửa code repo — Write/Edit chỉ dùng cho bản đồ
+// selector `app/evidence/SELECTORS_<SCREEN>.md` (xem EVIDENCE_ALLOWED); không git/gh, không DML lên DB.
 import fs from "fs";
 import path from "path";
 import { ROOT } from "./config.js";
@@ -32,9 +32,14 @@ export function readSpec() {
 }
 
 // Tool cần: đọc/chạy script chụp (Bash + Read/Grep/Glob), đọc-ghi sheet (MCP gsheets-rezil),
-// SELECT dữ liệu dựng pre-condition (MCP mysql_207). KHÔNG Edit/Write — màn này không sửa code.
+// SELECT dữ liệu dựng pre-condition (MCP mysql_207).
+// Write/Edit mở từ 2026-08-26 CHỈ để cập nhật bản đồ selector `app/evidence/SELECTORS_<SCREEN>.md`
+// (spec §4 bắt agent ghi lại selector vừa verify để lượt sau khỏi dò — trước đây rule đó không chạy
+// được vì 2 tool này bị chặn). Phạm vi file là RÀNG BUỘC MỀM trong system prompt: run dùng
+// `--permission-mode bypassPermissions` nên deny-list không nhận pattern theo đường dẫn; bù lại mọi
+// đường git/gh vẫn bị chặn nên thay đổi lạc chỗ không thể vào lịch sử repo.
 export const EVIDENCE_ALLOWED = [
-  "Read", "Grep", "Glob", "Bash", "TodoWrite",
+  "Read", "Grep", "Glob", "Bash", "TodoWrite", "Write", "Edit",
   "mcp__gsheets-rezil__list_sheets",
   "mcp__gsheets-rezil__get_sheet_data",
   "mcp__gsheets-rezil__get_sheet_formulas",
@@ -49,8 +54,6 @@ export const EVIDENCE_ALLOWED = [
 // `rclone copy/copyto/lsf/lsjson` vẫn mở (upload + lấy link theo spec §5); `moveto` mở để rename có
 // điều kiện (§7). `rclone link` không chặn ở đây nhưng spec CẤM — lệnh đó cấp quyền anyone-with-link.
 export const EVIDENCE_DISALLOWED = [
-  "Edit",
-  "Write",
   "NotebookEdit",
   "AskUserQuestion",
   // Không sửa code / không đụng lịch sử repo từ màn này.
@@ -107,6 +110,10 @@ export function evidenceSystemPrompt(nowStamp) {
     "  `FULL-VIEWPORT` thì sửa selector rồi chụp lại, KHÔNG upload ảnh thiếu khoanh đỏ.",
     "",
     "# GIỚI HẠN CỨNG",
+    "- File DUY NHẤT được tạo/sửa bằng Write/Edit: `ui-next/app/evidence/SELECTORS_<SCREEN>.md` (bản đồ",
+    "  selector của màn đang chụp). Mọi file khác trong repo — code, spec, config, script — KHÔNG được",
+    "  sửa, kể cả khi thấy sai; phát hiện sai thì báo lại người dùng. Cũng không dùng Bash để ghi đè",
+    "  file (`>`, `tee`, `sed -i`) nhằm lách giới hạn này.",
     "- Chỉ ghi cột M (và cột N khi ghi lý do skip). KHÔNG sửa J/K/L, không chèn/xoá dòng, không đụng",
     "  ô công thức thống kê ở row 5–10.",
     "- KHÔNG ghi đè file evidence đã có trên Drive: `rclone lsf | grep <tên file>` trước mỗi upload,",
@@ -114,7 +121,7 @@ export function evidenceSystemPrompt(nowStamp) {
     "- DB 207 chỉ SELECT để dựng/kiểm pre-condition. Không INSERT/UPDATE/DELETE.",
     "- Thao tác trên app làm ĐỔI DỮ LIỆU env (submit báo cáo, approve, xoá...) mà TC không yêu cầu thì",
     "  KHÔNG bấm. TC có yêu cầu thì nêu rõ hệ quả (bản ghi nào, state đổi thế nào) TRƯỚC khi bấm.",
-    "- Không sửa code repo (Edit/Write đã bị chặn), không git/gh, không deploy.",
+    "- Không sửa code repo, không git/gh (đã bị chặn), không deploy.",
     "- Phi tương tác: không hỏi lại rồi ngồi đợi giữa lượt — nêu giả định và đi tiếp; chỗ buộc người",
     "  dùng quyết thì làm xong phần còn lại rồi ghi rõ `(cần confirm: ...)` ở cuối.",
     "",

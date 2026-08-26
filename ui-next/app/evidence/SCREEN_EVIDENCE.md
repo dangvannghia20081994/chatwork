@@ -415,6 +415,9 @@ lặp lại tình trạng đó:
   folder, `moveto` sang folder khác = di chuyển, không được làm) → `rclone lsf` xác nhận → cập nhật
   ô cột M của MỌI TC đang trỏ tới tên cũ, rồi báo lại danh sách đã đổi.
 - Không chỉnh các ô thống kê (`Total TCs`, `OK`, `NG`, `% Test Progress` ở row 5–10) — đó là công thức.
+- File duy nhất được tạo/sửa trong repo: `ui-next/app/evidence/SELECTORS_<SCREEN>.md` (bản đồ selector
+  của màn đang chụp — xem §4). Mọi file khác, kể cả chính spec này, chỉ được ĐỌC; thấy sai thì báo
+  người dùng chứ không tự sửa. Không dùng Bash (`>`, `tee`, `sed -i`) để lách giới hạn đó.
 - Xác nhận đúng tab trước khi ghi: `gid` trong URL không phải tên tab, phải resolve `sheetId` → `title`
   qua Sheets API (`sheets.properties(sheetId,title)`) rồi mới ghi.
 
