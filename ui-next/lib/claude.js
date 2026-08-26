@@ -96,6 +96,25 @@ export const GIT_BRANCH_SAFETY = [
   "6. LỠ PUSH LÊN BASE: DỪNG NGAY, báo lại cho người dùng. KHÔNG tự revert/force-push `develop`/`main`.",
 ].join("\n");
 
+// pm2 guardrail cho chính bộ ai-agent này. Console spawn `claude` nên agent là process CON của
+// ai-agent-ui-next: gõ thẳng `pm2 restart ai-agent-ui-next` là pm2 giết cả cây process, lệnh restart
+// chết giữa chừng và app không lên lại (đã dính 2026-08-26). Mọi restart phải đi qua script tự
+// setsid ra session khác.
+export const PM2_OPS_SAFETY = [
+  "## PM2 CỦA CHÍNH BỘ AI-AGENT (chatwork/ui-next) — bắt buộc",
+  "1. TUYỆT ĐỐI KHÔNG chạy trực tiếp `pm2 restart|stop|delete ai-agent-ui-next` (và `pm2 kill`,",
+  "   `pm2 resurrect`). Bạn đang chạy BÊN TRONG process đó — pm2 giết cả cây process nên lệnh của bạn",
+  "   bị SIGKILL giữa chừng, app không lên lại và mất luôn kênh điều khiển.",
+  "2. Cần khởi động lại thì gọi: `~/IdeaProjects/chatwork/ui-next/scripts/pm2-restart.sh <app>`.",
+  "   Script tự tách session (setsid), restart → verify → nếu chưa online thì delete + start lại từ",
+  "   ecosystem, rồi báo kết quả qua Telegram. Nó trả về ngay; ĐỪNG chờ app online trong cùng lượt.",
+  "3. Sửa code ui-next xong phải `npm run build` TRƯỚC khi restart (pm2 chạy `next start`, không HMR).",
+  "4. `pm2 list|jlist|logs|describe` chỉ đọc — dùng thoải mái.",
+  "5. Bot Telegram là app pm2 RIÊNG (`ai-agent-telegram`, telegram-bot.mjs) để nó sống sót khi",
+  "   ai-agent-ui-next chết. Chỉ được có MỘT process poll token: đừng bật TELEGRAM_IN_PROCESS=1 khi",
+  "   app đó đang chạy (Telegram trả 409 Conflict).",
+].join("\n");
+
 // Anti-degrade guardrail shared by EVERY code-changing flow (auto REZIL/feature/story/film, chat ở
 // chế độ sửa code, rebase console, release console). Yêu cầu người dùng 2026-08-13: sửa code ở BẤT KỲ
 // route nào cũng phải soát kỹ để không làm hỏng chức năng đang chạy đúng. Từng luật dưới đây lấy từ
@@ -203,6 +222,7 @@ function chatSystemPrompt(project, canEdit) {
       "Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm. Tên branch/commit/PR/code giữ tiếng Anh theo convention của từng repo.",
       GIT_BRANCH_SAFETY,
       NO_DEGRADE_SAFETY,
+      PM2_OPS_SAFETY,
       snapshotInstr(""),
       debugInstr(""),
       TABLE_INSTR,

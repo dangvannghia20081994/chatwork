@@ -13,6 +13,7 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "node:url";
 import {
   buildChatArgv,
   handleEvent,
@@ -272,13 +273,129 @@ function runClaude({ project, canEdit, timeoutMs }, message, sessionId, onProgre
   });
 }
 
+// ---- pm2 ops commands: run the pm2 CLI DIRECTLY, never through the claude agent ----
+// This is the rescue channel. It has to work when the agent is broken, out of quota, or the Next app
+// is dead — so no `claude` spawn here, just pm2. Blast radius is limited to TELEGRAM_PM2_APPS so a
+// hastily typed message can't touch unrelated apps on this machine.
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const RESTART_SH = path.join(HERE, "..", "scripts", "pm2-restart.sh");
+
+function pm2Apps() {
+  return (process.env.TELEGRAM_PM2_APPS || "ai-agent-ui-next,ai-agent-telegram")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// Small exec helper: never rejects — returns {code, out} with stdout+stderr merged.
+function run(cmd, args, timeoutMs = 25000) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      resolve({ code: -1, out: e.message });
+      return;
+    }
+    let out = "";
+    const timer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, timeoutMs);
+    child.stdout.on("data", (d) => { out += d.toString("utf8"); });
+    child.stderr.on("data", (d) => { out += d.toString("utf8"); });
+    child.on("error", (e) => { clearTimeout(timer); resolve({ code: -1, out: out + e.message }); });
+    child.on("close", (code) => { clearTimeout(timer); resolve({ code, out }); });
+  });
+}
+
+async function pm2List() {
+  const { code, out } = await run("pm2", ["jlist"]);
+  if (code !== 0) return null;
+  const i = out.indexOf("[");
+  if (i < 0) return null;
+  try {
+    return JSON.parse(out.slice(i));
+  } catch {
+    return null;
+  }
+}
+
+function fmtUptime(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.round(s / 60) + "m";
+  if (s < 86400) return Math.round(s / 3600) + "h";
+  return Math.round(s / 86400) + "d";
+}
+
+async function cmdStatus(conf, chatId) {
+  const list = await pm2List();
+  if (!list) {
+    await sendMessage(
+      conf.token,
+      chatId,
+      "⚠️ Không đọc được pm2 (daemon có thể đã chết). Thử /restart <app> — script sẽ dựng lại từ ecosystem."
+    );
+    return;
+  }
+  const lines = pm2Apps().map((name) => {
+    const p = list.find((x) => x.name === name);
+    if (!p) return `⚪ ${name} · pm2 không thấy app này (dùng /restart ${name} để dựng lại)`;
+    const st = p.pm2_env?.status || "?";
+    const icon = st === "online" ? "🟢" : st === "stopped" ? "🔴" : "🟡";
+    const up = p.pm2_env?.pm_uptime && st === "online" ? " · up " + fmtUptime(Date.now() - p.pm2_env.pm_uptime) : "";
+    const mem = p.monit?.memory ? " · " + Math.round(p.monit.memory / 1048576) + "mb" : "";
+    return `${icon} ${name} · ${st}${up} · ↺${p.pm2_env?.restart_time ?? 0}${mem}`;
+  });
+  await sendMessage(conf.token, chatId, "📊 Trạng thái pm2\n\n" + lines.join("\n"));
+}
+
+async function cmdRestart(conf, chatId, arg) {
+  const apps = pm2Apps();
+  const target = (arg || apps[0]).trim();
+  if (!apps.includes(target)) {
+    await sendMessage(conf.token, chatId, `⛔ Chỉ khởi động lại được: ${apps.join(", ")}`);
+    return;
+  }
+  await sendMessage(conf.token, chatId, `♻️ Đang khởi động lại '${target}'… Kết quả sẽ báo lại sau ~10-45s.`);
+  // Detached on purpose: the target may be THIS process. scripts/pm2-restart.sh setsid's itself,
+  // runs the restart → verify → delete+start escalation, and reports the outcome back to this chat
+  // (NOTIFY_CHAT_ID) — so the answer arrives even if the bot itself was the thing being restarted.
+  try {
+    const child = spawn("bash", [RESTART_SH, target], {
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env, NOTIFY_CHAT_ID: String(chatId) },
+    });
+    child.unref();
+  } catch (e) {
+    await sendMessage(conf.token, chatId, "⚠️ Không chạy được script restart: " + e.message);
+  }
+}
+
+async function cmdLogs(conf, chatId, arg) {
+  const apps = pm2Apps();
+  const [name, count] = arg.split(/\s+/).filter(Boolean);
+  const target = (name || apps[0]).trim();
+  if (!apps.includes(target)) {
+    await sendMessage(conf.token, chatId, `⛔ Chỉ xem log được: ${apps.join(", ")}`);
+    return;
+  }
+  const lines = Math.min(Math.max(Number(count) || 40, 1), 200);
+  const { out } = await run("pm2", ["logs", target, "--lines", String(lines), "--nostream"]);
+  const body = (out || "").trim() || "(không có log)";
+  await sendMessage(conf.token, chatId, `📜 ${target} · ${lines} dòng cuối\n\n` + body.slice(-3500));
+}
+
 const HELP =
   "🤖 AI Agent bot\n\n" +
   "Gõ tin nhắn bất kỳ để giao việc cho agent (giữ ngữ cảnh nhiều lượt).\n\n" +
   "Lệnh:\n" +
   "/new — bắt đầu phiên mới (quên ngữ cảnh cũ)\n" +
   "/whoami — xem chat id của bạn\n" +
-  "/help — trợ giúp";
+  "/help — trợ giúp\n\n" +
+  "Vận hành (chạy thẳng pm2, không qua agent — dùng được cả khi agent hỏng):\n" +
+  "/status — trạng thái các app pm2\n" +
+  "/restart [app] — khởi động lại (mặc định ai-agent-ui-next)\n" +
+  "/logs [app] [số dòng] — log gần nhất (mặc định 40 dòng)";
 
 async function handleMessage(conf, state, msg) {
   const chatId = msg.chat?.id;
@@ -313,6 +430,20 @@ async function handleMessage(conf, state, msg) {
     delete state.sessions[chatKey];
     saveState(state);
     await sendMessage(conf.token, chatId, "🆕 Đã bắt đầu phiên mới.");
+    return;
+  }
+
+  // Ops commands — handled here, NOT by the agent: they must still work when the agent can't run.
+  if (text === "/status") {
+    await cmdStatus(conf, chatId);
+    return;
+  }
+  if (text === "/restart" || text.startsWith("/restart ")) {
+    await cmdRestart(conf, chatId, text.slice("/restart".length).trim());
+    return;
+  }
+  if (text === "/logs" || text.startsWith("/logs ")) {
+    await cmdLogs(conf, chatId, text.slice("/logs".length).trim());
     return;
   }
 

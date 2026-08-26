@@ -93,12 +93,29 @@ ai-agent/
     ├── lib/               # config / claude SSE / auto+feature+story+release prompts / usage / limits / job-lock
     │                      #   + accountSwitch.js: chat tự đổi account Claude khi hết quota (xem §Nhiều account)
     ├── proxy.js           # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
-    ├── ecosystem.config.js# pm2: ai-agent-ui-next (chỉ Next app; ngrok do ~/IdeaProjects/gateway lo)
+    ├── telegram-bot.mjs   # bot Telegram chạy TIẾN TRÌNH RIÊNG (pm2 app ai-agent-telegram)
+    ├── scripts/pm2-restart.sh # restart pm2 an toàn từ trong chính app (setsid + bậc thang tự chữa)
+    ├── ecosystem.config.js# pm2: ai-agent-ui-next + ai-agent-telegram (ngrok do ~/IdeaProjects/gateway lo)
     ├── .env               # UI config: UI_BASIC_AUTH + PORT/HOSTNAME/NGROK_DOMAIN (pm2); npm scripts dùng -p 5000
     └── .env.example
 ```
 
 > UI cũ `ui/server.js` (Node thuần) đã được thay bằng `ui-next/` (Next.js). Xem `ui-next/README.md`.
+
+## Bot Telegram = kênh cứu hộ (đừng gộp lại vào app Next)
+
+Bot chạy ở pm2 app **riêng** `ai-agent-telegram` (`ui-next/telegram-bot.mjs`), KHÔNG còn khởi động
+trong `instrumentation.js`. Lý do: bot chạy chung app thì mỗi lần `ai-agent-ui-next` restart hỏng là
+mất luôn kênh ra lệnh khôi phục.
+
+- **Không bao giờ** gọi thẳng `pm2 restart|stop|delete ai-agent-ui-next` từ agent/console — agent là
+  process CON của app đó, pm2 giết cả cây process nên lệnh chết giữa chừng và app không lên lại.
+  Dùng `ui-next/scripts/pm2-restart.sh <app>` (tự `setsid`, có bậc thang delete + start lại từ
+  ecosystem, báo kết quả qua Telegram). Guard prompt: `PM2_OPS_SAFETY` trong `ui-next/lib/claude.js`.
+- Trong Telegram: `/status`, `/restart [app]`, `/logs [app] [n]` — chạy thẳng pm2 CLI, không qua
+  `claude`, nên vẫn dùng được khi agent hỏng hoặc hết quota.
+- Chỉ MỘT process được poll một bot token (bật `TELEGRAM_IN_PROCESS=1` thì phải stop app bot, không
+  thì Telegram trả 409). Chi tiết: `ui-next/README.md` §Bot Telegram & cứu hộ pm2.
 
 ## Nhiều account Claude (fallback khi hết quota)
 

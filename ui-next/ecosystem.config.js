@@ -98,5 +98,35 @@ module.exports = {
       merge_logs: true,
       time: true,
     },
+    {
+      // Bot Telegram — TIẾN TRÌNH RIÊNG, cố tình KHÔNG nằm trong app Next.
+      // Lý do: bot là kênh cứu hộ. Nếu nó chạy chung ai-agent-ui-next thì một lần restart hỏng /
+      // build lỗi là mất luôn đường ra lệnh "khởi động lại pm2". Tách ra, restart app này không
+      // đụng tới bot, và bot có lệnh /restart /status /logs để dựng lại app kia.
+      // ⚠️ Chỉ được có ĐÚNG MỘT process poll token: nếu bật TELEGRAM_IN_PROCESS=1 cho app Next thì
+      // phải `pm2 stop ai-agent-telegram`, không thì Telegram trả 409 Conflict.
+      name: "ai-agent-telegram",
+      script: "./telegram-bot.mjs",
+      interpreter: "node",
+      // lib/*.js là ESM nhưng package.json không khai "type" (thêm vào sẽ vỡ các file config dùng
+      // require). Node vẫn chạy đúng nhờ tự nhận cú pháp — chỉ tắt cảnh báo cho log đỡ rác.
+      node_args: "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+      cwd: __dirname,
+      instances: 1,
+      exec_mode: "fork",
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "400M",
+      // Nhịp thở: poll loop hỏng → process tự exit → pm2 dựng lại. Chặn vòng lặp crash-restart
+      // liên tục (token sai, mạng chết) bằng restart_delay + giới hạn số lần restart nhanh.
+      restart_delay: 5000,
+      min_uptime: 15000,
+      max_restarts: 20,
+      env,
+      out_file: path.join(__dirname, "logs/telegram-out.log"),
+      error_file: path.join(__dirname, "logs/telegram-error.log"),
+      merge_logs: true,
+      time: true,
+    },
   ],
 };

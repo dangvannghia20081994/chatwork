@@ -4,7 +4,7 @@ UI chính thức của AI agent (Next.js App Router + React + Tailwind). Đã th
 
 **Console:** Auto REZIL Fix-Bug (ticket→PR) · **Feature** (BD+Figma → 16-phase → PR) · Auto/Chat **Story** (task→PR develop) · Auto/Chat **Film** (AI Film Studio, task→PR develop) · **Release** (drive github-ops: deploy DEV1/PR/tag) · **Rebase/Merge** (drive git-rebaser) · **Report** (Jira report read-only qua REST CLI) · **Sprint giờ âm** (burndown Expect vs Actual) · Chat REZIL + Chat **Toàn năng** (free, bypass) · `/usage` · Cancel · Basic Auth · `/healthz`.
 
-**Kênh phụ:** Telegram bot (long-polling) khởi động qua `instrumentation.js` — dùng lại y hệt plumbing chat của web (`buildChatArgv`/`handleEvent`) nên prompt & guardrail giống nhau.
+**Kênh phụ:** Telegram bot (long-polling) chạy ở **pm2 app riêng** `ai-agent-telegram` (`telegram-bot.mjs`) — dùng lại y hệt plumbing chat của web (`buildChatArgv`/`handleEvent`) nên prompt & guardrail giống nhau, nhưng KHÔNG chết theo mỗi lần app Next restart. Có lệnh cứu hộ `/status` `/restart` `/logs` chạy thẳng pm2 (xem §Bot Telegram & cứu hộ pm2).
 
 ## Style
 
@@ -23,8 +23,13 @@ npm run start        # chạy bản build — cũng -p 7000
 
 # qua pm2 (ecosystem.config.js nằm ngay trong ui-next/) — chỉ chạy Next app, KHÔNG ngrok.
 # pm2 đọc PORT từ .env (mặc định 5000), gateway route /ai → PORT này:
-npm run build && pm2 start ecosystem.config.js --update-env   # ai-agent-ui-next
+# ecosystem có 2 app: ai-agent-ui-next (Next) + ai-agent-telegram (bot, tiến trình riêng)
+npm run build && pm2 start ecosystem.config.js --update-env   # cả 2 app
 pm2 restart ecosystem.config.js --update-env                  # sau khi build lại
+
+# ⚠️ ĐỪNG gọi thẳng `pm2 restart ai-agent-ui-next` từ trong console/agent (nó là process con của
+# app → bị giết giữa chừng). Dùng script tự tách session:
+./scripts/pm2-restart.sh ai-agent-ui-next
 ```
 
 > ⚠️ `npm run dev`/`start` dùng `-p 7000` hardcode trong `package.json` và **BỎ QUA** `PORT` trong `.env`.
@@ -85,7 +90,9 @@ app/
     cancel/route.js       # POST hủy job đang chạy
     healthz/route.js      # health check
 proxy.js                # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
-instrumentation.js      # boot hook: startTelegramBot()
+instrumentation.js      # boot hook; chỉ start bot in-process khi TELEGRAM_IN_PROCESS=1 (mặc định: không)
+telegram-bot.mjs        # entry của pm2 app `ai-agent-telegram` — bot chạy tiến trình riêng
+scripts/pm2-restart.sh  # restart pm2 an toàn từ bên trong chính app (setsid + bậc thang tự chữa)
 lib/
   config.js             # đọc ../config/*.json; resolveRepo / resolveProject
   claude.js             # chat prompt/tools per project, claudeSSE pump (onSpawn/onClose/timeout)
@@ -107,6 +114,7 @@ lib/
   accountSwitch.js      # chooseAccount(): chat tự đổi account Claude khi account đang dùng hết quota
   upload.js             # lưu file upload vào .ai-uploads/ trong cwd (chat/report Read được)
   telegram.js           # Telegram long-polling bot (kênh chat thứ 2, dùng lại plumbing lib/claude.js)
+                        #   + lệnh vận hành /status /restart /logs chạy THẲNG pm2, không qua agent
   notifySound.js        # beep Web Audio khi run xong/lỗi (AgentConsole)
   limits.js             # live rate-limit /usage (Anthropic OAuth) + quota theo từng account
   usage.js              # buildUsageReport() — offline ~/.claude/projects parse
@@ -175,6 +183,44 @@ Ghi chú khi dùng lại:
 - Ảnh lưu ở `.snapshots/` (git-ignored, giữ 60 file mới nhất) và in ra dạng `/ai/api/snapshot/<file>.png`
   — dán nguyên đường dẫn đó vào chat là ảnh hiện inline.
 - Credential từ `--env` / `--basic-auth` được che (`***`) trong mọi dòng báo cáo.
+
+## Bot Telegram & cứu hộ pm2
+
+Bot **không** chạy chung tiến trình với Next nữa. Nó là pm2 app riêng `ai-agent-telegram`
+(`telegram-bot.mjs` → `lib/telegram.js`), vì bot chính là kênh cứu hộ: chạy chung thì một lần
+restart hỏng hay build lỗi là mất luôn đường ra lệnh "khởi động lại pm2".
+
+| Vấn đề đã gặp (2026-08-26) | Cách xử lý hiện tại |
+|---|---|
+| Agent trong console gõ `pm2 restart ai-agent-ui-next` → pm2 giết cả cây process (agent là process con) → lệnh restart chết giữa chừng, app không lên lại | `scripts/pm2-restart.sh` tự `setsid` sang session mới nên sống sót; prompt guard `PM2_OPS_SAFETY` (lib/claude.js) cấm agent gọi pm2 trực tiếp |
+| App chết → bot chết theo → không còn kênh nào ra lệnh | Bot ở pm2 app riêng, `autorestart` + `restart_delay: 5s`; app Next chết không ảnh hưởng |
+| Không biết app đang sống hay chết | `/status` trong Telegram (đọc `pm2 jlist`) |
+
+Lệnh trong Telegram — xử lý **trực tiếp bằng pm2 CLI, không qua `claude`**, nên vẫn dùng được khi
+agent hỏng hoặc hết quota:
+
+| Lệnh | Việc |
+|---|---|
+| `/status` | trạng thái + uptime + số lần restart của các app trong `TELEGRAM_PM2_APPS` |
+| `/restart [app]` | gọi `scripts/pm2-restart.sh` (mặc định `ai-agent-ui-next`); kết quả báo ngược về đúng chat |
+| `/logs [app] [n]` | `n` dòng log cuối (mặc định 40, tối đa 200) |
+
+`scripts/pm2-restart.sh <app>` chạy bậc thang tự chữa: `pm2 restart --update-env` → chờ online →
+chưa được thì `pm2 delete` + `pm2 start ecosystem.config.js --only <app>` → vẫn hỏng thì gửi Telegram
+kèm 30 dòng log lỗi. Log đầy đủ ở `logs/pm2-restart.log`. Script tự tách session nên dùng được cả khi
+app gọi nó chính là app bị restart (kể cả bot tự restart chính mình).
+
+Env liên quan (`ui-next/.env`):
+
+| Biến | Ý nghĩa |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | thiếu là bot không chạy (app pm2 exit ngay) |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | allowlist; rỗng = bot chỉ trả về chat id để tự whitelist |
+| `TELEGRAM_PM2_APPS` | app được phép /status /restart /logs (mặc định `ai-agent-ui-next,ai-agent-telegram`) |
+| `TELEGRAM_IN_PROCESS` | `1` = chạy bot trong app Next như cũ (chỉ dùng cho `npm run dev`) |
+
+> ⚠️ Chỉ được **một** process poll một token. Bật `TELEGRAM_IN_PROCESS=1` thì phải
+> `pm2 stop ai-agent-telegram` trước, không thì Telegram trả 409 Conflict và cả hai đều nhận thiếu tin.
 
 ## Nhiều account Claude — chat tự đổi khi hết quota
 
