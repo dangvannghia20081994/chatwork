@@ -407,15 +407,21 @@ function feedText(state, text, emit) {
   state.pending = keep ? state.pending.slice(-keep) : "";
 }
 
-// Called once at stream end: flush held-back text, then parse + emit the suggestion list.
-export function flushSuggest(state, emit) {
-  if (state.pending) { emit("delta", state.pending); state.pending = ""; }
-  if (!state.suggesting) return;
-  const items = (state.suggestRaw || "")
+// Phần text sau marker → danh sách gợi ý. Dùng cả cho stream (flushSuggest) và cho lúc dựng lại
+// phiên từ .jsonl (readSession ở lib/sessions.js) — hai đường phải cho ra CÙNG danh sách chip.
+export function parseSuggestItems(raw) {
+  return String(raw || "")
     .split("\n")
     .map((l) => l.replace(/^\s*[-*]\s*/, "").trim())
     .filter((l) => l.length > 0)
     .slice(0, 4);
+}
+
+// Called once at stream end: flush held-back text, then parse + emit the suggestion list.
+export function flushSuggest(state, emit) {
+  if (state.pending) { emit("delta", state.pending); state.pending = ""; }
+  if (!state.suggesting) return;
+  const items = parseSuggestItems(state.suggestRaw);
   state.suggesting = false;
   state.suggestRaw = "";
   if (items.length) emit("suggest", items);

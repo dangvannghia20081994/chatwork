@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { claudeHome, resolveProject, normalizeProject, accountHome, listAccounts, ROOT } from "./config.js";
+import { parseSuggestItems } from "./claude.js";
 
 // Console nào chạy với cwd = ROOT (repo ai-agent) thay vì cwd của project — xem
 // app/api/<console>/route.js. Phiên của chúng nằm ở thư mục .jsonl của ROOT, không phải của project.
@@ -84,6 +85,16 @@ function stripSuggest(text) {
   return idx < 0 ? text : text.slice(0, idx).trimEnd();
 }
 
+// Danh sách chip gợi ý trong 1 đoạn text assistant, null nếu đoạn đó không có khối gợi ý.
+// Cần khi dựng lại phiên: chip chỉ được phát qua SSE event `suggest`, nên client mở lại phiên cũ
+// hoặc khôi phục sau khi rớt kết nối sẽ mất chip nếu không đọc lại từ chính text đã lưu.
+function suggestItems(text) {
+  const idx = text.indexOf(SUGGEST_MARK);
+  if (idx < 0) return null;
+  const items = parseSuggestItems(text.slice(idx + SUGGEST_MARK.length));
+  return items.length ? items : null;
+}
+
 // Dòng "user" do CLI tự sinh chứ không phải người gõ: thông báo agent nền chạy xong
 // (origin.kind = "task-notification"), meta line, tóm tắt compact… Nếu không lọc, khối XML nội bộ
 // sẽ hiện nguyên xi thành bong bóng chat khi mở lại phiên.
@@ -132,6 +143,7 @@ function parseFile(file, withLines) {
   let turns = 0;
   const msgs = []; // {role:'me'|'ai', text}
   let curAi = null; // gộp nhiều đoạn text assistant liền nhau trong 1 lượt thành 1 bong bóng
+  let suggests = []; // chip gợi ý của lượt cuối (reset mỗi lượt hỏi mới)
 
   for (const row of raw.split("\n")) {
     const t = row.trim();
@@ -146,7 +158,7 @@ function parseFile(file, withLines) {
       if (prompt) {
         turns++;
         if (!firstUser) firstUser = prompt;
-        if (withLines) { curAi = null; msgs.push({ role: "me", text: prompt }); }
+        if (withLines) { curAi = null; suggests = []; msgs.push({ role: "me", text: prompt }); }
       }
       continue;
     }
@@ -155,6 +167,8 @@ function parseFile(file, withLines) {
       const content = Array.isArray(ev.message?.content) ? ev.message.content : [];
       for (const c of content) {
         if (c.type === "text" && typeof c.text === "string") {
+          const found = suggestItems(c.text);
+          if (found) suggests = found;
           const visible = stripSuggest(c.text);
           if (!visible) continue;
           // Nhiều đoạn text rời (bị tool call chen giữa) gộp vào 1 bong bóng — phải chèn dòng
@@ -167,7 +181,7 @@ function parseFile(file, withLines) {
   }
 
   const title = (firstUser || "(phiên trống)").slice(0, 120);
-  return { title, turns, msgs };
+  return { title, turns, msgs, suggests };
 }
 
 // Liệt kê phiên của 1 project, mới → cũ. Bỏ phiên rỗng (không có lượt hỏi nào).
@@ -263,13 +277,17 @@ export function ensureSessionInAccount(project, id, acct, consoleKey) {
 // Đọc hội thoại 1 phiên → mảng {role, text} để render lại. Cap để tránh trả quá nặng.
 // Đọc bản mtime mới nhất trong các account: phiên đã từng chạy tiếp ở account khác thì console
 // vẫn hiện đủ lượt, không mất phần làm ở account đó.
-export function readSessionMessages(project, id, consoleKey, cap = 400) {
+// Trả { messages, suggests }: hội thoại để render lại + chip gợi ý của lượt CUỐI (xem suggestItems).
+export function readSession(project, id, consoleKey, cap = 400) {
   if (!UUID_RE.test(id)) return null;
   const newest = sessionCopies(project, id, consoleKey)[0];
   const file = newest ? newest.file : path.join(projectDir(project, consoleKey), `${id}.jsonl`);
   if (!fs.existsSync(file)) return null;
-  const { msgs } = parseFile(file, true);
-  return msgs.slice(-cap).map((m) => ({ ...m, status: "", errors: [] }));
+  const { msgs, suggests } = parseFile(file, true);
+  return {
+    messages: msgs.slice(-cap).map((m) => ({ ...m, status: "", errors: [] })),
+    suggests: suggests || [],
+  };
 }
 
 // Xoá vĩnh viễn file .jsonl của 1 phiên. Trả về true nếu đã xoá (hoặc file vốn không tồn tại).

@@ -482,7 +482,8 @@ export default function AgentConsole({ config }) {
       if (esRef.current) { esRef.current.close(); esRef.current = null; }
       sessionRef.current = id;
       setMessages(msgs);
-      setSuggests([]);
+      // Chip gợi ý của lượt cuối đọc lại từ .jsonl — event `suggest` chỉ có trong stream đang chạy.
+      setSuggests(Array.isArray(data.suggests) ? data.suggests : []);
       try { localStorage.setItem(config.storageKey, JSON.stringify({ messages: msgs, session: id })); } catch {}
     } catch {
       /* mạng lỗi — bỏ qua, người dùng bấm lại */
@@ -573,6 +574,9 @@ export default function AgentConsole({ config }) {
         const data = await res.json().catch(() => ({}));
         const msgs = Array.isArray(data.messages) ? data.messages : [];
         const lastAi = [...msgs].reverse().find((m) => m.role === "ai");
+        // Rớt kết nối giữa lượt → chip gợi ý của lượt đó không bao giờ tới qua SSE; lấy lại từ
+        // phiên đã lưu, không thì sau mỗi lần khôi phục là mất hẳn khối gợi ý.
+        if (Array.isArray(data.suggests) && data.suggests.length) setSuggests(data.suggests);
         patchLast((m) =>
           m.role === "ai"
             ? { ...m, text: lastAi ? lastAi.text : m.text, status: "", endedAt: m.endedAt || Date.now() }
