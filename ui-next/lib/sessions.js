@@ -8,7 +8,7 @@ import { claudeHome, resolveProject, normalizeProject, accountHome, listAccounts
 
 // Console nào chạy với cwd = ROOT (repo ai-agent) thay vì cwd của project — xem
 // app/api/<console>/route.js. Phiên của chúng nằm ở thư mục .jsonl của ROOT, không phải của project.
-const ROOT_CWD_CONSOLES = new Set(["evidence", "report"]);
+const ROOT_CWD_CONSOLES = new Set(["evidence", "report", "kloc"]);
 
 // Tên thư mục phiên do Claude mã hoá từ CWD: thay mọi ký tự [/.] → '-'
 // (vd /home/nghiadv/IdeaProjects/rezil-esms → -home-nghiadv-IdeaProjects-rezil-esms).

@@ -56,7 +56,7 @@ Truy cập: `https://<domain>/ai`.
 app/
   layout.jsx            # root layout + globals.css + no-FOUC theme script
   ThemeToggle.jsx       # client: toggle dark/light (localStorage)
-  page.jsx              # home: card tới mọi console (Auto/Điều tra/Feature/Release/Rebase/Report/Sprint/Chat…)
+  page.jsx              # home: card tới mọi console (Auto/Điều tra/Feature/Release/Rebase/Report/KLOC/Sprint/Chat…)
   globals.css           # Tailwind v4 + theme tokens (light/dark)
   _components/AgentConsole.jsx # client: console DÙNG CHUNG cho mọi trang. mode "chat" (chat/release/
                                #   rebase/report) + mode "job" (auto/feature/story/film: composer +
@@ -72,7 +72,12 @@ app/
   investigate/ page.jsx → Investigate.jsx # chat: điều tra ticket read-only (nguyên nhân gốc + đánh giá
                                        #   DEV/SQA + phương án khắc phục) → /api/investigate
   evidence/ page.jsx → Evidence.jsx    # chat: chụp/gán evidence TC lên Google Sheet SQA (spec
-                                       #   SCREEN_EVIDENCE.md cạnh màn) → /api/evidence
+                                       #   SCREEN_EVIDENCE.md cạnh màn — rule, nhúng vào prompt;
+                                       #   EVIDENCE_REFERENCE.md = phần tra cứu, agent sed khi cần;
+                                       #   SELECTORS_<SCREEN>.md = bản đồ selector) → /api/evidence
+  kloc/     page.jsx → Kloc.jsx        # chat: đọc PR merge 4 repo rezil → append LoC/KLoC vào Google
+                                       #   Sheet KLoC-MVP2 (spec KLOC_SPEC.md cạnh màn, nhúng vào
+                                       #   prompt lúc chạy) → /api/kloc
   sprint/   page.jsx                   # tool: upload xlsx burndown → giờ âm (Expect vs Actual)
   api/
     chat/route.js         # SSE chat (project-aware, slash-commands)
@@ -85,6 +90,7 @@ app/
     report/route.js       # SSE report (Jira read-only chat, multi-turn resume)
     investigate/route.js  # SSE điều tra ticket (read-only: Jira + code + git log + SELECT QA)
     evidence/route.js     # SSE evidence (đọc-ghi sheet SQA + rclone Drive, multi-turn resume)
+    kloc/route.js         # SSE KLOC (gh đọc PR → ghi tab KLoC-MVP2, multi-turn resume)
     sprint/route.js       # POST xlsx → JSON giờ âm (dùng lib/sprint.js)
     sessions/route.js     # list/đọc/xoá phiên Claude CLI (.jsonl) theo project + console
     snapshot/[name]/route.js # serve runtime asset (ảnh snapshot web) — Next16 không serve public/ sau build
@@ -108,6 +114,10 @@ lib/
                         #   nguyên nhân cố định của team) — không Edit/Write, không git ghi, không ghi Jira
   evidence.js           # evidence prompt/argv: nhúng nguyên văn spec app/evidence/SCREEN_EVIDENCE.md
                         #   lúc chạy — ghi cột M/N của sheet + upload Drive; không Edit/Write, không git
+                        #   + tiết kiệm token: --setting-sources '' kèm mcp config rút gọn (.ai-agent/
+                        #   mcp-evidence.json) và planSession() cắt phiên khi context vượt EVIDENCE_MAX_CTX
+  kloc.js               # KLOC prompt/argv: nhúng nguyên văn spec app/kloc/KLOC_SPEC.md lúc chạy —
+                        #   `gh`/`git` chỉ ĐỌC, chỉ ghi tab KLoC-MVP2 (append), không Edit/Write
   jira.js               # Jira Cloud REST client server-side (report console dùng thay MCP)
   sprint.js             # burndown "giờ âm" — nguồn chung cho web + skill sprint-negative-hours
   slashCommands.js      # slash-command dùng chung (/usage…) — short-circuit trước khi spawn claude
@@ -125,6 +135,8 @@ scripts/
   snapshot.mjs          # chụp screenshot 1 trang (kèm --mark khoanh đỏ) → .snapshots/
   debug.mjs             # debug 1 trang qua CDP: console/network/exception + flow click-type + ảnh
   jira-search.mjs       # tra Jira bằng JQL từ CLI (không cần MCP)
+  shot-check.mjs        # kiểm ảnh evidence KHÔNG nạp ảnh vào context: tự decode PNG (zlib), đếm
+                        #   pixel khoanh đỏ → 1 dòng/ảnh (OK/NO-RED/BLANK + cờ WEAK/EDGE/FULL-VIEWPORT)
   mobile-e2e/           # kịch bản e2e app mobile
 ```
 
@@ -195,6 +207,58 @@ Ghi chú khi dùng lại:
 - Ảnh lưu ở `.snapshots/` (git-ignored, giữ 60 file mới nhất) và in ra dạng `/ai/api/snapshot/<file>.png`
   — dán nguyên đường dẫn đó vào chat là ảnh hiện inline.
 - Credential từ `--env` / `--basic-auth` được che (`***`) trong mọi dòng báo cáo.
+
+## /evidence — giữ chi phí token thấp
+
+Một batch evidence tốn token theo công thức **số lượt gọi tool × context hiện có**, mà context được
+nạp lại toàn bộ ở mỗi lượt và chỉ tăng dần trong một phiên. Đo trên phiên thật ngày 2026-08-26
+(transcript `5f3656a6`, MOB-011 TC 507–549): 129 lượt · context 49k → 152k · **~11,5M token**.
+
+Bốn chốt chặn đang áp (2026-08-27):
+
+| Chốt | Ở đâu | Cắt được |
+|---|---|---|
+| Bỏ settings khỏi context (`--setting-sources ''`), tự nạp lại 2 MCP server cần dùng qua `--strict-mcp-config --mcp-config .ai-agent/mcp-evidence.json` + `--model` | `lib/evidence.js` `buildEvidenceArgv` | 36,7k → 23,3k token nền mỗi lượt |
+| Spec tách đôi: `SCREEN_EVIDENCE.md` giữ rule (nhúng nguyên văn), `EVIDENCE_REFERENCE.md` giữ số đếm/ví dụ/snippet (agent `sed` khi cần) | `app/evidence/` | 12,6k → 8,8k token prompt |
+| Không `Read` file ảnh; kiểm bằng `scripts/shot-check.mjs` (tự decode PNG, đếm pixel đỏ, trả 1 dòng/ảnh) | spec §4 + prompt | ~2,5k token/ảnh, và ảnh không nằm lại trong context |
+| Cắt phiên theo batch: context vượt `EVIDENCE_MAX_CTX` thì mở phiên mới, chèn lại dòng `<<<STATE>>>` của lượt trước làm bối cảnh | `planSession()` + `app/api/evidence/route.js` | giữ context phẳng ~30k thay vì bò lên 152k |
+
+Ghi chú vận hành:
+
+- `--setting-sources ''` **bỏ luôn MCP server khai trong `~/.claude.json`** (verify 2026-08-27: agent
+  trả `NO_MCP`) và cả `model` trong settings. Vì vậy hai thứ đó phải truyền lại tường minh; không
+  sinh được file mcp rút gọn thì `buildEvidenceArgv` tự quay về hành vi cũ (nạp đủ settings).
+- File `.ai-agent/mcp-evidence.json` sinh lại mỗi lượt từ config của account đang chạy, chmod 600,
+  nằm trong thư mục đã git-ignore — **không** commit, không chép credential vào repo.
+- `EVIDENCE_MAX_CTX=0` tắt hẳn việc cắt phiên. Muốn giữ một phiên dài để hỏi lại lịch sử batch thì
+  đặt 0, đổi lại chấp nhận giá token.
+- `shot-check.mjs` chạy độc lập: `node ui-next/scripts/shot-check.mjs <file|thư mục>` — verdict
+  `OK`/`NO-RED`/`BLANK`/`UNREADABLE` kèm cờ `WEAK`/`EDGE`/`FULL-VIEWPORT`, exit 1 nếu có ảnh chưa đạt.
+
+## /kloc — thống kê KLoC từ PR
+
+Console `/kloc` đọc Pull Request đã merge của 4 repo rezil bằng `gh` CLI rồi **append** vào Google
+Sheet `REZIL - KLoc` (`1UkianWTMWCpZaZgBQSC9DJnJqNfE8gwmTTEjQUE369A`), tab `KLoC-MVP2`
+(`gid=2011708823`, header dòng 2, dữ liệu từ dòng 3, 13 cột `A..M`).
+
+Quy tắc nằm trong `app/kloc/KLOC_SPEC.md` — spec được ĐỌC LÚC CHẠY và nhúng nguyên văn vào system
+prompt (giống `/evidence`), nên sửa spec là đổi hành vi ngay lượt sau, **không cần build/restart**.
+Rút gọn:
+
+- `LoC (New)` = `additions` của PR, `LoC (Modified)` = `deletions`, `LoC (Sum)` = cộng hai cột.
+- PR title team có dạng `[<tag>] <FEATURE-ID> | <tên việc>` → cột `Feature ID` / `Feature Name` /
+  `Sprint` (tag normalize theo tab `Metadata`, vd `PreUAT-MVP2-B` → `PreUAT - MVP2-B`).
+- `PIC` map từ `author.login` (bảng trong spec §5). Login lạ → để trống + báo, không tự suy tên.
+- `Log Date`/`Last Update` = ngày `mergedAt` (Asia/Saigon); `STT = số dòng − 2`.
+- `AI Usage (%)` lấy từ mục `## AI Usage` trong PR description (neo theo heading rồi lấy số đầu —
+  grep `%` trên cả body là sai, dòng checklist có `100%`). PR không có mục đó → để trống.
+- Chống ghi trùng theo URL PR ở cột E; chỉ APPEND, không sửa/xoá dòng cũ, không đụng tab
+  `Overview - MVP2` (tab đó tổng hợp bằng `SUMIF` trên CẢ cột nên dòng mới tự cộng).
+- `gh`/`git` chỉ ĐỌC; `Write`/`Edit`/`Agent` bị chặn ở tool — màn này không sửa file repo.
+
+Chạy thật 2026-08-27: ghi 5 PR còn thiếu (row 1627–1631) → quét PR merge 01/08–27/08 của 4 repo, ghi
+thêm 4 PR còn thiếu (row 1632–1635) → điền bù 48 ô cột `AI Usage (%)` đang trống từ PR description
+(151 dòng vẫn trống vì PR không có mục đó). Đối chiếu lại với `gh`: khớp toàn bộ.
 
 ## Bot Telegram & cứu hộ pm2
 

@@ -89,11 +89,15 @@ ai-agent/
 │   └── commit_message.md
 │
 └── ui-next/               # Next.js (App Router + React + Tailwind) web UI — port 5000, ngrok, Basic Auth
-    ├── app/               # pages (auto REZIL/Feature/Story, release, chat, /usage) + api route handlers (SSE)
+    ├── app/               # pages (auto REZIL/Feature/Story, release, chat, /kloc, /usage) + api route handlers (SSE)
+    │                      #   /kloc: đọc PR merge 4 repo rezil → append LoC vào Sheet KLoC-MVP2
+    │                      #   (spec app/kloc/KLOC_SPEC.md đọc lúc chạy, không cần build)
     ├── lib/               # config / claude SSE / auto+feature+story+release prompts / usage / limits / job-lock
     │                      #   + accountSwitch.js: chat tự đổi account Claude khi hết quota (xem §Nhiều account)
     ├── proxy.js           # HTTP Basic Auth (UI_BASIC_AUTH) — Next "proxy" convention
     ├── telegram-bot.mjs   # bot Telegram chạy TIẾN TRÌNH RIÊNG (pm2 app ai-agent-telegram)
+    ├── scripts/shot-check.mjs # kiểm ảnh evidence bằng text (decode PNG, đếm pixel khoanh đỏ) —
+    │                          #   /evidence KHÔNG được Read file .png, xem README §/evidence
     ├── scripts/pm2-restart.sh # restart pm2 an toàn từ trong chính app (setsid + bậc thang tự chữa
     │                          #   + --fresh nạp lại .env, tự xoá CLAUDE_* rò từ phiên gọi lệnh)
     ├── ecosystem.config.js# pm2: ai-agent-ui-next + ai-agent-telegram (ngrok do ~/IdeaProjects/gateway lo)
