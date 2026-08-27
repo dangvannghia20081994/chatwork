@@ -8,6 +8,7 @@ import { tagSession } from "../../../lib/sessions.js";
 import { resolveProject, accountEnv, currentAccountKey } from "../../../lib/config.js";
 import { markAccountExhausted, markAccountBlocked } from "../../../lib/limits.js";
 import { chooseAccount, fallbackAccount, LIMIT_RE, isLimitBlocked, isLimitResult, isBlockedResult, isBlockedText } from "../../../lib/accountSwitch.js";
+import { running } from "../../../lib/jobs.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,12 @@ export const dynamic = "force-dynamic";
 // Console release chạy trên project "rezil" (cwd = repo mặc định) → thư mục phiên của nó cũng là
 // thư mục "rezil". Hằng số này giữ cho chooseAccount/ensureSessionInAccount tra đúng chỗ.
 const RELEASE_PROJECT = "rezil";
+
+// CHẠY NGẦM (2026-08-27, cùng lúc với /api/evidence): mặc định của claudeSSE là killOnDisconnect
+// true, nên ẩn tab / rớt mạng giữa một lượt release là tiến trình `claude -p` bị SIGTERM — nguy hiểm
+// hơn evidence vì lượt release có thể đang cherry-pick, push tag hoặc cập nhật Jira dở dang. Giờ run
+// sống tiếp khi client rớt và đăng ký vào job-lock theo `runId` để nút Dừng (/api/cancel?repo=<runId>)
+// cùng /api/chat/active vẫn thấy nó; client quay lại thì AgentConsole nạp đáp án từ .jsonl.
 
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream",
@@ -41,6 +48,8 @@ export async function GET(req) {
   // cwd = default repo; add-dir all 3 rezil repos so github-ops can operate on any of them.
   const proj = resolveProject(RELEASE_PROJECT);
   const argv = buildReleaseArgv(message, session, nowStamp(), proj.addDirs);
+  // Client sinh runId mỗi lượt (AgentConsole) — khoá job-lock, xem chú thích đầu file.
+  const runId = (searchParams.get("runId") || "").trim();
 
   // Hết quota → chạy lượt này bằng account khác, vẫn trên cùng phiên (giống /api/chat). An toàn cho
   // release vì cả 3 account đều có agent github-ops và cùng bộ MCP server (atlassian, gsheets-rezil).
@@ -62,6 +71,9 @@ export async function GET(req) {
     env,
     notice: chosen.notice,
     onSession: true,
+    killOnDisconnect: false,
+    onSpawn: runId ? (child) => running.set(runId, { child, label: "release" }) : undefined,
+    onClose: runId ? () => { running.delete(runId); } : undefined,
     // Chạy lại trong cùng lượt khi account vừa dùng không dùng được nữa (xem app/api/chat/route.js).
     retry: async () => {
       if (!acctFailed || contentLen > 0) return null;

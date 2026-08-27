@@ -140,14 +140,25 @@ export function evidenceSystemPrompt(nowStamp) {
 
 // Console này là việc LẶP theo checklist (dựng trạng thái → khoanh đỏ → chụp → upload → ghi ô), quy
 // trình đã viết sẵn trong spec nên không cần budget suy nghĩ mặc định của account. Đo trên 2 phiên
-// 2026-08-26: riêng phần model nghĩ giữa các tool đã là 12-21 phút / batch 20 TC. `--effort medium`
-// cắt phần đó mà vẫn giữ `model` mặc định (opus): màn này phải dò selector và GHI vào sheet thật,
-// hạ hẳn xuống sonnet thì chụp lại còn tốn hơn phần tiết kiệm được. Giống chatSpeedFlags() ở claude.js.
+// 2026-08-26: riêng phần model nghĩ giữa các tool đã là 12-21 phút / batch 20 TC; sáng 2026-08-27
+// vẫn ~19s cho mỗi lời gọi tool. `--effort` cắt phần đó mà vẫn giữ `model` mặc định (opus): màn này
+// phải dò selector và GHI vào sheet thật, hạ hẳn xuống sonnet thì chụp lại còn tốn hơn phần tiết
+// kiệm được. Giống chatSpeedFlags() ở claude.js.
+//
+// Đổi mức bằng `EVIDENCE_EFFORT` trong ui-next/.env (cần restart `--fresh` để pm2 nạp lại):
+//   medium (mặc định) — màn mới, còn phải dò selector, đọc pre-condition mơ hồ ở cột G.
+//   low               — batch lặp trên màn đã có SELECTORS_<SCREEN>.md; nhanh hơn nhưng dễ ẩu ở
+//                       khâu tự kiểm ảnh và quyết định skip, nên chỉ dùng khi đường đi đã chắc.
+const EFFORT_LEVELS = new Set(["low", "medium", "high", "xhigh", "max"]);
+function evidenceEffort() {
+  const v = (process.env.EVIDENCE_EFFORT || "").trim().toLowerCase();
+  return EFFORT_LEVELS.has(v) ? v : "medium";
+}
 export function buildEvidenceArgv(message, sessionId, nowStamp, addDirs) {
   return [
     "-p", message,
     "--permission-mode", "bypassPermissions",
-    "--effort", "medium",
+    "--effort", evidenceEffort(),
     "--output-format", "stream-json",
     "--include-partial-messages",
     "--verbose",

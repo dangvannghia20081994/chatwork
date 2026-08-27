@@ -9,7 +9,13 @@
 // trong lượt bằng account khác (claudeSSE({ retry }) + fallbackAccount).
 //
 // Multi-turn via --resume: chụp evidence đi theo từng batch, người dùng xem kết quả batch rồi mới
-// cho chạy batch tiếp. Không job lock / không timeout — người dùng tự dừng bằng nút ⏹ (đóng stream).
+// cho chạy batch tiếp. Không timeout — người dùng tự dừng bằng nút ⏹.
+//
+// CHẠY NGẦM (2026-08-27): trước đây route để mặc định `killOnDisconnect: true`, nên chỉ cần ẩn tab
+// trên điện thoại hoặc ngrok chớp một nhịp là run bị SIGTERM giữa batch — mất cả phần đang chụp dở.
+// Giờ theo đúng cách /api/chat: run sống tiếp khi client rớt, đăng ký vào job-lock theo `runId` để
+// nút Dừng (/api/cancel?repo=<runId>) và /api/chat/active vẫn thấy nó, client quay lại thì
+// AgentConsole poll rồi nạp câu trả lời từ .jsonl (config.reconnect trong Evidence.jsx).
 //
 // cwd = repo ai-agent (ROOT) vì toàn bộ tool nằm ở đây: scripts/debug.mjs + spec. add-dir thêm 4
 // repo rezil để agent tra selector/logic trong source app mobile khi cần.
@@ -20,6 +26,7 @@ import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { tagSession } from "../../../lib/sessions.js";
 import { resolveProject, accountEnv, currentAccountKey, ROOT } from "../../../lib/config.js";
 import { markAccountExhausted, markAccountBlocked } from "../../../lib/limits.js";
+import { running } from "../../../lib/jobs.js";
 import { chooseAccount, fallbackAccount, LIMIT_RE, isLimitBlocked, isLimitResult, isBlockedResult, isBlockedText } from "../../../lib/accountSwitch.js";
 
 export const runtime = "nodejs";
@@ -49,6 +56,8 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const message = (searchParams.get("msg") || "").trim();
   const session = cleanSessionId(searchParams.get("session"));
+  // Client sinh runId cho mỗi lượt (AgentConsole) — khoá của job-lock, xem chú thích đầu file.
+  const runId = (searchParams.get("runId") || "").trim();
   if (!message) return Response.json({ error: "empty message" }, { status: 400 });
 
   const slash = await maybeSlashResponse(message, { session });
@@ -82,6 +91,9 @@ export async function GET(req) {
     env,
     notice: chosen.notice,
     onSession: true,
+    killOnDisconnect: false,
+    onSpawn: runId ? (child) => running.set(runId, { child, label: "evidence" }) : undefined,
+    onClose: runId ? () => { running.delete(runId); } : undefined,
     // Chạy lại trong cùng lượt khi account vừa dùng không dùng được nữa (xem app/api/chat/route.js).
     retry: async () => {
       if (!acctFailed || contentLen > 0) return null;

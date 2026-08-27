@@ -30,9 +30,12 @@ const config = {
     "Đưa tên tab + dải TC (vd `MOB-011 TC 507-526`). Claude làm theo spec app/evidence/SCREEN_EVIDENCE.md: đọc sheet lọc TC thiếu evidence (cột M trống, J = OK) → `rclone lsf` đối chiếu folder Drive, TC nào ĐÃ có file thì chỉ lấy link chứ không chụp lại → TC còn thiếu thì dựng pre-condition bằng SELECT ở DB 207, chụp trên web mobile (mobile.10.9.17.207.nip.io) bằng scripts/debug.mjs với viewport iPad mini, khoanh đỏ phần tử của TC → upload `rclone copyto` (trùng tên thì dừng, không ghi đè) → ghi cột M bằng HYPERLINK rồi đọc lại verify. Chỉ ghi cột M/N; không sửa code, không git/gh; DB chỉ SELECT. Thao tác làm đổi dữ liệu env (submit báo cáo…) được nêu rõ hệ quả trước khi bấm.",
   placeholder: "Vd: MOB-011 TC 507-526 — đối chiếu Drive rồi chạy batch",
   editToggle: false,
+  // Batch chụp kéo dài nhiều phút, hay xem trên điện thoại qua ngrok → ẩn tab là socket đứt. Route
+  // /api/evidence chạy killOnDisconnect:false + đăng ký runId vào job-lock (từ 2026-08-27) nên bật
+  // reconnect được: rớt stream thì poll /api/chat/active, xong thì nạp lại đáp án từ .jsonl.
+  reconnect: true,
   // /api/evidence chạy cwd = ROOT (repo ai-agent) chứ không phải repo rezil, nên thư mục .jsonl của
   // nó do `console` quyết định, không phải `project` (xem ROOT_CWD_CONSOLES trong lib/sessions.js).
-  // KHÔNG bật `reconnect` — route này không chạy killOnDisconnect:false.
   params: { project: "rezil", console: "evidence" },
   nav: [{ href: "/chat?project=rezil", label: "💬 Chat" }, { href: "/", label: "⌂ Home" }],
 };

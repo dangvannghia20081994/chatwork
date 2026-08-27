@@ -27,9 +27,12 @@ const config = {
     "Release DEV1/STG (subset cherry-pick → push tag): nêu danh sách ticket. Agent github-ops dùng git/gh, làm lib trước → admin/mobile. Mọi action ghi (push nhánh/tag, merge, trigger) hỏi xác nhận trước; STG bắt buộc confirm. Xong STG: update Jira + bump version develop + tạo tab deploy dd/mm trên sheet Deployment. Cấm PRODUCTION.",
   placeholder: "Vd: Release DEV1 REZIL-2673 REZIL-2663 · hoặc: check CI run mới nhất rezil-esms-lib",
   editToggle: false,
+  // Lượt release chạy dài (cherry-pick, chờ CI, cập nhật Jira) và hay theo dõi trên điện thoại → ẩn
+  // tab là socket đứt. Route /api/release chạy killOnDisconnect:false + đăng ký runId vào job-lock
+  // (từ 2026-08-27) nên bật reconnect được: rớt stream thì poll /api/chat/active rồi nạp lại đáp án.
+  reconnect: true,
   // project: /api/release chạy cwd = repo mặc định của "rezil" → phiên nằm ở thư mục .jsonl của
-  // project đó. console: lọc lấy đúng phiên của màn Release (chat/rebase/investigate ghi chung thư
-  // mục này). KHÔNG bật `reconnect` — route này không chạy killOnDisconnect:false.
+  // project đó. console: lọc lấy đúng phiên của màn Release (chat/rebase/investigate ghi chung thư mục này).
   params: { project: "rezil", console: "release" },
 };
 

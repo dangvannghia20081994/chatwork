@@ -227,7 +227,7 @@ function Lightbox({ src, onClose }) {
 //   - sessionsPath: bật panel "Phiên đã lưu" (liệt kê / mở lại / xoá phiên .jsonl). Console nào cũng
 //     dùng được — chỉ cần đọc file, không đòi hỏi gì ở route.
 //   - reconnect: khi rớt stream thì poll /api/chat/active rồi lấy đáp án từ .jsonl. CHỈ đúng với
-//     console mà route chạy killOnDisconnect:false + đăng ký runId vào job-lock (hiện chỉ /api/chat).
+//     console mà route chạy killOnDisconnect:false + đăng ký runId vào job-lock (/api/chat, /api/evidence, /api/release).
 //     Bật cho console khác sẽ báo "đã khôi phục" trong khi run thật ra đã bị kill lúc socket đứt.
 // Shared multi-turn console for every agent UI. Two modes via config.mode:
 //   - "chat" (default): free text input (+ optional ✏️ Sửa code toggle), session resume — /chat, /release.
