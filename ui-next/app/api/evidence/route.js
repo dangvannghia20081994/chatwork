@@ -20,7 +20,7 @@
 // cwd = repo ai-agent (ROOT) vì toàn bộ tool nằm ở đây: scripts/debug.mjs + spec. add-dir thêm 4
 // repo rezil để agent tra selector/logic trong source app mobile khi cần.
 import fs from "fs";
-import { buildEvidenceArgv } from "../../../lib/evidence.js";
+import { buildEvidenceArgv, planSession } from "../../../lib/evidence.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { tagSession } from "../../../lib/sessions.js";
@@ -68,13 +68,17 @@ export async function GET(req) {
     return Response.json({ error: `Root path not found: ${ROOT}` }, { status: 400 });
   }
 
-  const argv = buildEvidenceArgv(message, session, nowStamp(), proj.addDirs);
+  // Phiên dài = mỗi lượt trả tiền cho toàn bộ context đã tích (phiên 2026-08-26: 49k → 152k
+  // token/lượt). Quá ngưỡng thì mở phiên mới và chèn lại dòng <<<STATE>>> của lượt trước làm bối
+  // cảnh — batch tự đọc lại sheet + Drive nên không mất gì ngoài phần tường thuật. Xem planSession.
+  const plan = planSession(session);
+  const argv = buildEvidenceArgv(plan.carry + message, plan.session, nowStamp(), proj.addDirs);
 
   // Hết quota → chạy lượt này bằng account khác, vẫn trên cùng phiên (giống /api/release). An toàn
   // vì cả 3 account đều có cùng bộ MCP server (gsheets-rezil, mysql_207) và cùng đọc được spec.
   // Chỉ đổi được Ở ĐẦU LƯỢT: một batch đang chụp giữa đường mà cạn quota thì vẫn hỏng, lượt sau mới
   // nhảy — khi đó chạy lại batch, các TC đã ghi cột M sẽ bị loại ở bước đối chiếu nên không trùng.
-  const chosen = await chooseAccount(EVIDENCE_PROJECT, session, "evidence");
+  const chosen = await chooseAccount(EVIDENCE_PROJECT, plan.session, "evidence");
   let runAcct = chosen.acct;
   const env = runAcct === currentAccountKey() ? undefined : accountEnv(runAcct);
 
@@ -89,7 +93,7 @@ export async function GET(req) {
     cwd: ROOT,
     argv,
     env,
-    notice: chosen.notice,
+    notice: [plan.notice, chosen.notice].filter(Boolean).join(" · "),
     onSession: true,
     killOnDisconnect: false,
     onSpawn: runId ? (child) => running.set(runId, { child, label: "evidence" }) : undefined,
@@ -97,7 +101,7 @@ export async function GET(req) {
     // Chạy lại trong cùng lượt khi account vừa dùng không dùng được nữa (xem app/api/chat/route.js).
     retry: async () => {
       if (!acctFailed || contentLen > 0) return null;
-      const fb = await fallbackAccount(EVIDENCE_PROJECT, session, runAcct, acctFailed, "evidence");
+      const fb = await fallbackAccount(EVIDENCE_PROJECT, plan.session, runAcct, acctFailed, "evidence");
       if (!fb) return null;
       runAcct = fb.acct;
       acctFailed = null;
