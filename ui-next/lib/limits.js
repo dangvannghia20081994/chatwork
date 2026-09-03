@@ -5,7 +5,7 @@
 import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { claudeHome, accountHome, listAccounts, currentAccountKey } from "./config.js";
+import { claudeHome, accountHome, accountEnv, listAccounts, currentAccountKey } from "./config.js";
 
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
@@ -47,7 +47,9 @@ function unusableReason(c) {
 // token — in here. Costs ~15s, only on the expired-token path.
 const PING_ARGV = ["-p", "ok", "--model", "haiku", "--max-turns", "1", "--output-format", "text"];
 
-function refreshCredsViaCli(home = claudeHome()) {
+// acct = KEY của account (acct1/acct2/...), không phải đường dẫn: env phải đi qua accountEnv() —
+// account mặc định cần XOÁ CLAUDE_CONFIG_DIR chứ không set về ~/.claude (xem config.js).
+function refreshCredsViaCli(acct = currentAccountKey()) {
   return new Promise((resolve) => {
     let done = false;
     const fin = () => {
@@ -58,10 +60,7 @@ function refreshCredsViaCli(home = claudeHome()) {
     };
     let child;
     try {
-      child = spawn("claude", PING_ARGV, {
-        env: { ...process.env, CLAUDE_CONFIG_DIR: home },
-        stdio: "ignore",
-      });
+      child = spawn("claude", PING_ARGV, { env: accountEnv(acct), stdio: "ignore" });
     } catch (e) {
       console.warn("[limits] không spawn được claude để refresh token:", e.message);
       return fin();
@@ -141,17 +140,11 @@ export async function buildLimitsReport() {
   const accts = listAccounts();
   if (!accts.length) return "🚦 Giới hạn: chưa đăng nhập Claude ở account nào (thiếu .credentials.json).";
 
-  // Token của account ĐANG CHẠY sắp hết hạn thì refresh trước (chỉ CLI refresh được, ~15s). Các
-  // account khác để nguyên: /usage là lệnh xem nhanh, không đáng chờ 3 lần refresh.
-  try {
-    const creds = readCreds(claudeHome());
-    if (creds.token && creds.expiresAt && creds.expiresAt - Date.now() < 60000 && !unusableReason(creds)) {
-      console.warn("[limits] OAuth token của " + cur + " hết hạn — chạy 1 lượt claude để CLI refresh");
-      await refreshCredsViaCli();
-    }
-  } catch {}
-
-  const rows = await Promise.all(accts.map((k) => accountUsage(k, { allowRefresh: false })));
+  // allowRefresh cho MỌI account, không riêng account đang chạy: pm2 chỉ chạy `claude` dưới 1
+  // account nên accessToken của các account kia luôn quá hạn sau vài giờ, và trước đây /usage in
+  // "token hết hạn" cho chúng dù refresh token còn sống và quota còn nguyên. Các refresh chạy song
+  // song (Promise.all) nên chỉ tốn ~15s một lần, không phải 15s × số account.
+  const rows = await Promise.all(accts.map((k) => accountUsage(k, { allowRefresh: true })));
 
   // Bảng markdown: console render bằng react-markdown + remark-gfm. KHÔNG dùng dòng thụt lề — trong
   // markdown các dòng liền nhau bị gộp thành 1 đoạn nên 3 account dính vào nhau.
@@ -284,8 +277,8 @@ export async function accountUsage(acct, { allowRefresh = false } = {}) {
   if (!creds.token) return put({ ok: false, unusable: true, headroom: 0, error: dead || "chưa đăng nhập" });
   if (creds.expiresAt && creds.expiresAt - Date.now() < 60000) {
     if (dead) return put({ ok: false, unusable: true, headroom: 0, error: dead });
-    if (!allowRefresh) return put({ ok: false, headroom: 0, error: "token hết hạn" });
-    await refreshCredsViaCli(home);
+    if (!allowRefresh) return put({ ok: false, headroom: 0, error: "token hết hạn (chưa refresh)" });
+    await refreshCredsViaCli(acct);
     try { creds = readCreds(home); } catch { /* giữ creds cũ */ }
     dead = unusableReason(creds);
     if (dead) return put({ ok: false, unusable: true, headroom: 0, error: dead });
