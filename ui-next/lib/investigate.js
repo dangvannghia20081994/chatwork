@@ -1,4 +1,7 @@
-// Investigate console (REZIL): "điều tra ticket" — CHỈ ĐỌC, không sửa gì.
+// Investigate console (REZIL): "điều tra ticket" — CHỈ ĐỌC, trừ một đường ghi duy nhất: sheet
+// degrade của team (xem DEGRADE_SHEET + mục SHEET DEGRADE trong prompt). Nhãn `Nguyên nhân` ra
+// `Degrade` → lượt kết luận CHỈ gợi ý "Lập sheet degrade cho REZIL-XXXX"; user xác nhận thì lượt
+// sau mới copy tab `Template V1` thành tab REZIL-XXXX và điền Q&A/Summary/Solution.
 // Luồng: user đưa REZIL-XXXX (hoặc mô tả lỗi) → agent đọc ticket (MCP), trace code trong 4 repo
 // rezil (Grep/Read + git log/blame), check data QA bằng SELECT read-only → rồi trả về:
 // OUTPUT mặc định = CHỈ BẢNG 5 CỘT (đúng 5 cột của sheet "REZIL - PM Quality
@@ -37,6 +40,15 @@ export const INVESTIGATE_ALLOWED = [
   "mcp__atlassian__getJiraIssueRemoteIssueLinks",
   "mcp__atlassian__fetch",
   "mcp__mysql_207__mysql_query",
+  // NGOẠI LỆ DUY NHẤT của "read-only": lập sheet Degrade Investigation Ticket (xem DEGRADE_SHEET).
+  // Chỉ ghi vào ĐÚNG một spreadsheet, chỉ sau khi user xác nhận — system prompt là phanh chính.
+  "mcp__gsheets-rezil__list_sheets",
+  "mcp__gsheets-rezil__get_sheet_data",
+  "mcp__gsheets-rezil__find_in_spreadsheet",
+  "mcp__gsheets-rezil__copy_sheet",
+  "mcp__gsheets-rezil__rename_sheet",
+  "mcp__gsheets-rezil__update_cells",
+  "mcp__gsheets-rezil__batch_update_cells",
 ];
 
 // Chặn mọi đường GHI: file, git/gh, Jira/Confluence. Bash vẫn mở (cần git log/blame/grep) nên phải
@@ -87,7 +99,25 @@ export const INVESTIGATE_DISALLOWED = [
   "mcp__atlassian__updateConfluencePage",
   "mcp__atlassian__createConfluenceFooterComment",
   "mcp__atlassian__createConfluenceInlineComment",
+  // Google Sheets: chỉ mở đúng bộ tool cần cho sheet degrade (xem INVESTIGATE_ALLOWED). Chặn thêm
+  // ở đây cho chắc — batch_update là API thô (xoá được cả sheet), create/share tạo file mới.
+  "mcp__gsheets-rezil__batch_update",
+  "mcp__gsheets-rezil__create_spreadsheet",
+  "mcp__gsheets-rezil__create_sheet",
+  "mcp__gsheets-rezil__share_spreadsheet",
+  "mcp__gsheets-rezil__add_rows",
+  "mcp__gsheets-rezil__add_columns",
 ];
+
+// Sheet "Degrade Investigation Ticket" của team: mỗi bug degrade một tab, copy từ tab `Template V1`
+// rồi điền. File này TRƯỚC ĐÂY là .xlsx upload lên Drive — Sheets API từ chối ghi ("must not be an
+// Office file"); bản dùng ở đây là bản đã convert sang Google Sheets thật (2026-09-03).
+// Đổi file thì sửa Ở ĐÂY, prompt tự cập nhật theo.
+export const DEGRADE_SHEET = {
+  id: "1HEV1zAQB8viSN_-D1rrarz3w9twVMTpH-8GzAbQ8s3E",
+  template: "Template V1",
+  url: "https://docs.google.com/spreadsheets/d/1HEV1zAQB8viSN_-D1rrarz3w9twVMTpH-8GzAbQ8s3E/edit",
+};
 
 // Phân loại LOẠI BUG — dropdown cột 9 ("Loại") của sheet PM Quality Management. Nhãn cố định,
 // agent BẮT BUỘC chọn đúng 1 — khác với CAUSE_OPTIONS (cột 12, nguyên nhân lọt lỗi).
@@ -140,6 +170,64 @@ function qualitySheetLines() {
     "Có tiền lệ rõ ràng → bám theo cách phân loại đó cho nhất quán. Không có → theo bằng chứng của bạn.",
     "Đây là THAM CHIẾU, không phải khuôn để copy: tuyệt đối không bê nguyên câu đánh giá/phương án của",
     "ticket khác sang, phải viết đúng theo bằng chứng của ticket đang điều tra.",
+    "",
+  ];
+}
+
+// Mục hướng dẫn lập sheet Degrade Investigation Ticket. Chỉ dùng khi nhãn `Nguyên nhân` = Degrade,
+// và CHỈ sau khi user xác nhận ở lượt sau (xem DEGRADE_SHEET).
+function degradeSheetLines() {
+  const { id, template, url } = DEGRADE_SHEET;
+  return [
+    "## SHEET DEGRADE (chỉ khi nhãn `Nguyên nhân` = `Degrade`)",
+    `Team giữ một Google Sheet riêng cho bug degrade — mỗi bug MỘT tab, copy từ tab \`${template}\` rồi điền:`,
+    `Spreadsheet ID: \`${id}\` (${url}).`,
+    "",
+    "Đây là NGOẠI LỆ DUY NHẤT của nguyên tắc chỉ-đọc, và có 2 bước TÁCH RỜI:",
+    "1) LƯỢT KẾT LUẬN: vẫn CHỈ in bảng 5 cột như thường. TUYỆT ĐỐI KHÔNG ghi sheet ở lượt này, kể cả khi",
+    "   đã chắc chắn là degrade. Chỉ thêm vào khối `<<<SUGGEST>>>` một dòng đúng dạng",
+    "   `- Lập sheet degrade cho REZIL-XXXX` (nhiều ticket degrade → mỗi ticket một dòng).",
+    "2) LƯỢT SAU, khi user bảo lập/điền sheet degrade → mới copy tab và điền. Không ai nhắc thì KHÔNG làm.",
+    "",
+    "### Cách lập tab mới",
+    `- \`mcp__gsheets-rezil__list_sheets\` xem đã có tab tên REZIL-XXXX chưa. CÓ RỒI → KHÔNG copy thêm,`,
+    "  điền/cập nhật vào chính tab đó và nói rõ là tab đã tồn tại.",
+    `- Chưa có → \`copy_sheet\` với src_spreadsheet = dst_spreadsheet = ID trên, src_sheet = \`${template}\`,`,
+    "  rồi `rename_sheet` thành đúng mã ticket degrade (vd `REZIL-2974`).",
+    `- TUYỆT ĐỐI KHÔNG sửa tab \`${template}\` và KHÔNG sửa tab của ticket khác. Chỉ ghi vào tab vừa tạo.`,
+    "- Trước khi điền, ĐỌC 1–2 tab đã làm (vd `REZIL-2974`, `REZIL-2941`) bằng `get_sheet_data` để bám",
+    `  đúng nếp team. Tab copy từ \`${template}\` mang theo VÍ DỤ CŨ (bug A187 của project khác) ở`,
+    "  F13:F23 và G13:G23 — phải GHI ĐÈ HẾT, ô nào không có dữ kiện thì ghi chuỗi rỗng, không để lại ví dụ.",
+    "",
+    "### Bản đồ ô (Sheets API, A1 notation — ô gộp thì ghi vào ô TRÊN-TRÁI)",
+    "- `D5` Degrade ID = `<ScreenCode>_<tên màn tiếng Nhật>/<tên màn tiếng Anh>` (theo nếp tab cũ).",
+    "- `I6` Features = danh sách ScreenCode bị ảnh hưởng · `L5` Author = `HT` · `L6` Milestone (vd `MVP2-B`).",
+    "- `L7` Raised date = ngày phát hiện, định dạng `YYYY/MM/DD`.",
+    "- `B8` = mã ticket/PR ĐÃ GÂY RA degrade (nguồn), `E8` Reference = link Jira của ticket đó.",
+    "- `L8` Jira = mã ticket degrade đang điều tra (REZIL-XXXX).",
+    "- Bảng Q&A hàng 13→23, cột `F` = Assignee (tên dev/SQA liên quan, lấy từ git log/ticket; không rõ thì để rỗng),",
+    "  cột `G` = Answer. Câu hỏi ở cột C GIỮ NGUYÊN, không sửa. Thứ tự hàng:",
+    "  `13`=1 ticket yêu cầu sửa gây degrade · `14`=2 bản chạy đúng gần nhất (branch/commit/comment/link) ·",
+    "  `15`=3 bản chạy sai (branch/commit/comment/link) · `16`=4 code đúng vs code gây degrade (file, dòng, vì sao) ·",
+    "  `17`=5 ai sửa file đó, ticket có khai báo phạm vi không · `18`=6.1 lý do sửa hợp lệ thì QA có rõ phạm vi ảnh hưởng ·",
+    "  `19`=6.2 lý do sửa không hợp lệ thì vì sao qua được review · `20`=7 lỗi này từng gặp chưa ·",
+    "  `21`=8 đã có quy trình hạn chế chưa · `22`=9.1 đã có quy trình mà vẫn lỗi vì sao · `23`=9.2 đề xuất quy trình mới.",
+    "  6.1 và 6.2 loại trừ nhau: chỉ điền ô khớp tình huống, ô còn lại để rỗng.",
+    "- `B27` (ô gộp B27:L29) = Summary: 3–5 dòng tóm tắt bằng ngôn ngữ thường cho PM/BrSE đọc.",
+    "- Bảng Solution từ hàng 34: `C`=Action, `H`=Assignee, `I`=Deadline, `J`=Evidence. Mỗi action là việc",
+    "  cụ thể (cùng luật với cột `Phương án khắc phục lần tới`, cấm y hệt các cụm rỗng nghĩa). Cần thêm",
+    "  hàng thì ghi tiếp xuống 36, 37... và điền cột `B` (Index) tăng dần.",
+    "",
+    "### Nội dung điền",
+    "Ô Q&A của sheet này LÀ TÀI LIỆU KỸ THUẬT (khác 3 cột văn xuôi của bảng 5 cột): các câu 2/3/4/5 PHẢI có",
+    "branch, commit id, commit comment, link commit, `file:line` — đúng bằng chứng đã tìm được. Không có",
+    "bằng chứng thì ghi `(chưa xác định: <cái gì>)`, TUYỆT ĐỐI không bịa commit hash hay tên branch.",
+    "Riêng `B27` Summary và bảng Solution viết ngôn ngữ thường, không file:line.",
+    "Điền bằng `batch_update_cells` (gộp một lần cho cả tab, ít lần gọi API hơn).",
+    "",
+    "Xong việc, trả về ĐÚNG 2 dòng: `Đã lập tab <tên tab>: <link sheet kèm #gid=...>` và một dòng liệt kê",
+    "các ô còn để rỗng vì thiếu dữ kiện (không có ô nào thì ghi `Không còn ô nào thiếu dữ kiện.`).",
+    "Copy/rename/điền lỗi giữa đường → nói rõ đã làm tới bước nào, KHÔNG thử lại quá 1 lần.",
     "",
   ];
 }
@@ -236,6 +324,7 @@ export function investigateSystemPrompt(nowStamp) {
     "- Xin giải thích / bằng chứng → nêu luồng code + `file:line` + commit, tối đa 10 dòng.",
     "- Xin cách fix bug đang có → bảng `| # | Phương án | Sửa ở đâu | Rủi ro | Effort | Migration? |` + 1 dòng khuyến nghị.",
     "- Xin bản dán Jira → khối ``` theo mục LƯỢT SAU.",
+    "- Bảo lập/điền sheet degrade → làm theo mục SHEET DEGRADE, trả về đúng 2 dòng như mục đó quy định.",
     "",
     ...qualitySheetLines(),
     "## BẢNG LOẠI BUG (cột `Loại` — BẮT BUỘC chọn ĐÚNG 1)",
@@ -310,6 +399,7 @@ export function investigateSystemPrompt(nowStamp) {
     "- Code làm ĐÚNG theo BD nhưng BD sai/thiếu → `BD mô tả sai hoặc thiếu`, không quy cho dev.",
     "- Dev code đúng BD nhưng UT không phủ case → `UT Test thiếu`. Cả dev lẫn test cùng sót → `Dev + Test thiếu`.",
     "",
+    ...degradeSheetLines(),
     "## NHIỀU TICKET → CHẠY SONG SONG (fan-out)",
     "Người dùng đưa TỪ 2 TICKET TRỞ LÊN trong một lượt (vd `REZIL-2352, REZIL-2400, REZIL-2411` hoặc mỗi",
     "ticket một dòng) → KHÔNG điều tra tuần tự. Với MỖI ticket spawn 1 subagent (tool Agent,",
@@ -322,6 +412,7 @@ export function investigateSystemPrompt(nowStamp) {
     "- Đường dẫn 4 repo rezil + nhắc `cd` vào repo đích trước khi grep.",
     "- RÀNG BUỘC CHỈ ĐỌC: cấm Edit/Write, cấm `git commit/push/switch/checkout/merge/rebase/reset`, cấm tạo/sửa PR,",
     "  cấm ghi Jira, DB chỉ `SELECT` có `LIMIT`. Subagent KHÔNG được spawn subagent tiếp.",
+    "  Cấm luôn ghi Google Sheet: sheet degrade CHỈ do agent chính lập, và chỉ khi user xác nhận.",
     "- NGUYÊN VĂN 8 nhãn của bảng LOẠI BUG + luật chọn đúng 1 nhãn cho cột `Loại` (Responsive ưu tiên hơn UI;",
     "  lỗi ở thành phần dùng chung = Bug common; Won't fix/Canceled chỉ khi ticket ghi rõ team đã quyết).",
     "- NGUYÊN VĂN 13 nhãn của bảng phân loại + luật chọn đúng 1 nhãn CHỈ cho cột `Nguyên nhân`, kèm các lỗi",
@@ -352,6 +443,8 @@ export function investigateSystemPrompt(nowStamp) {
     "## GIỚI HẠN CỨNG",
     "Không Edit/Write bất kỳ file nào. Không `git commit/push/switch/checkout/merge/rebase/reset`, không",
     "tạo/sửa/merge PR, không deploy, không đụng secret/CI. Không comment/transition/edit Jira. DB chỉ SELECT.",
+    `Đường GHI duy nhất được phép: spreadsheet degrade \`${DEGRADE_SHEET.id}\` — chỉ tab của ticket đang`,
+    `điều tra, chỉ sau khi user xác nhận (mục SHEET DEGRADE). Không ghi spreadsheet nào khác, không sửa tab \`${DEGRADE_SHEET.template}\`.`,
     "Subagent CHỈ được dùng để chạy song song nhiều ticket (xem mục NHIỀU TICKET) — không dùng vào việc khác.",
     "Phi tương tác: KHÔNG hỏi lại rồi ngồi đợi giữa lượt — nêu rõ giả định và đi tiếp, chỗ cần user quyết",
     "thì ghi `(cần confirm: ...)` ngay trong ô Nguyên nhân.",
@@ -370,6 +463,7 @@ export function investigateSystemPrompt(nowStamp) {
     "",
     "Kết thúc MỖI lượt bằng khối gợi ý, định dạng CHÍNH XÁC: một dòng `<<<SUGGEST>>>` rồi 2–3 dòng, mỗi",
     "dòng `- <gợi ý ngắn bấm để hỏi tiếp>` (vd: xem kỹ commit nghi vấn, check data ở QA, xin bản dán Jira).",
+    "Nhãn `Nguyên nhân` ra `Degrade` thì một trong các dòng đó PHẢI là `- Lập sheet degrade cho REZIL-XXXX`.",
     "Tiếng Việt, không viết gì sau khối này.",
   ].join("\n");
 }

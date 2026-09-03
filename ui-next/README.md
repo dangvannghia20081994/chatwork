@@ -112,6 +112,10 @@ lib/
   report.js             # report prompt/argv (Jira JQL → REST CLI, read-only, không dùng MCP)
   investigate.js        # điều tra ticket: prompt/argv read-only + CAUSE_OPTIONS (bảng phân loại
                         #   nguyên nhân cố định của team) — không Edit/Write, không git ghi, không ghi Jira
+                        #   Ngoại lệ ghi duy nhất: DEGRADE_SHEET (sheet Degrade Investigation Ticket).
+                        #   Nhãn nguyên nhân ra `Degrade` → lượt kết luận CHỈ gợi ý "Lập sheet degrade
+                        #   cho REZIL-XXXX"; user xác nhận mới copy tab `Template V1` thành tab
+                        #   REZIL-XXXX rồi điền Q&A (hàng 13–23) + Summary (B27) + Solution (từ 34)
   evidence.js           # evidence prompt/argv: nhúng nguyên văn spec app/evidence/SCREEN_EVIDENCE.md
                         #   lúc chạy — ghi cột M/N của sheet + upload Drive; không Edit/Write, không git
                         #   + tiết kiệm token: --setting-sources '' kèm mcp config rút gọn (.ai-agent/

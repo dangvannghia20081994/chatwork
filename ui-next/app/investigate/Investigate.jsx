@@ -16,6 +16,7 @@ const EXAMPLES = [
   "Cho mình bản dán Jira của kết luận vừa rồi",
   "Bug cùng màn EQUIP-003 trước đây phân loại nguyên nhân thế nào?",
   "Còn phương án khắc phục nào ít rủi ro hơn không?",
+  "Lập sheet degrade cho REZIL-2974",
 ];
 
 const config = {
@@ -28,7 +29,7 @@ const config = {
   renderMarkdown: true,
   examples: EXAMPLES,
   emptyText:
-    "Nhập REZIL-xxxx (nhiều ticket thì ngăn bằng dấu phẩy — mỗi ticket 1 subagent chạy SONG SONG, tối đa 5/đợt). Claude đọc ticket + comment, trace code 4 repo rezil, soi git log/blame, SELECT data QA — rồi trả về DUY NHẤT bảng 5 cột của sheet PM Quality Management: Loại (1 trong 8 nhãn: Logic/UI/Responsive/Bug duplicate/Bug common/Won't fix/User viewpoint/Canceled) · Nguyên nhân (1 trong 13 nhãn của team) · DEV tự đánh giá · SQA đánh giá · Phương án khắc phục lần tới (action cụ thể, cấm chung chung). Không giải thích gì thêm — cần giải thích / cách fix / bản dán Jira thì hỏi ở lượt sau. CHỈ ĐỌC: không sửa code, không tạo PR, không ghi Jira — fix thật thì qua màn Auto.",
+    "Nhập REZIL-xxxx (nhiều ticket thì ngăn bằng dấu phẩy — mỗi ticket 1 subagent chạy SONG SONG, tối đa 5/đợt). Claude đọc ticket + comment, trace code 4 repo rezil, soi git log/blame, SELECT data QA — rồi trả về DUY NHẤT bảng 5 cột của sheet PM Quality Management: Loại (1 trong 8 nhãn: Logic/UI/Responsive/Bug duplicate/Bug common/Won't fix/User viewpoint/Canceled) · Nguyên nhân (1 trong 13 nhãn của team) · DEV tự đánh giá · SQA đánh giá · Phương án khắc phục lần tới (action cụ thể, cấm chung chung). Không giải thích gì thêm — cần giải thích / cách fix / bản dán Jira thì hỏi ở lượt sau. Nguyên nhân ra Degrade thì có thêm gợi ý “Lập sheet degrade” — bấm mới copy tab Template V1 trong sheet Degrade Investigation Ticket và điền theo kết quả điều tra. CHỈ ĐỌC (trừ sheet degrade nói trên): không sửa code, không tạo PR, không ghi Jira — fix thật thì qua màn Auto.",
   placeholder: "Vd: REZIL-2352 · hoặc nhiều ticket: REZIL-2352, REZIL-2400",
   editToggle: false,
   nav: [{ href: "/auto", label: "⚙️ Auto" }, { href: "/", label: "⌂ Home" }],

@@ -653,6 +653,16 @@ export default function AgentConsole({ config }) {
       const msg = JSON.parse(ev.data);
       patchLast((m) => ({ ...m, errors: [...(m.errors || []), msg] }));
     });
+    // Server đã chạy lại lượt này bằng account khác (xem retry trong lib/claude.js): bỏ phần text
+    // lượt hỏng đã stream ra — thường là chính câu báo hết hạn mức của CLI, không kết thúc bằng
+    // newline nên đáp án mới bị nối đuôi vào đó và mất format Markdown (bảng dính 1 dòng).
+    es.addEventListener("reset_text", () => {
+      if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+      deltaBufRef.current = "";
+      accRef.current = "";
+      needInfoRef.current = false;
+      patchLast((m) => (m.role === "ai" ? { ...m, text: "" } : m));
+    });
     es.addEventListener("suggest", (ev) => {
       try { const arr = JSON.parse(ev.data); if (Array.isArray(arr)) setSuggests(arr); } catch {}
     });

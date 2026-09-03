@@ -626,6 +626,10 @@ export function claudeSSE({ cwd, argv, env, notice, onSession, onSpawn, onClose,
           let next = null;
           try { next = await retry({ code, spawns }); } catch {}
           if (next) {
+            // Lượt hỏng thường đã stream ra vài dòng text của CLI (vd "You've hit your session
+            // limit · resets 6:10pm") — không xoá thì đáp án của lượt chạy lại bị NỐI ngay sau câu
+            // đó, và Markdown mất format (bảng 5 cột của /investigate dính thành 1 dòng).
+            emit("reset_text", {});
             if (next.notice) emit("error_msg", next.notice);
             // Reset trạng thái parse của lượt cũ; lượt mới bắt đầu từ đầu.
             buf = "";
