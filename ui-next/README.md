@@ -321,8 +321,8 @@ Env liên quan (`ui-next/.env`):
 
 pm2 chạy app dưới MỘT account (`CLAUDE_ACCOUNT` trong `.env` → `ecosystem.config.js` set
 `CLAUDE_CONFIG_DIR`; để trống = account mặc định và biến này phải UNSET). Khi account đó cạn hạn mức,
-console `/chat` tự chạy lượt tiếp theo bằng account còn quota, **vẫn trên cùng phiên**, và in 1 dòng
-đầu lượt:
+console `/chat`, `/release`, `/evidence`, `/kloc` và `/investigate` tự chạy lượt tiếp theo bằng account
+còn quota, **vẫn trên cùng phiên**, và in 1 dòng đầu lượt:
 
 ```
 ⚠️ acct1 hết quota (còn 0%) — chuyển sang acct3 (còn 5%).
@@ -336,8 +336,8 @@ Cơ chế:
 | Đọc quota còn lại từng account (cache 60s) | `lib/limits.js` → `accountUsage`, `surveyAccounts`, `pickAccountWithQuota` |
 | Chọn account + đồng bộ transcript trước khi resume | `lib/accountSwitch.js` → `chooseAccount` |
 | Spawn `claude` bằng account đã chọn | `lib/claude.js` → `claudeSSE({ env, notice })` |
-| Đánh dấu account cạn khi run báo hết hạn mức | `app/api/chat/route.js` → `markAccountExhausted` |
-| Đánh dấu account bị tổ chức chặn Claude Code | `app/api/chat/route.js` → `markAccountBlocked` (xem dưới) |
+| Đánh dấu account cạn khi run báo hết hạn mức | `app/api/{chat,release,evidence,kloc,investigate}/route.js` → `markAccountExhausted` |
+| Đánh dấu account bị tổ chức chặn Claude Code | `app/api/{chat,release,evidence,kloc,investigate}/route.js` → `markAccountBlocked` (xem dưới) |
 | Chạy lại NGAY trong lượt bằng account khác | `lib/claude.js` → `claudeSSE({ retry })` + `lib/accountSwitch.js` → `fallbackAccount` |
 
 Phiên nằm ở `<CLAUDE_CONFIG_DIR>/projects/<cwd-mã-hoá>/<session-id>.jsonl`, nên account mới phải

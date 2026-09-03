@@ -310,9 +310,9 @@ alt account had are moved over (never overwritten); a real `memory/` dir is move
 **Never symlink `.credentials.json`** — that file *is* the account identity. `todos/` and
 `file-history/` (`/rewind`) stay per-account by design.
 
-### Automatic fallback in `/chat`
+### Automatic fallback in `/chat`, `/release`, `/evidence`, `/kloc`, `/investigate`
 
-When the pm2 account runs out of quota, the chat console runs the next turn on the account with the
+When the pm2 account runs out of quota, those consoles run the next turn on the account with the
 most quota left, on the **same session**, and prints one line (`⚠️ acct1 hết quota … chuyển sang acct3`).
 Fail-open: if quota can't be read or the transcript can't be synced, it stays on the current account.
 Two non-quota failures also switch, since staying put would fail every turn: the account lost its
@@ -321,8 +321,8 @@ organization has disabled Claude subscription access for Claude Code`) — the l
 its own, so it is remembered for the process lifetime instead of the 60s quota cache. Both are only
 visible once the run has died, so the failed run is **re-spawned on another account inside the same
 turn** (up to 3 spawns) instead of costing the user a turn.
-Only `/chat`, `/release` and `/evidence` do this — job consoles still use the pm2 account. Details in
-`ui-next/README.md`.
+Only `/chat`, `/release`, `/evidence`, `/kloc` and `/investigate` do this — the remaining job consoles
+(`/auto`, `/feature`, `/rebase`, `/report`) still use the pm2 account. Details in `ui-next/README.md`.
 
 ### Manual handoff from a terminal
 

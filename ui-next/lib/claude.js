@@ -96,6 +96,29 @@ export const GIT_BRANCH_SAFETY = [
   "6. LỠ PUSH LÊN BASE: DỪNG NGAY, báo lại cho người dùng. KHÔNG tự revert/force-push `develop`/`main`.",
 ].join("\n");
 
+// Worktree cho console /chat ở chế độ sửa code (yêu cầu 2026-09-03): cây làm việc chính hay đang bận
+// (thay đổi chưa commit, đang ở nhánh của việc khác, hoặc console /auto,/feature,/rebase đang dùng),
+// `git switch` lúc đó là đè lên việc đang dở. Cho phép agent tự tạo worktree riêng để làm.
+// Đường dẫn BẮT BUỘC nằm trong repo: chat chỉ truy cập được các thư mục truyền qua --add-dir
+// (xem buildChatArgv), worktree đặt ngoài đó thì Read/Edit bị chặn.
+export const WORKTREE_INSTR = [
+  "## GIT WORKTREE — ĐƯỢC TỰ TẠO KHI SỬA CODE (không bắt buộc)",
+  "1. Cần sửa code mà cây làm việc chính đang bận (còn thay đổi chưa commit, đang ở nhánh của việc",
+  "   khác, hoặc job console khác có thể đang dùng) → ĐƯỢC tạo worktree riêng thay vì `git switch`",
+  "   trên repo chính: từ gốc repo chạy `git fetch origin <base>` rồi",
+  "   `git worktree add .worktrees/<branch-slug> -b <branch> origin/<base>`, sau đó làm việc trong đó.",
+  "   Cây làm việc chính sạch và đang ở base thì cứ tạo branch bình thường, không cần worktree.",
+  "2. Worktree PHẢI nằm TRONG repo, tại `<repo>/.worktrees/<branch-slug>`. Đặt ngoài repo thì bạn",
+  "   không đọc/ghi được (chỉ các thư mục được cấp qua --add-dir mới truy cập được).",
+  "3. `.worktrees/` chưa được ignore thì thêm dòng `.worktrees/` vào `.git/info/exclude` (chỉ có tác",
+  "   dụng local, không commit). KHÔNG sửa `.gitignore` của repo cho việc này.",
+  "4. Trong worktree vẫn áp dụng đầy đủ mục GIT — BRANCH & PUSH ở trên: không commit khi HEAD còn ở",
+  "   base, push lần đầu `git push -u origin HEAD`.",
+  "5. Báo đường dẫn worktree + tên nhánh cho người dùng ngay khi tạo. Xong việc (đã push/PR, hoặc bỏ)",
+  "   thì `git worktree remove <path>`; nếu còn thay đổi chưa commit thì GIỮ LẠI và nói rõ, KHÔNG tự xoá.",
+  "6. KHÔNG tạo worktree cho việc chỉ đọc, KHÔNG tạo 2 worktree cho cùng một nhánh (git sẽ từ chối).",
+].join("\n");
+
 // pm2 guardrail cho chính bộ ai-agent này. Console spawn `claude` nên agent là process CON của
 // ai-agent-ui-next: gõ thẳng `pm2 restart ai-agent-ui-next` là pm2 giết cả cây process, lệnh restart
 // chết giữa chừng và app không lên lại (đã dính 2026-08-26). Mọi restart phải đi qua script tự
@@ -221,6 +244,7 @@ function chatSystemPrompt(project, canEdit) {
       "Vì không có rào chắn, hãy cẩn trọng với thao tác phá huỷ (xoá, force-push, reset, drop DB) — chỉ làm khi yêu cầu rõ ràng. Sau khi thay đổi, giải thích ngắn gọn đã làm gì.",
       "Trả lời TIẾNG VIỆT, gọn, đúng trọng tâm. Tên branch/commit/PR/code giữ tiếng Anh theo convention của từng repo.",
       GIT_BRANCH_SAFETY,
+      WORKTREE_INSTR,
       NO_DEGRADE_SAFETY,
       PM2_OPS_SAFETY,
       snapshotInstr(""),
@@ -240,6 +264,7 @@ function chatSystemPrompt(project, canEdit) {
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash), và dùng Agent để gọi agent layer của story.",
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
         GIT_BRANCH_SAFETY,
+        WORKTREE_INSTR,
         NO_DEGRADE_SAFETY,
         snapshotInstr("http://localhost:3000"),
         debugInstr("http://localhost:3000")
@@ -263,6 +288,7 @@ function chatSystemPrompt(project, canEdit) {
         "Chế độ SỬA CODE BẬT: được đọc + CHỈNH SỬA file (Edit/Write), chạy lệnh read-only/build/test (Bash).",
         "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG --no-verify, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
         GIT_BRANCH_SAFETY,
+        WORKTREE_INSTR,
         NO_DEGRADE_SAFETY,
         snapshotInstr("http://localhost:4100"),
         debugInstr("http://localhost:4100")
@@ -284,6 +310,7 @@ function chatSystemPrompt(project, canEdit) {
       "Sau khi sửa, giải thích ngắn gọn những gì đã thay đổi.",
       "GIỚI HẠN: KHÔNG merge PR, KHÔNG deploy, KHÔNG force-push `develop`/`main` (force-push nhánh của mình được nếu cần). Tên branch/commit/PR/code giữ tiếng Anh theo convention.",
       GIT_BRANCH_SAFETY,
+      WORKTREE_INSTR,
       NO_DEGRADE_SAFETY,
       snapshotInstr("http://localhost:5173"),
       debugInstr("http://localhost:5173"),

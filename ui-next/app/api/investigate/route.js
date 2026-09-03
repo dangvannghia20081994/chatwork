@@ -12,10 +12,17 @@ import { buildInvestigateArgv } from "../../../lib/investigate.js";
 import { claudeSSE, cleanSessionId } from "../../../lib/claude.js";
 import { maybeSlashResponse } from "../../../lib/slashCommands.js";
 import { tagSession } from "../../../lib/sessions.js";
-import { resolveProject, ROOT } from "../../../lib/config.js";
+import { resolveProject, ROOT, accountEnv, currentAccountKey } from "../../../lib/config.js";
+import { markAccountExhausted, markAccountBlocked } from "../../../lib/limits.js";
+import { chooseAccount, fallbackAccount, LIMIT_RE, isLimitBlocked, isLimitResult, isBlockedResult, isBlockedText } from "../../../lib/accountSwitch.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Console investigate chạy cwd = repo rezil mặc định → thư mục phiên của nó là thư mục "rezil"
+// (KHÔNG thuộc ROOT_CWD_CONSOLES trong lib/sessions.js). Hằng số này giữ cho chooseAccount /
+// ensureSessionInAccount tra đúng thư mục .jsonl khi đổi account.
+const INVESTIGATE_PROJECT = "rezil";
 
 const SSE_HEADERS = {
   "Content-Type": "text/event-stream",
@@ -45,17 +52,71 @@ export async function GET(req) {
   }
 
   const argv = buildInvestigateArgv(message, session, nowStamp(), [...proj.addDirs, ROOT]);
+
+  // Hết quota → chạy lượt này bằng account khác, vẫn trên cùng phiên (giống /api/chat, /api/release).
+  // An toàn cho investigate vì toàn bộ luồng read-only và cả 3 account đều có cùng bộ MCP server
+  // (atlassian, mysql_207). Chỉ đổi được Ở ĐẦU LƯỢT hoặc khi lượt chết vì lỗi account (retry bên dưới).
+  const chosen = await chooseAccount(INVESTIGATE_PROJECT, session, "investigate");
+  let runAcct = chosen.acct;
+  const env = runAcct === currentAccountKey() ? undefined : accountEnv(runAcct);
+
+  // Lỗi thuộc về ACCOUNT (org tắt Claude Code / hết hạn mức) → chạy lại ngay trong lượt này bằng
+  // account khác, xem claudeSSE({ retry }) và app/api/chat/route.js.
+  let acctFailed = null;
+  // Chỉ đếm nội dung THẬT: CLI in lỗi account như text của assistant, đếm cả nó thì không bao giờ
+  // chạy lại được (xem app/api/chat/route.js).
+  let contentLen = 0;
   // hideSubagentText: khi chạy nhiều ticket, mỗi ticket là 1 sub-agent trả về đúng 1 dòng bảng.
   // Không đổ output thô đó ra chat — agent chính tự ráp thành bảng hoàn chỉnh; đổ ra thì vừa trùng,
   // vừa dính nhãn ticket vào cuối đoạn text của sub-agent.
   const stream = claudeSSE({
     cwd: proj.cwd,
     argv,
+    env,
+    notice: chosen.notice,
     onSession: true,
     hideSubagentText: true,
+    // Chạy lại trong cùng lượt khi account vừa dùng không dùng được nữa (xem app/api/chat/route.js).
+    retry: async () => {
+      if (!acctFailed || contentLen > 0) return null;
+      const fb = await fallbackAccount(INVESTIGATE_PROJECT, session, runAcct, acctFailed, "investigate");
+      if (!fb) return null;
+      runAcct = fb.acct;
+      acctFailed = null;
+      return { env: fb.env, notice: fb.notice };
+    },
     // Gắn nhãn console cho phiên để panel "Phiên đã lưu" của từng màn không lẫn nhau
     // (chat/release/rebase/investigate ghi .jsonl chung một thư mục — xem lib/sessions.js).
-    onEvent: (event, data) => { if (event === "session") tagSession(data, "investigate"); },
+    onEvent: (event, data) => {
+      if (event === "session") tagSession(data, "investigate");
+      if (event === "delta" && !isBlockedText(data) && !LIMIT_RE.test(data)) contentLen += data.length;
+      // CLI báo bị chặn hạn mức ngay khi request bị từ chối (trước cả event result) → đánh dấu sớm.
+      if (event === "rate_limit") {
+        if (isLimitBlocked(data)) markAccountExhausted(runAcct, `rate_limit_event status=${data.status} type=${data.rateLimitType}`);
+      } else if (event === "result") {
+        // Check "bị org chặn" trước "hết hạn mức" vì cụ thể hơn; cả hai đều để lượt sau đổi account.
+        if (isBlockedResult(data)) {
+          markAccountBlocked(runAcct, `result text=${String(data.resultText || "").slice(0, 120)}`);
+          acctFailed = "bị tổ chức chặn Claude Code";
+        } else if (isLimitResult(data)) {
+          markAccountExhausted(runAcct, `result api_error_status=${data.apiErrorStatus} text=${String(data.resultText || "").slice(0, 120)}`);
+          acctFailed = "hết hạn mức";
+        }
+      } else if (
+        event === "error_msg" &&
+        typeof data === "string" &&
+        data !== chosen.notice // đừng soi dòng notice do CHÍNH ta vừa phát ra ở đầu lượt
+      ) {
+        // Lỗi org chặn account đến qua stderr, không có mã 429 nào kèm → chỉ bắt được bằng text.
+        if (isBlockedText(data)) {
+          markAccountBlocked(runAcct, `error_msg khớp BLOCKED_RE: ${data.slice(0, 120)}`);
+          acctFailed = "bị tổ chức chặn Claude Code";
+        } else if (LIMIT_RE.test(data)) {
+          markAccountExhausted(runAcct, `error_msg khớp LIMIT_RE: ${data.slice(0, 120)}`);
+          acctFailed = "hết hạn mức";
+        }
+      }
+    },
   });
   return new Response(stream, { headers: SSE_HEADERS });
 }
