@@ -49,6 +49,9 @@ export const INVESTIGATE_ALLOWED = [
   "mcp__gsheets-rezil__rename_sheet",
   "mcp__gsheets-rezil__update_cells",
   "mcp__gsheets-rezil__batch_update_cells",
+  // batch_update là API thô — mở vì `copy_sheet` luôn đặt tab mới ở CUỐI, chỉ `updateSheetProperties`
+  // mới đẩy được tab về index 1. Prompt giới hạn đúng request đó (cấm deleteSheet/deleteDimension...).
+  "mcp__gsheets-rezil__batch_update",
 ];
 
 // Chặn mọi đường GHI: file, git/gh, Jira/Confluence. Bash vẫn mở (cần git log/blame/grep) nên phải
@@ -100,8 +103,7 @@ export const INVESTIGATE_DISALLOWED = [
   "mcp__atlassian__createConfluenceFooterComment",
   "mcp__atlassian__createConfluenceInlineComment",
   // Google Sheets: chỉ mở đúng bộ tool cần cho sheet degrade (xem INVESTIGATE_ALLOWED). Chặn thêm
-  // ở đây cho chắc — batch_update là API thô (xoá được cả sheet), create/share tạo file mới.
-  "mcp__gsheets-rezil__batch_update",
+  // ở đây cho chắc — create/share tạo file mới, add_rows/columns đổi khung bảng của template.
   "mcp__gsheets-rezil__create_spreadsheet",
   "mcp__gsheets-rezil__create_sheet",
   "mcp__gsheets-rezil__share_spreadsheet",
@@ -194,6 +196,15 @@ function degradeSheetLines() {
     "  điền/cập nhật vào chính tab đó và nói rõ là tab đã tồn tại.",
     `- Chưa có → \`copy_sheet\` với src_spreadsheet = dst_spreadsheet = ID trên, src_sheet = \`${template}\`,`,
     "  rồi `rename_sheet` thành đúng mã ticket degrade (vd `REZIL-2974`).",
+    `- ĐẶT TAB MỚI Ở INDEX 1 (ngay sau \`${template}\`, tức tab thứ hai). \`copy_sheet\` luôn thả tab mới`,
+    "  xuống CUỐI, nên sau khi rename PHẢI đẩy về chỗ: `batch_update` với ĐÚNG một request",
+    '  `{"updateSheetProperties": {"properties": {"sheetId": <id tab mới>, "index": 1}, "fields": "index"}}`.',
+    "  `sheetId` lấy từ kết quả `copy_sheet`; kết quả không có thì gọi `get_sheet_data` trên tab đó với",
+    "  `include_grid_data: true` rồi đọc `properties.sheetId`. Chưa biết chắc `sheetId` thì ĐỪNG gọi",
+    "  `batch_update` (ghi sai id là sửa vào tab của ticket khác) — báo lại là chưa xếp được vị trí.",
+    "- `batch_update` CHỈ được dùng cho đúng request `updateSheetProperties` đổi `index` nói trên. Cấm",
+    "  mọi request khác trong tool này, đặc biệt `deleteSheet`, `deleteDimension`, `insertDimension`,",
+    "  `updateCells`, `addSheet` — điền ô thì dùng `batch_update_cells`.",
     `- TUYỆT ĐỐI KHÔNG sửa tab \`${template}\` và KHÔNG sửa tab của ticket khác. Chỉ ghi vào tab vừa tạo.`,
     "- Trước khi điền, ĐỌC 1–2 tab đã làm (vd `REZIL-2974`, `REZIL-2941`) bằng `get_sheet_data` để bám",
     `  đúng nếp team. Tab copy từ \`${template}\` mang theo VÍ DỤ CŨ (bug A187 của project khác) ở`,
@@ -222,6 +233,18 @@ function degradeSheetLines() {
     "Ô Q&A của sheet này LÀ TÀI LIỆU KỸ THUẬT (khác 3 cột văn xuôi của bảng 5 cột): các câu 2/3/4/5 PHẢI có",
     "branch, commit id, commit comment, link commit, `file:line` — đúng bằng chứng đã tìm được. Không có",
     "bằng chứng thì ghi `(chưa xác định: <cái gì>)`, TUYỆT ĐỐI không bịa commit hash hay tên branch.",
+    "",
+    "MỌI COMMIT/PR NHẮC TỚI PHẢI KÈM LINK BẤM ĐƯỢC — không được để trơ mỗi hash. Ghi URL đầy đủ dạng",
+    "text thuần (Sheets tự biến thành link), KHÔNG dùng công thức `HYPERLINK`:",
+    "  `https://github.com/hybrid-tech-rezil/<repo>/commit/<sha đầy đủ 40 ký tự>`",
+    "  `https://github.com/hybrid-tech-rezil/<repo>/pull/<số PR>`",
+    "  `https://github.com/hybrid-tech-rezil/<repo>/tree/<branch>` (khi cần dẫn nhánh)",
+    "`<repo>` là một trong `rezil-esms` · `rezil-esms-lib` · `rezil-esms-mobile` · `rezil-esms-portal` —",
+    "phải đúng repo chứa commit đó, đừng suy đoán. Lấy sha đầy đủ bằng `git rev-parse <hash>` (hoặc",
+    "`git log --format=%H`), KHÔNG tự nối chuỗi từ hash 7–9 ký tự vào URL. Nếp trình bày (theo tab cũ),",
+    "mỗi ý một dòng trong cùng ô:",
+    "  `- Tên branch: <branch>` / `- Commit ID: <sha ngắn>` / `- Commit Comment: <comment>` / `- Link: <URL>`",
+    "Câu 4 nhắc `file:line` thì cũng nên kèm link commit tương ứng để PM/BrSE mở xem được.",
     "Riêng `B27` Summary và bảng Solution viết ngôn ngữ thường, không file:line.",
     "Điền bằng `batch_update_cells` (gộp một lần cho cả tab, ít lần gọi API hơn).",
     "",
