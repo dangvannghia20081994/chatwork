@@ -12,7 +12,7 @@ Cùng quy tắc với `SELECTORS_<SCREEN>.md`: lấy đúng đoạn, không nạ
 
 ---
 
-## 1. Số đếm tab MOB-011 (đo 2026-08-26)
+## 1. Số đếm từng tab
 
 ### Trạng thái hiện tại của tab MOB-011 (đo ngày 2026-08-26)
 
@@ -28,6 +28,48 @@ Cùng quy tắc với `SELECTORS_<SCREEN>.md`: lấy đúng đoạn, không nạ
 
 
 Đếm lại khi số đã cũ: đọc cột C/J/M của tab rồi tự cộng, không chép lại số ở trên.
+
+### Tab `TEMPLATE-002 Template Detail (View/Edit)` (đo 2026-08-27)
+
+| Chỉ số                | Giá trị                                                                    |
+|-----------------------|----------------------------------------------------------------------------|
+| Tổng TC               | 104 (TC 1 → 104, row 17 → 124; row header 12)                              |
+| Cột M đã có evidence  | 96 (TC 1 → 96)                                                             |
+| Cột M trống           | **8** — TC 97 → 104, ô `M117:M124`                                         |
+| Result cột J          | 104/104 = `OK`                                                             |
+| Định dạng file trong ô| `.webm` và `.png` xen kẽ, 4 ô `.mov`                                        |
+| Ô M chứa URL Drive    | 0 — toàn bộ là tên file trần                                                |
+| Folder Drive          | `1pBUQuEvk9p475dBXA1PshRLlWWZBD3zS` — 103 file, số `_001` → `_104`, thiếu `_094` `_095`; `_066` có cả `.png` và `.webm`; ext: `.png` 53 · `.webm` 48 · `.mov` 2 |
+
+Sai lệch đã phát hiện trong cột M của tab này (**không tự sửa** — chỉ báo lại người phụ trách):
+
+| TC       | Giá trị ô M                                     | Vấn đề                                                                 |
+|----------|-------------------------------------------------|------------------------------------------------------------------------|
+| 76       | `TEMPLATE-001_072.png`                          | sai mã màn (trỏ folder TEMPLATE-001); Drive có `TEMPLATE-002_076.png`  |
+| 94, 95   | ` TEMPLATE-002_090.mov`, ` TEMPLATE-002_091.mov` | file không tồn tại (Drive chỉ có `_090.webm` / `_091.webm`), và trùng file của TC 90/91; đúng ra phải là `_094` / `_095` — 2 số này đang thiếu trên Drive |
+| 23, 56, 88, 89 | có **khoảng trắng đầu** trong tên file     | so tên với Drive phải `trim()` trước khi đối chiếu                     |
+
+8 TC thiếu evidence (97 → 104) đều đã có file `TEMPLATE-002_097.png` → `_104.png` trên Drive
+→ chỉ cần gán link, không chụp lại.
+
+### Tab `TEMPLATE-002 (Create/Duplicate)` (đo 2026-08-27)
+
+| Chỉ số                | Giá trị                                                                    |
+|-----------------------|----------------------------------------------------------------------------|
+| Tổng TC               | 83 (TC **2** → 84, row 17 → 102; không có TC 1)                            |
+| Cột M đã có evidence  | 75 (TC 2 → 76)                                                             |
+| Cột M trống           | **8** — TC 77 → 84, ô `M95:M102`                                           |
+| Result cột J          | 83/83 = `OK`                                                               |
+| Ánh xạ file ↔ TC      | file `_NNN` = TC `NNN + 1` (lệch 1 vì TC đầu tiên là 2) — xem SPEC §3      |
+| Ô M chứa URL Drive    | 0 — toàn bộ là tên file trần                                                |
+| Folder Drive          | `1hr6ZnEoALmzFjHNKKeHfWgdBaLuunnpP` (`TEMPLATE-002_CREATE`) — 78 file, số `_001` → `_079`, thiếu `_076`; ext: `.webm` 64 · `.png` 14 |
+
+Sai lệch: ô M của **TC 51** ghi `TEMPLATE-002_049.webm`, trùng đúng file của TC 50; theo ánh xạ
+lệch 1 thì phải là `_050.webm` (file này có trên Drive nhưng chưa TC nào trỏ tới). Không tự sửa.
+
+Dải TC 77 → 84: Drive có `_077` `_078` `_079` chưa ô nào trỏ tới. Theo ánh xạ lệch 1, đó là
+evidence của TC 78/79/80 và TC 77 (`_076`) chưa có file. Chưa xác nhận được bằng tên file —
+xem mục cần confirm ở SPEC §3 trước khi gán link hoặc chụp mới.
 
 ---
 
@@ -61,7 +103,13 @@ Evidence cũ trên Drive lẫn nhiều kiểu (`MOB-011_0001.webm` 4 chữ số,
 
 ### Khác biệt khi chụp web admin
 
-| Khác biệt khi chụp admin | **Chưa verify tính tới 2026-08-26** — mọi mục dưới đây trong bảng này (`Lệnh mẫu`, `Viewport`, `Điều hướng`, `Selector`, `Không được bấm`) đều đo trên web mobile. Trước batch admin đầu tiên phải chạy 1 lần để chốt: preset `--login rezil` có khớp form login admin không · admin có URL routing hay không (nếu có thì `goto:<url>` được, khác app mobile Ionic ở dòng `Điều hướng`) · viewport desktop dùng thay cho `744×1133` · selector BEM của màn admin. Cờ GPS ở dòng `GPS` chỉ cần cho luồng submit của app mobile; nếu màn admin cũng chặn theo vị trí thì phải đổi origin trong cờ thành `http://admin.10.9.17.207.nip.io` |
+Đã verify 2026-08-27: web admin là **SvelteKit có URL routing** (repo `rezil-esms/app/src/routes/(admin)/admin/…`),
+nên `goto:<url>` dùng được — không phải đi từ `/` như app mobile Ionic. Route đã kiểm của TEMPLATE-002:
+`/admin/template` (list) · `/admin/template/<id>` (view/edit) · `/admin/template/create` ·
+`/admin/template/<id>/duplicate`. `http://admin.10.9.17.207.nip.io/` và `/admin/template` đều trả HTTP 200.
+Cột Steps của 2 tab TEMPLATE-002 ghi URL `admin/mypage{id}` — lỗi copy từ tab MYPAGE, không phải URL thật.
+
+| Khác biệt khi chụp admin | **Chưa verify tính tới 2026-08-26** — mọi mục dưới đây trong bảng này (`Lệnh mẫu`, `Viewport`, `Điều hướng`, `Selector`, `Không được bấm`) đều đo trên web mobile. Trước batch admin đầu tiên phải chạy 1 lần để chốt: preset `--login rezil` có khớp form login admin không · viewport desktop dùng thay cho `744×1133` · selector BEM của màn admin. Cờ GPS ở dòng `GPS` chỉ cần cho luồng submit của app mobile; nếu màn admin cũng chặn theo vị trí thì phải đổi origin trong cờ thành `http://admin.10.9.17.207.nip.io` |
 
 ### Khi nào cần headed
 
@@ -215,3 +263,6 @@ SELECT r.is_rejected, COUNT(*) FROM rezil_esms_inspection.report r
 - Tab MOB-011 (gid=441162473): `MOB-011 点検報告 (Inspection Report)`
 - Folder evidence MOB-011: https://drive.google.com/drive/folders/10ZYvBxO9Oa2gbTmibKy6DnCrO_wxYAZB
 - Ví dụ folder của sheet khác: https://drive.google.com/drive/folders/1iTncxHQtHoQy1V9f_i9EnPsulVyLj6QM
+- Tab `TEMPLATE-002 Template Detail (View/Edit)`: https://drive.google.com/drive/folders/1pBUQuEvk9p475dBXA1PshRLlWWZBD3zS (folder `TEMPLATE-002`)
+- Tab `TEMPLATE-002 (Create/Duplicate)`: https://drive.google.com/drive/folders/1hr6ZnEoALmzFjHNKKeHfWgdBaLuunnpP (folder `TEMPLATE-002_CREATE`)
+- Folder cha chứa mọi folder evidence theo màn (shared-with-me): `REZ001_レジル電気保安株式会社様_基幹システムと関連システムのリニューアル/02_Development/23_Testing/Test Evidence/`
