@@ -69,16 +69,39 @@ Sau khi set label môi trường, ticket phải được **assign lại** — ng
 
 | Môi trường | Assignee mới | Nguồn |
 |---|---|---|
-| **DEV1** | **người yêu cầu build ticket đó** | mapping ticket → người request do caller cấp trong yêu cầu build, vd "YenLTB yêu cầu build DEV1 REZIL-3001" ⇒ `REZIL-3001` → `HTV - YenLTB` |
+| **DEV1** | **người yêu cầu build ticket đó** | **TỰ ĐỌC COMMENT của ticket** — tác giả comment yêu cầu build (xem cách tìm bên dưới) |
 | **STG** | **reporter của ticket đó** | `getJiraIssue` field `reporter.accountId` |
 
 **Assign THEO TỪNG TICKET, KHÔNG assign cả đợt cho một người.** Cả 2 môi trường đều có thể có nhiều người
 khác nhau trong cùng đợt (mỗi ticket một người request / một reporter) — phải dựng **bảng ticket → assignee**
 trước khi ghi, mỗi ticket ghi accountId của đúng người ticket đó.
 
-- Lấy accountId: DEV1 dùng `mcp__atlassian__lookupJiraAccountId` cho từng tên caller cấp (cache lại, tên trùng nhau thì lookup 1 lần); STG đọc thẳng `reporter.accountId` từ `getJiraIssue` của từng ticket (KHÔNG cần lookup).
+#### DEV1 — tìm người yêu cầu build trong comment ticket
+
+Không hỏi caller trước, **tự đọc comment từng ticket**:
+
+1. `getJiraIssue` với `fields: ["comment","reporter","assignee","labels","status"]`, `responseContentFormat: "markdown"`
+   (response trả `fields.comment.comments` và `comments` trùng nội dung — đọc 1 chỗ, đừng xử lý 2 lần).
+2. Duyệt comment từ **mới nhất về cũ** (theo `created`), lấy comment ĐẦU TIÊN là **yêu cầu build** — nội dung có
+   ý "nhờ dev merge / build" hoặc "SQA verified OK ... build dev1". Mẫu thực tế (REZIL-3078, comment 16:05 03/09):
+   ```
+   SQA verified OK on server 207
+
+   Nhờ dev merge và build dev1
+   ```
+   Nhận diện không phân biệt hoa/thường: có `build` kèm `dev1`/`stg`/`staging`, hoặc `nhờ dev merge`,
+   hoặc `SQA verified OK`. Bỏ qua comment PR / `Review: OK` / `Check OK trên 207` — đó không phải yêu cầu build.
+3. Assignee = `author.accountId` của comment đó (**có sẵn accountId ⇒ KHÔNG cần `lookupJiraAccountId`**).
+   Vd trên ⇒ `HTV - YenLTB` / `712020:8f7cfa81-453f-4aa7-832f-5d97172583f8`.
+4. Ticket không có comment nào khớp → **KHÔNG đoán**: dùng tên caller đã nêu trong yêu cầu build (nếu có,
+   tra accountId bằng `lookupJiraAccountId`); không có nữa thì để ticket đó lại và **hỏi caller**, các ticket khác
+   vẫn xử lý bình thường.
+5. Bảng `ticket → assignee` đưa vào confirm phải ghi kèm **nguồn** mỗi dòng (id comment / caller cấp) để caller soát.
+
+#### Chung
+
 - Ghi: `editJiraIssue` fields `{"assignee": {"accountId": "<id>"}}` — gộp cùng lượt với `labels` cho ticket đó, không tách 2 lần ghi.
-- **KHÔNG ĐOÁN người nhận.** DEV1 mà yêu cầu build không nêu ai request, hoặc nêu nhiều người mà không rõ ticket nào của ai → **DỪNG, hỏi caller** cho đủ mapping; không tự lấy assignee hiện tại / reporter / chính mình, không lấy người của ticket khác. Caller nêu ĐÚNG 1 người cho cả đợt → người đó cho mọi ticket.
+- Caller nêu rõ người request (1 người cho cả đợt, hoặc mapping từng ticket) → **ưu tiên caller**, comment chỉ dùng khi caller không nêu.
 - `lookupJiraAccountId` ra 0 hoặc nhiều kết quả cho một tên → báo caller chọn, không tự chọn.
 - STG mà ticket không có reporter (hiếm) → báo caller, để nguyên assignee cũ.
 - Assignee mới trùng assignee hiện tại → bỏ qua (không cần ghi), ghi rõ "đã đúng người" trong tổng kết.
